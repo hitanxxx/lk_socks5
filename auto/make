@@ -1,0 +1,159 @@
+echo "creating $L_MAKEFILE"
+
+mkdir -p $L_OBJS/src \
+	$L_OBJS/src/test \
+	$L_OBJS/src/util \
+	$L_OBJS/src/base \
+	$L_OBJS/src/http \
+	$L_OBJS/src/lktp/ \
+	$L_OBJS/src/app/ \
+	$L_OBJS/src/apis/ \
+
+
+l_objs_dir=$L_OBJS$l_regex_dirsep
+l_use_pch=`echo $L_USE_PCH | sed -e "s/\//$l_regex_dirsep/g"`
+CORE_LIBS="-lssl -lcrypto -pthread"
+
+#INCS="$INCS lib/openssl/include"
+#DEPS="$DEPS lib/openssl/include/openssl/ssl.h"
+#CORE_LIBS="$CORE_LIBS lib/libssl.so"
+#CORE_LIBS="$CORE_LIBS lib/libcrypto.so"
+#CORE_LIBS="$CORE_LIBS lib/libpthread.so"
+#CORE_LIBS="$CORE_LIBS -ldl"
+
+cat << END  > $L_MAKEFILE
+
+CC =	$CC
+CFLAGS = $CFLAGS
+CPP =	$CPP
+LINK =	$LINK
+
+END
+
+if test -n "$L_PERL_CFLAGS"; then
+    echo L_PERL_CFLAGS = $L_PERL_CFLAGS  >> $L_MAKEFILE
+    echo L_PM_CFLAGS = $L_PM_CFLAGS      >> $L_MAKEFILE
+fi
+
+l_test_incs=
+
+l_incs=`echo $TEST_INCS $INCS $L_OBJS \
+    | sed -e "s/  *\([^ ][^ ]*\)/$l_regex_cont$l_include_opt\1/g" \
+          -e "s/\//$l_regex_dirsep/g"`
+
+cat << END                                 >> $L_MAKEFILE
+
+ALL_INCS = $l_include_opt$l_incs
+
+END
+### makefile
+
+
+l_all_srcs="$SRCS"
+
+
+# the core dependencies and include paths
+
+l_deps=`echo $DEPS $L_AUTO_CONFIG_H $L_PCH \
+    | sed -e "s/  *\([^ ][^ ]*\)/$l_regex_cont\1/g" \
+          -e "s/\//$l_regex_dirsep/g"`
+
+
+l_incs=`echo $INCS $L_OBJS \
+    | sed -e "s/  *\([^ ][^ ]*\)/$l_regex_cont$l_include_opt\1/g" \
+          -e "s/\//$l_regex_dirsep/g"`
+
+cat << END >> $L_MAKEFILE
+
+DEPS = $l_deps
+
+INCS = $l_include_opt$l_incs
+
+END
+
+
+
+# L
+
+l_all_srcs=`echo $l_all_srcs | sed -e "s/\//$l_regex_dirsep/g"`
+
+for l_src in $L_ADDON_SRCS
+do
+    l_obj="addon/`basename \`dirname $l_src\``"
+
+    test -d $L_OBJS/$l_obj || mkdir -p $L_OBJS/$l_obj
+
+    l_obj=`echo $l_obj/\`basename $l_src\` \
+        | sed -e "s/\//$l_regex_dirsep/g"`
+
+    l_all_srcs="$l_all_srcs $l_obj"
+done
+
+l_all_objs=`echo $l_all_srcs \
+    | sed -e "s#\([^ ]*\.\)cpp#$L_OBJS\/\1$l_objext#g" \
+          -e "s#\([^ ]*\.\)cc#$L_OBJS\/\1$l_objext#g" \
+          -e "s#\([^ ]*\.\)c#$L_OBJS\/\1$l_objext#g" \
+          -e "s#\([^ ]*\.\)S#$L_OBJS\/\1$l_objext#g"`
+
+l_modules_c=`echo $L_MODULES_C | sed -e "s/\//$l_regex_dirsep/g"`
+
+l_modules_obj=`echo $l_modules_c | sed -e "s/\(.*\.\)c/\1$l_objext/"`
+
+
+if test -n "$L_RES"; then
+   l_res=$L_RES
+else
+   l_res="$L_RC $L_ICONS"
+   l_rcc=`echo $L_RCC | sed -e "s/\//$l_regex_dirsep/g"`
+fi
+
+l_deps=`echo $l_all_objs $l_modules_obj $l_res $LINK_DEPS \
+    | sed -e "s/  *\([^ ][^ ]*\)/$l_regex_cont\1/g" \
+          -e "s/\//$l_regex_dirsep/g"`
+
+l_objs=`echo $l_all_objs $l_modules_obj \
+    | sed -e "s/  *\([^ ][^ ]*\)/$l_long_regex_cont\1/g" \
+          -e "s/\//$l_regex_dirsep/g"`
+
+if test -n "$L_LD_OPT$CORE_LIBS"; then
+    l_libs=`echo $L_LD_OPT $CORE_LIBS \
+        | sed -e "s/\//$l_regex_dirsep/g" -e "s/^/$l_long_regex_cont/"`
+fi
+
+l_link=${CORE_LINK:+`echo $CORE_LINK \
+    | sed -e "s/\//$l_regex_dirsep/g" -e "s/^/$l_long_regex_cont/"`}
+
+
+cat << END  >> $L_MAKEFILE
+
+$L_OBJS${l_dirsep}lk${l_binext}:	$l_deps$l_spacer
+	\$(LINK) ${l_long_start}${l_binout}$L_OBJS${l_dirsep}lk$l_long_cont$l_objs$l_libs$l_link
+	$l_rcc
+${l_long_end}
+END
+
+
+# the core sources
+if test -n "$L_PCH"; then
+    l_cc="\$(CC) $l_compile_opt \$(CFLAGS) $l_use_pch \$(ALL_INCS)"
+else
+    l_cc="\$(CC) $l_compile_opt \$(CFLAGS) \$(INCS)"
+fi
+
+for l_src in $SRCS
+do
+    l_src=`echo $l_src | sed -e "s/\//$l_regex_dirsep/g"`
+    l_obj=`echo $l_src \
+        | sed -e "s#^\(.*\.\)cpp\\$#$l_objs_dir\1$l_objext#g" \
+              -e "s#^\(.*\.\)cc\\$#$l_objs_dir\1$l_objext#g" \
+              -e "s#^\(.*\.\)c\\$#$l_objs_dir\1$l_objext#g" \
+              -e "s#^\(.*\.\)S\\$#$l_objs_dir\1$l_objext#g"`
+
+    cat << END >> $L_MAKEFILE
+
+$l_obj:	\$(DEPS)$l_cont$l_src
+	$l_cc$l_tab$l_objout$l_obj$l_tab$l_src$L_AUX
+
+END
+
+done

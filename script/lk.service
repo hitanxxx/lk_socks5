@@ -1,0 +1,17 @@
+[Unit]
+Description=lk
+Wants=network-online.target
+After=network-online.target
+
+
+[Service]
+Type=forking
+PIDFile=/usr/local/lk/logs/pid
+ExecStart=/usr/local/lk/sbin/lk
+ExecReload=/usr/local/lk/sbin/lk -reload
+ExecStop=/usr/local/lk/sbin/lk -stop
+TimeoutStopSec=3
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

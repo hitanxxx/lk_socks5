@@ -1,0 +1,33 @@
+
+PIPE="-pipe"
+
+
+
+# optimizations
+
+#XK_GCC_OPT="-O2"
+#XK_GCC_OPT="-Os"
+XK_GCC_OPT="-O"
+#XK_GCC_OPT="-O4"
+
+CFLAGS="$CFLAGS -fomit-frame-pointer"
+
+
+# -W requires at least -O
+#
+CFLAGS="$CFLAGS ${XK_GCC_OPT:--O} -W"
+
+CFLAGS="$CFLAGS -Wall -Wpointer-arith"
+
+
+CFLAGS="$CFLAGS -Wconversion"
+CFLAGS="$CFLAGS -Winline"
+CFLAGS="$CFLAGS -Wmissing-prototypes"
+
+CFLAGS="$CFLAGS -Wno-unused"
+
+# stop on warning
+CFLAGS="$CFLAGS -Werror"
+
+# debug
+CFLAGS="$CFLAGS -g"

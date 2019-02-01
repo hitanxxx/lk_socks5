@@ -1,0 +1,28 @@
+
+LINK="\$(CC)"
+
+l_include_opt="-I "
+l_compile_opt="-c"
+l_objout="-o "
+l_binout="-o "
+l_objext="o"
+l_binext=
+
+l_long_start=
+l_long_end=
+
+l_regex_dirsep="\/"
+l_dirsep='/'
+
+l_regex_cont=' \\\
+	'
+l_cont=' \
+	'
+l_tab=' \
+		'
+l_spacer=
+
+l_long_regex_cont=$l_regex_cont
+l_long_cont=$l_cont
+
+. auto/cc/gcc

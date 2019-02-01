@@ -1,0 +1,22 @@
+cat << END >> $L_MAKEFILE
+
+install:
+	test -d /usr/local/lk || mkdir -p /usr/local/lk
+	test -d /usr/local/lk/config || cp -rf config /usr/local/lk/config
+	test -d /usr/local/lk/log || mkdir -p /usr/local/lk/logs
+	test -d /usr/local/lk/www || cp -rf www /usr/local/lk
+	test -d /usr/local/lk/sbin || mkdir -p /usr/local/lk/sbin
+	cp objs/lk /usr/local/lk/sbin/
+END
+
+cat << END >> Makefile
+
+build:
+	\$(MAKE) -f $L_MAKEFILE
+
+install:
+	\$(MAKE) -f $L_MAKEFILE install
+
+upgrade:
+
+END

@@ -1,0 +1,27 @@
+#!/bin/sh
+
+LC_ALL=C
+export LC_ALL
+
+CC=${CC:-gcc}
+CPP=
+L_OBJS=objs
+L_MAKEFILE=$L_OBJS/Makefile
+
+l_n=
+l_c='\c'
+
+cat << END > Makefile
+default:	build
+
+clean:
+	rm -rf Makefile $L_OBJS
+END
+
+. auto/sources
+
+test -d $L_OBJS || mkdir -p $L_OBJS
+
+. auto/cc/conf
+. auto/make
+. auto/install
