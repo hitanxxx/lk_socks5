@@ -12,6 +12,6 @@
 	"sslkey":"/usr/local/lksocks5/certificate/server.key",
 
 	"socks5":{
-		"mode":"client"
+		"mode":"server"
 	}
 }
