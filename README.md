@@ -1,4 +1,4 @@
-# LK_SOCKS5
+# LKSOCKS5
 
 # Introduce
 lk-socks5 一个由c编写的socks5代理软件。支持linux系统。client与server使用OpenSSL加密。迅速，快捷。</br>使用LK网络框架驱动，业务代码量较少。可以作为熟悉socks5协议的历程使用。
