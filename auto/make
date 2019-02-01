@@ -126,8 +126,8 @@ l_link=${CORE_LINK:+`echo $CORE_LINK \
 
 cat << END  >> $L_MAKEFILE
 
-$L_OBJS${l_dirsep}lk${l_binext}:	$l_deps$l_spacer
-	\$(LINK) ${l_long_start}${l_binout}$L_OBJS${l_dirsep}lk$l_long_cont$l_objs$l_libs$l_link
+$L_OBJS${l_dirsep}lksocks5${l_binext}:	$l_deps$l_spacer
+	\$(LINK) ${l_long_start}${l_binout}$L_OBJS${l_dirsep}lksocks5$l_long_cont$l_objs$l_libs$l_link
 	$l_rcc
 ${l_long_end}
 END

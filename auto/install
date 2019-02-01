@@ -1,12 +1,12 @@
 cat << END >> $L_MAKEFILE
 
 install:
-	test -d /usr/local/lk || mkdir -p /usr/local/lk
-	test -d /usr/local/lk/config || cp -rf config /usr/local/lk/config
-	test -d /usr/local/lk/log || mkdir -p /usr/local/lk/logs
-	test -d /usr/local/lk/www || cp -rf www /usr/local/lk
-	test -d /usr/local/lk/sbin || mkdir -p /usr/local/lk/sbin
-	cp objs/lk /usr/local/lk/sbin/
+	test -d /usr/local/lksocks5 || mkdir -p /usr/local/lksocks5
+	test -d /usr/local/lksocks5/config || cp -rf config /usr/local/lksocks5/config
+	test -d /usr/local/lksocks5/log || mkdir -p /usr/local/lksocks5/logs
+	test -d /usr/local/lksocks5/sbin || mkdir -p /usr/local/lksocks5/sbin
+	test -d /usr/local/lksocks5/certificate/ || cp -rf certificate /usr/local/lksocks5/certificate
+	cp objs/lksocks5 /usr/local/lksocks5/sbin/
 END
 
 cat << END >> Makefile

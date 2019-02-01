@@ -8,8 +8,8 @@
 	"log_error":true,
 	"log_debug":false,
 
-	"sslcrt":"/usr/local/lk/www/certificate/server.crt",
-	"sslkey":"/usr/local/lk/www/certificate/server.key",
+	"sslcrt":"/usr/local/lksocks5/certificate/server.crt",
+	"sslkey":"/usr/local/lksocks5/certificate/server.key",
 
 	"socks5":{
 		"mode":"client"
