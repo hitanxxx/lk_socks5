@@ -2,7 +2,7 @@
 #define _L_SOCKS5_H_INCLUDED_
 
 #define SOCKS5_META_LENGTH	4096
-#define SOCKS5_TIME_OUT	5
+#define SOCKS5_TIME_OUT	30
 
 #define SOCKS5_SERVER	0x0001
 #define SOCKS5_CLIENT	0x0002
@@ -21,7 +21,7 @@ typedef struct socks5_request_t {
 	char		cmd;
 	char		rsv;
 	char		atyp;
-	
+
 	char		dst_addr[256];
 	int32 		offset;
 	char		host_len;
@@ -33,7 +33,7 @@ typedef struct socks5_cycle_t {
 	socks5_request_t	request;
 	connection_t * 		down;
 	connection_t * 		up;
-	
+
 	net_transport_t * in;
 	net_transport_t * out;
 } socks5_cycle_t;
