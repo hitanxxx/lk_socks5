@@ -62,3 +62,4 @@ client占用1080端口。server占用3333端口。</br>
 		"mode":"client",</br>
 		"serverip":"1.1.1.1"
 	}
+配置完成后，使用firefox浏览器，设置socks协议v5到client端的1080端口。勾选代理dns查询即可。
