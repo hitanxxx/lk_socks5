@@ -36,11 +36,6 @@ status dynamic_module_init( void )
 	net_init();
 	timer_init();
 	event_process_init();
-	http_response_head_init_module();
-	http_request_head_init_module();
-	http_entitybody_init_module();
-	lktp_head_init();
-	lktp_body_init();
 	return OK;
 }
 // dynamic_module_end ------------
@@ -50,11 +45,6 @@ status dynamic_module_end( void )
 	net_end();
 	timer_end();
 	event_process_end();
-	http_response_head_end_module();
-	http_request_head_end_module();
-	http_entitybody_end_module();
-	lktp_head_end();
-	lktp_body_end();
 	return OK;
 }
 // lk_daemon ---------------

@@ -26,12 +26,6 @@
 #include "l_ssl.h"
 #include "l_net.h"
 #include "l_net_transport.h"
-#include "l_http_entitybody.h"
-#include "l_http_response_head.h"
-#include "l_http_request_head.h"
-#include "l_lktp_head.h"
-#include "l_lktp_body.h"
-#include "l_lktp_request.h"
 #include "l_socks5_server.h"
 #include "l_socks5_local.h"
 

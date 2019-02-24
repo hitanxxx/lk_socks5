@@ -4,8 +4,6 @@ INCS="src \
 src/base \
 src/test \
 src/util \
-src/http \
-src/lktp \
 src/app \
 src/apis \
 "
@@ -31,12 +29,6 @@ src/base/l_timer.h \
 src/base/l_ssl.h \
 src/base/l_send.h \
 src/base/l_serv.h \
-src/http/l_http_entitybody.h \
-src/http/l_http_response_head.h \
-src/http/l_http_request_head.h \
-src/lktp/l_lktp_head.h \
-src/lktp/l_lktp_body.h \
-src/lktp/l_lktp_request.h \
 src/app/l_socks5_server.h \
 src/app/l_socks5_local.h \
 src/util/l_list.h \
@@ -69,12 +61,6 @@ src/base/l_json.c \
 src/base/l_ssl.c \
 src/base/l_send.c \
 src/base/l_serv.c \
-src/http/l_http_entitybody.c \
-src/http/l_http_response_head.c \
-src/http/l_http_request_head.c \
-src/lktp/l_lktp_head.c \
-src/lktp/l_lktp_body.c \
-src/lktp/l_lktp_request.c \
 src/app/l_socks5_server.c \
 src/app/l_socks5_local.c \
 \
