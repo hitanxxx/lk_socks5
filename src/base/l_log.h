@@ -1,7 +1,7 @@
 #ifndef _L_LOG_H_INCLUDED_
 #define _L_LOG_H_INCLUDED_
 
-#define LOG_TIME_LENGTH		strlen("[0000/00/00]-[00:00:00]-")
+#define LOG_TIME_LENGTH		strlen("0000-00-00 00:00:00 ")
 #define LOG_LEVEL_LENGTH	strlen("[ xxxxx ]-")
 #define	LOG_TEXT_LENGTH		1024
 #define	LOG_LENGTH	LOG_TIME_LENGTH + LOG_LEVEL_LENGTH + LOG_TEXT_LENGTH
