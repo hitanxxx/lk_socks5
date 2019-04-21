@@ -13,7 +13,7 @@ static status send_chains_iovec( send_iovec_t * send_iov, meta_t * meta )
 			break;
 		}
 		if( n > MAX_IVO_NUM ) {
-			err_log ( "%s --- meta chain > MAX_IVO_NUM", __func__ );
+			err ( " meta chain > MAX_IVO_NUM\n" );
 			return ERROR;
 		}
 		send_iov->all_len += meta_len( cl->pos, cl->last );
@@ -80,7 +80,7 @@ status send_chains( connection_t * c , meta_t * send_meta )
 		meta = n;
 	}
 	if( !meta ) {
-		err_log ( "%s --- meta chain empty", __func__ );
+		err ( " meta chain empty\n" );
 		return ERROR;
 	}
 
@@ -88,7 +88,7 @@ status send_chains( connection_t * c , meta_t * send_meta )
 		sent = send_chains_iovec( &send_iov, meta );
 		if( sent != OK ) {
 			if( sent == ERROR ) {
-				err_log ( "%s --- send_chains_iovec failed", __func__ );
+				err ( " send_chains_iovec failed\n" );
 				return ERROR;
 			}
 		}
@@ -105,11 +105,11 @@ eintr:
 				} else if ( errno == EAGAIN ) {
 					return AGAIN;
 				} else {
-					err_log ( "%s --- writev failed, [%d]", __func__, errno );
+					err ( " writev failed, [%d]\n", errno );
 					return ERROR;
 				}
 			} else if ( sent == 0 ) {
-				err_log ( "%s --- writev return 0, peer closed", __func__ );
+				err ( " writev return 0, peer closed\n" );
 				return ERROR;
 			}
 		}
@@ -130,10 +130,10 @@ ssize_t recvs( connection_t * c, char * start, uint32 len )
 		if( errno == EAGAIN ) {
 			return AGAIN;
 		}
-		err_log("%s --- recv failed, [%d]", __func__, errno );
+		err(" recv failed, [%d]\n", errno );
 		return ERROR;
 	} else if ( rc == 0 ) {
-		err_log ( "%s --- recv return 0, peer closed", __func__ );
+		err ( " recv return 0, peer closed\n" );
 		return ERROR;
 	} else {
 		return rc;
@@ -149,10 +149,10 @@ ssize_t sends( connection_t * c, char * start, uint32 len )
 		if( errno == EAGAIN ) {
 			return AGAIN;
 		}
-		err_log ( "%s --- send failed, [%d]", __func__, errno );
+		err ( " send failed, [%d]\n", errno );
 		return ERROR;
 	} else if ( rc == 0 ) {
-		err_log ( "%s --- send return 0, peer closed", __func__ );
+		err ( " send return 0, peer closed\n" );
 		return ERROR;
 	} else {
 		return rc;

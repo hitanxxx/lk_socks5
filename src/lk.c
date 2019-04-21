@@ -3,48 +3,59 @@
 static char * l_process_signal = NULL;
 static int32  l_process_signal_type = 0;
 
+modules_init_t init_modules[] = {
+	{log_init,			"log"},
+	{config_init,		"config"},
+	{l_signal_init,		"signal"},	// no end
+	{process_init,		"process"},	// no end
+	{listen_init,		"listen"},
+	{ssl_init,			"ssl"},		// no end
+	{serv_init,			"serv"},
+	{net_init,			"net"},
+	{timer_init,		"timer"},
+		
+	{socks5_server_init,	"socks5_serv"},	// no end
+	{socks5_local_init,		"socks5_local"},// no end
+	{NULL,	NULL}
+};
 // module_init -----------------
 static status module_init( void )
 {
-	log_init();
-	config_init();
-	l_signal_init();	// no end
-	process_init();		// no end
-	listen_init();
-	event_init();
-	ssl_init();			// no end
-	serv_init();
-
-	socks5_server_init(); 	// no end
-	socks5_local_init(); 	// no end
+	int i = 0;
+	
+	while( init_modules[i].pt != NULL ) {
+		if( OK != init_modules[i].pt() ) {
+			err("modules init failed [%s]\n", init_modules[i].str );
+			return ERROR;
+		}
+		i++;
+	}
 	return OK;
 }
 // modules_end ----------------
 status modules_end( void )
 {
-	debug_log("%s --- ", __func__ );
+	debug("running\n");
 	log_end();
 	config_end();
 	listen_end();
-	event_end();
+	
 	serv_end();
+
+	net_end();
+	timer_end();
 	return OK;
 }
 // dynamic_module_init ------------
 status dynamic_module_init( void )
 {
-	net_init();
-	timer_init();
-	event_process_init();
+	event_init();
 	return OK;
 }
 // dynamic_module_end ------------
 status dynamic_module_end( void )
 {
-	debug_log("%s --- ", __func__ );
-	net_end();
-	timer_end();
-	event_process_end();
+	event_end();
 	return OK;
 }
 // lk_daemon ---------------
@@ -59,7 +70,7 @@ static status lk_daemon( void )
 	rc = fork( );
 	switch( rc ) {
 		case ( ERROR ):
-			err_log("%s --- fork", __func__ );
+			err("fork\n" );
 			break;
 		case ( 0 ):
 			break;
@@ -68,32 +79,32 @@ static status lk_daemon( void )
 	}
 
     if (setsid() == ERROR ) {
-        err_log("%s --- setsid", __func__ );
+        err("setsid\n");
         return ERROR;
     }
     umask(0);
     fd = open("/dev/null", O_RDWR);
     if (fd == -1) {
-        err_log("%s --- open /dev/null", __func__ );
+        err("open /dev/null\n");
         return ERROR;
     }
     if (dup2(fd, STDIN_FILENO) == -1) {
-        err_log( "%s --- dup2(STDIN) failed", __func__ );
+        err( "dup2(STDIN) failed\n");
         return ERROR;
     }
     if (dup2(fd, STDOUT_FILENO) == -1) {
-        err_log( "%s --- dup2(STDOUT) failed", __func__ );
+        err( "dup2(STDOUT) failed\n");
         return ERROR;
     }
 #if 0
     if (dup2(fd, STDERR_FILENO) == -1) {
-        err_log( "%s --- dup2(STDERR) failed", __func__ );
+        err( "%s --- dup2(STDERR) failed", __func__ );
         return ERROR;
     }
 #endif
     if (fd > STDERR_FILENO) {
         if (close(fd) == -1) {
-            err_log( "%s --- close() failed", __func__ );
+            err( "close() failed\n");
             return ERROR;
         }
     }
@@ -108,13 +119,13 @@ static status create_pid_file(  )
 
 	pid_file = open( L_PATH_PIDFILE, O_CREAT | O_RDWR | O_TRUNC, 0644 );
 	if( pid_file == ERROR ) {
-		err_log("%s --- pidfile open", __func__ );
+		err("pidfile open\n");
 		return ERROR;
 	}
 	snprintf( str, sizeof(str) - sizeof('\0'), "%d", getpid() );
 	rc = write( pid_file, str, strlen(str) );
 	if( rc == ERROR ) {
-		err_log("%s --- write pid to pidfile", __func__ );
+		err(" write pid to pidfile\n" );
 		return ERROR;
 	}
 	close( pid_file );
@@ -130,7 +141,7 @@ static status delete_pid_file(  )
 static status do_option(  )
 {
 	if( OK != l_signal_self( l_process_signal_type ) ) {
-		err_log("%s --- signal to self failed", __func__ );
+		err("signal to self failed\n");
 		return ERROR;
 	}
 	return OK;
@@ -142,12 +153,12 @@ static status get_option( int argc, char * argv[] )
 		return OK;
 	}
 	if( argc > 2 ) {
-		err_log("too many parameter" );
+		err("too many parameter\n" );
 		return ERROR;
 	}
 	l_process_signal = argv[1];
 	if( *l_process_signal++ != '-' ) {
-		err_log("invaild parameter" );
+		err("invaild parameter\n" );
 		return ERROR;
 	}
 	if ( strcmp( l_process_signal, "reload" ) == 0 ) {
@@ -157,7 +168,7 @@ static status get_option( int argc, char * argv[] )
 		l_process_signal_type = 2;
 		return OK;
 	}
-	err_log("invaild parameter" );
+	err("invaild parameter\n" );
 	return ERROR;
 }
 // main ------------------
@@ -170,7 +181,7 @@ int32 main( int argc, char * argv[] )
 	conf.log_debug = 1;
 	l_time_update( );
 	if( OK != get_option( argc, argv ) ) {
-		err_log("get option", __func__ );
+		err("get option\n");
 		return ERROR;
 	}
 	if( l_process_signal ) {
@@ -179,20 +190,19 @@ int32 main( int argc, char * argv[] )
 	test_init( );
 	test_run( );
 	if( OK != module_init( ) ) {
-		err_log("static module init");
+		err("static module init\n");
 		return ERROR;
 	}
 	lk_daemon( );
 	if( OK != create_pid_file( ) ) {
-		err_log("create pid file" );
+		err("create pid file\n" );
 		goto over;
 	}
 	if( OK != listen_start( ) ) {
-		err_log( "listen_start failed" );
-		listen_stop( );
+		err( "listen_start failed\n" );
 		goto over;
 	}
-	if( conf.worker_process ) {
+	if( conf.worker_process > 0 ) {
 		process_master_run( );
 	} else {
 		process_single_run( );

@@ -18,7 +18,7 @@ status ssl_shutdown_handler( event_t * ev )
 	if( ssl_shutdown( c->ssl ) == AGAIN ) {
 		return AGAIN;
 	}
-	return pt( c->read );
+	return pt( &c->event );
 }
 // ssl_shutdown -------------------------
 status ssl_shutdown( ssl_connection_t * ssl )
@@ -45,15 +45,14 @@ status ssl_shutdown( ssl_connection_t * ssl )
 		c->ssl_flag = 0;
 		return OK;
 	}
-	if( ssler == SSL_ERROR_WANT_READ ) {
-		c->write->handler = NULL;
-		c->read->handler = ssl_shutdown_handler;
-		event_opt( c->read, EVENT_READ );
-		return AGAIN;
-	} else if( ssler == SSL_ERROR_WANT_WRITE ) {
-		c->read->handler = NULL;
-		c->write->handler = ssl_shutdown_handler;
-		event_opt( c->write, EVENT_WRITE );
+
+	if( ssler == SSL_ERROR_WANT_READ || ssler == SSL_ERROR_WANT_WRITE ) {
+		event_opt( &c->event, c->fd, EV_R );
+		c->event.read_pt = ssl_shutdown_handler;
+		
+		event_opt( &c->event, c->fd, EV_W );
+		c->event.write_pt = ssl_shutdown_handler;
+		
 		return AGAIN;
 	}
 	SSL_free( c->ssl->con );
@@ -85,26 +84,21 @@ status ssl_handshake( ssl_connection_t * ssl )
 	n = SSL_do_handshake( ssl->con );
 	if( n == 1 ) {
 		ssl->handshaked = 1;
-		debug_log ( "%s --- success", __func__ );
 		return OK;
 	}
 	ssler = SSL_get_error( ssl->con, n );
 	if( ssler == SSL_ERROR_WANT_READ || ssler == SSL_ERROR_WANT_WRITE ) {
-		if( ssler == SSL_ERROR_WANT_READ ) {
-			c->write->handler = NULL;
-			c->read->handler = ssl_handshake_handler;
-			event_opt( c->read, EVENT_READ );
-			debug_log ( "%s --- want read", __func__ );
-		} else {
-			c->read->handler = NULL;
-			c->write->handler = ssl_handshake_handler;
-			event_opt( c->write, EVENT_WRITE );
-			debug_log ( "%s --- want write", __func__ );
-		}
+
+		event_opt( &c->event, c->fd, EV_R );
+		c->event.read_pt = ssl_handshake_handler;
+		
+		event_opt( &c->event, c->fd, EV_W );
+		c->event.write_pt = ssl_handshake_handler;
+		
 		return AGAIN;
 	}
 	if( ssler == SSL_ERROR_ZERO_RETURN || ERR_peek_error() == 0 ) {
-		err_log ( "%s --- peer closed", __func__ );
+		err ( " peer closed\n" );
 		return ERROR;
 	}
 	return ERROR;
@@ -131,17 +125,17 @@ status ssl_server_ctx( SSL_CTX ** s )
 		l_memcpy( key, conf.sslkey.data, conf.sslkey.len );
 		rc = SSL_CTX_use_certificate_chain_file (ctx_server, crt);
 		if( rc != 1 ) {
-			err_log ( "%s --- [SSL_CTX_use_certificate_chain_file] failed", __func__ );
+			err ( " [SSL_CTX_use_certificate_chain_file] failed\n" );
 			return ERROR;
 		}
 		rc = SSL_CTX_use_PrivateKey_file( ctx_server, key, SSL_FILETYPE_PEM );
 		if( rc != 1 ) {
-			err_log ( "%s --- [SSL_CTX_use_PrivateKey_file] failed", __func__ );
+			err ( " [SSL_CTX_use_PrivateKey_file] failed\n" );
 			return ERROR;
 		}
 		rc = SSL_CTX_check_private_key( ctx_server );
 		if( rc != 1 ) {
-			err_log ( "%s --- [SSL_CTX_check_private_key] error", __func__ );
+			err ( " [SSL_CTX_check_private_key] error\n" );
 			return ERROR;
 		}
 	}
@@ -156,7 +150,7 @@ ssize_t ssl_read( connection_t * c, char * start, uint32 len )
 	rc = SSL_read( c->ssl->con, start, (int)len );
 	if( rc > 0 ) {
 		if( c->ssl->old_write_handler ) {
-			c->write->handler = c->ssl->old_write_handler;
+			c->event.write_pt = c->ssl->old_write_handler;
 			c->ssl->old_write_handler = NULL;
 		}
 		return rc;
@@ -167,15 +161,15 @@ ssize_t ssl_read( connection_t * c, char * start, uint32 len )
 	}
 	if( sslerr == SSL_ERROR_WANT_WRITE ) {
 		if( NULL == c->ssl->old_write_handler ) {
-			c->ssl->old_write_handler = c->write->handler;
-			c->write->handler = ssl_write_handler;
+			c->ssl->old_write_handler = c->event.write_pt;
+			c->event.write_pt = ssl_write_handler;
 		}
 		return AGAIN;
 	}
 	if( sslerr == SSL_ERROR_SYSCALL ) {
-		err_log("%s --- ssl error, syserror [%d]", __func__, errno );
+		err(" ssl error, syserror [%d]\n", errno );
 	} else {
-		err_log("%s --- ssl error, ssl fault", __func__ );
+		err(" ssl error, ssl fault\n" );
 	}
 	if ( sslerr == SSL_ERROR_ZERO_RETURN || ERR_peek_error() == 0 ) {
 		return ERROR;
@@ -189,7 +183,7 @@ static status ssl_write_handler( event_t * event )
 
 	c = event->data;
 
-	return c->read->handler( c->read );
+	return c->event.read_pt( &c->event );
 }
 // ssl_write ------------------------------
 ssize_t ssl_write( connection_t * c, char * start, uint32 len )
@@ -199,7 +193,7 @@ ssize_t ssl_write( connection_t * c, char * start, uint32 len )
 	rc = SSL_write( c->ssl->con, start, (int)len );
 	if( rc > 0 ) {
 		if( c->ssl->old_read_handler ) {
-			c->read->handler = c->ssl->old_read_handler;
+			c->event.read_pt = c->ssl->old_read_handler;
 			c->ssl->old_read_handler = NULL;
 		}
 		return rc;
@@ -210,15 +204,15 @@ ssize_t ssl_write( connection_t * c, char * start, uint32 len )
 	}
 	if( sslerr == SSL_ERROR_WANT_READ ) {
 		if( NULL == c->ssl->old_read_handler ) {
-			c->ssl->old_read_handler = c->read->handler;
-			c->read->handler = ssl_read_handler;
+			c->ssl->old_read_handler = c->event.read_pt;
+			c->event.read_pt = ssl_read_handler;
 		}
 		return AGAIN;
 	}
 	if( sslerr == SSL_ERROR_SYSCALL ) {
-		err_log("%s --- ssl error, syserror [%d]", __func__, errno );
+		err(" ssl error, syserror [%d]\n", errno );
 	} else {
-		err_log("%s --- ssl error, ssl fault", __func__ );
+		err(" ssl error, ssl fault\n" );
 	}
 	return ERROR;
 }
@@ -228,7 +222,7 @@ static status ssl_read_handler( event_t * event )
 	connection_t * c;
 
 	c = event->data;
-	return c->write->handler( c->write );
+	return c->event.write_pt( &c->event );
 }
 // ssl_write_chain ----------------------
 status ssl_write_chain( connection_t * c, meta_t * meta )
@@ -248,7 +242,7 @@ status ssl_write_chain( connection_t * c, meta_t * meta )
 		}
 		sent = ssl_write( c, cl->pos, meta_len( cl->pos, cl->last) );
 		if( ERROR == sent ) {
-			err_log ( "%s --- ssl write", __func__ );
+			err ( " ssl write\n" );
 			return ERROR;
 		} else if ( AGAIN == sent ) {
 			return AGAIN;
@@ -264,12 +258,12 @@ status ssl_create_connection( connection_t * c, uint32 flag )
 	SSL_CTX * ctx;
 
 	if ( (flag != L_SSL_CLIENT) && (flag != L_SSL_SERVER) ) {
-		err_log("%s --- flag not support", __func__ );
+		err(" flag not support\n" );
 		return ERROR;
 	}
 	sc = (ssl_connection_t*)l_safe_malloc( sizeof(ssl_connection_t) );
 	if( !sc ) {
-		err_log ( "%s --- malloc ssl connection", __func__ );
+		err ( " malloc ssl connection\n" );
 		return ERROR;
 	}
 	memset( sc, 0, sizeof(ssl_connection_t) );
@@ -281,14 +275,14 @@ status ssl_create_connection( connection_t * c, uint32 flag )
 	sc->session_ctx = ctx;
 	sc->con = SSL_new( sc->session_ctx );
 	if( !sc->con ) {
-		err_log ( "%s --- SSL_new failed", __func__ );
+		err ( " SSL_new failed\n" );
 		l_safe_free( sc );
 		return ERROR;
 	}
 	sc->data = (void*)c;
 
 	if( SSL_set_fd( sc->con, c->fd ) == 0 ) {
-		err_log ( "%s --- SSL_set_fd failed", __func__ );
+		err ( " SSL_set_fd failed\n" );
 		SSL_free( sc->con );
 		l_safe_free( sc );
 		return ERROR;
@@ -299,7 +293,7 @@ status ssl_create_connection( connection_t * c, uint32 flag )
 		SSL_set_accept_state( sc->con );
 	}
 	if( SSL_set_ex_data( sc->con, ssl_con_index, c ) == 0 ) {
-		err_log ( "%s --- SSL_set_ex_data failed", __func__ );
+		err ( " SSL_set_ex_data failed\n" );
 		SSL_free( sc->con );
 		l_safe_free( sc );
 		return ERROR;

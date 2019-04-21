@@ -5,7 +5,7 @@ string_t	cache_time_log;
 int64_t		cache_time_msec;
 
 static char		cache_time_gmt_str[sizeof("Mon, 28 Sep 1970 06:00:00 GMT")+1];
-static char		cache_time_log_str[sizeof("0000-00-00 00:00:00 ")+1];
+static char		cache_time_log_str[sizeof("0000.00.00 00:00:00 ")+1];
 
 static char  *week[] = { "Sun", "Mon", "Tue",  "Wed", "Thu", "Fri", "Sat" };
 static char  *months[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
@@ -40,7 +40,7 @@ status l_time_update( void )
 	local.tm_mon++;
     local.tm_year += 1900;
 	snprintf( cache_time_log_str, sizeof(cache_time_log_str),
-		"%04d-%02d-%02d %02d:%02d:%02d ",
+		"%04d.%02d.%02d %02d:%02d:%02d",
 		local.tm_year,
 		local.tm_mon,
 		local.tm_mday,

@@ -21,8 +21,9 @@ typedef struct connection_t {
 	ssl_connection_t*	ssl;
 	uint32				ssl_flag;
 
-	event_t *			read;
-	event_t *			write;
+	event_t				event;
+	// this timer is optional to use
+	l_timer_t*			timer;
 
 	net_send_chain 		send_chain;
 	net_recv_chain		recv_chain;
@@ -30,15 +31,21 @@ typedef struct connection_t {
 	net_recv 			recv;
 } connection_t;
 
-status net_non_blocking( int fd );
-status net_fastopen( connection_t * c );
-status net_nodelay( connection_t * c );
-status net_nopush( connection_t * c );
 struct addrinfo * net_get_addr( string_t * ip, string_t * port );
+
+status l_socket_nonblocking( int32 fd );
+status l_socket_reuseaddr( int32 fd );
+status l_socket_fastopen( int32 fd );
+status l_socket_nodelay(  int32 fd );
+status l_socket_nopush( int32 fd );
+status l_socket_check_status( int fd );
+
+
+status net_alloc( connection_t ** connection );
+status net_free( connection_t * connection );
 
 status net_init( void );
 status net_end( void );
-status net_alloc( connection_t ** connection );
-status net_free( connection_t * connection );
+
 
 #endif

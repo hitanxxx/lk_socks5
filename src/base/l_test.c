@@ -24,13 +24,13 @@ status test_run( void )
 {
 	uint32 i = 0;
 
-	debug_log ( "%s === run test ", __func__ );
+	debug ( "run test \n" );
 	for( i = 0; i < manager.num; i ++ ) {
 		manager.test[i].pt( );
 	}
-	debug_log ( "%s === run over", __func__ );
-	debug_log ( "%s === all num [%d]", __func__, manager.num );
-	debug_log ( "%s === failed num [%d]", __func__, failed_num );
+	debug ( "run over\n" );
+	debug ( "all num [%d]\n", manager.num );
+	debug ( "failed num [%d]\n", failed_num );
 	return OK;
 }
 // test_init ----------------------------

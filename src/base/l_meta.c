@@ -57,7 +57,7 @@ status meta_page_get_all( l_mem_page_t * page, meta_t * in, meta_t ** out )
 		cl = cl->next;
 	}
 	if( OK != meta_page_alloc( page, len, &new ) ) {
-		err_log("%s --- alloc meta mem", __func__ );
+		err(" alloc meta mem\n" );
 		return ERROR;
 	}
 	p = new->data;

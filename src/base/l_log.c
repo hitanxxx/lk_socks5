@@ -32,15 +32,14 @@ static status log_format_level( log_content_t * log_content )
 // log_format_text ------------
 static status log_format_text( log_content_t * log_content )
 {
-	int32 length;
+	int32 length = 0;
 
-	length = vsnprintf( log_content->p, LOG_TEXT_LENGTH, log_content->args, log_content->args_list );
+	length += snprintf( log_content->p + length, LOG_TEXT_LENGTH - (size_t)length, "[%s]-", log_content->func );
+	length += vsnprintf( log_content->p + length, LOG_TEXT_LENGTH - (size_t)length, log_content->args, log_content->args_list );
 
+	length = ( length <= LOG_TEXT_LENGTH ) ? length : LOG_TEXT_LENGTH;
 	log_content->p += length;
-	if( log_content->p > log_content->last - sizeof(char) ) {
-		log_content->p = log_content->last - sizeof(char);
-	}
-	*(log_content->p++) = '\n';
+	
 	return OK;
 }
 // log_write_stdout --------
@@ -81,7 +80,7 @@ static status log_write_file_access( char * str, int32 length )
 	return OK;
 }
 // l_log   ---------------
-status l_log( uint32 id, uint32 level, const char * str, ... )
+status l_log( uint32 id, uint32 level, const char * func, const char * str, ... )
 {
 	log_content_t log_content;
 	char 	stream[LOG_LENGTH];
@@ -104,6 +103,8 @@ status l_log( uint32 id, uint32 level, const char * str, ... )
 	log_content.p = stream;
 	log_content.last = stream + LOG_LENGTH;
 	log_content.args = str;
+	strncpy( log_content.func, func,  sizeof(log_content.func) );
+	
 	log_format_time( &log_content );
 	log_format_level( &log_content );
 	log_format_text( &log_content );
@@ -127,13 +128,13 @@ status log_init( void )
 {
 	log_fd_main = open( L_PATH_LOG_MAIN, O_CREAT|O_RDWR|O_APPEND, 0644 );
 	if( log_fd_main == ERROR ) {
-		err_log( "open logfile-(main) [%s], [%d]",
+		err( "open logfile-(main) [%s], [%d]",
 		L_PATH_LOG_MAIN, errno );
 		return ERROR;
 	}
 	log_fd_access = open( L_PATH_LOG_ACCESS, O_CREAT|O_RDWR|O_APPEND, 0644 );
 	if( log_fd_access == ERROR ) {
-		err_log( "open logfile-(access) [%s], [%d]",
+		err( "open logfile-(access) [%s], [%d]",
 		L_PATH_LOG_ACCESS, errno );
 		return ERROR;
 	}

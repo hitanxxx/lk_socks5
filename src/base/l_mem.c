@@ -10,7 +10,7 @@ status l_mem_page_create( l_mem_page_t ** alloc, uint32 size )
     length = (size > L_PAGE_SIZE) ? size : L_PAGE_SIZE;
     p = l_safe_malloc( length + sizeof(l_mem_page_t) );
     if( !p ) {
-        err_log("%s --- l_safe_malloc failed, [%d]", __func__, errno );
+        err(" l_safe_malloc failed, [%d]\n", errno );
         return ERROR;
     }
     memset( p, 0, length + sizeof(l_mem_page_t) );
@@ -45,7 +45,7 @@ void * l_mem_alloc( l_mem_page_t * page, uint32 size )
 
     if( size > L_PAGE_SIZE ) {
         if( OK != l_mem_page_create( &new, size ) ) {
-            err_log("%s --- create page failed", __func__ );
+            err(" create page failed\n" );
             return NULL;
         }
 
@@ -71,7 +71,7 @@ void * l_mem_alloc( l_mem_page_t * page, uint32 size )
             cl = cl->next;
         }
         if( OK != l_mem_page_create( &new, L_PAGE_SIZE ) ) {
-            err_log("%s --- create page failed", __func__ );
+            err(" create page failed\n" );
             return NULL;
         }
         q->next = new;
