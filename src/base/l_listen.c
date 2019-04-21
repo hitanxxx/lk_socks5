@@ -81,6 +81,14 @@ status listen_start( void )
 			err("%s -- listen_open failed, [%d]\n", errno );
 			goto failed;
 		}
+<<<<<<< HEAD
+=======
+	
+		listen->event.data = listen;
+		listen->event.read_pt = l_net_accept;
+	
+		event_opt( &listen->event, listen->fd, EV_R );
+>>>>>>> 929c97a249c1bc5f3b958bfbe27aa9619335716d
 	}
 	return OK;
 failed:

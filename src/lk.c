@@ -9,6 +9,10 @@ modules_init_t init_modules[] = {
 	{l_signal_init,		"signal"},	// no end
 	{process_init,		"process"},	// no end
 	{listen_init,		"listen"},
+<<<<<<< HEAD
+=======
+	{event_init,		"event"},
+>>>>>>> 929c97a249c1bc5f3b958bfbe27aa9619335716d
 	{ssl_init,			"ssl"},		// no end
 	{serv_init,			"serv"},
 	{net_init,			"net"},
@@ -49,13 +53,19 @@ status modules_end( void )
 // dynamic_module_init ------------
 status dynamic_module_init( void )
 {
+<<<<<<< HEAD
 	event_init();
+=======
+>>>>>>> 929c97a249c1bc5f3b958bfbe27aa9619335716d
 	return OK;
 }
 // dynamic_module_end ------------
 status dynamic_module_end( void )
 {
+<<<<<<< HEAD
 	event_end();
+=======
+>>>>>>> 929c97a249c1bc5f3b958bfbe27aa9619335716d
 	return OK;
 }
 // lk_daemon ---------------
@@ -200,6 +210,10 @@ int32 main( int argc, char * argv[] )
 	}
 	if( OK != listen_start( ) ) {
 		err( "listen_start failed\n" );
+<<<<<<< HEAD
+=======
+		listen_stop( );
+>>>>>>> 929c97a249c1bc5f3b958bfbe27aa9619335716d
 		goto over;
 	}
 	if( conf.worker_process > 0 ) {
