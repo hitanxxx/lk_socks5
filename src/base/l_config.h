@@ -9,8 +9,6 @@ typedef struct config_t
 	// global
 	uint32		daemon;
 	uint32		worker_process;
-	uint32		reuse_port;
-	uint32		accept_mutex;
 	string_t	sslcrt;
 	string_t	sslkey;
 	// log
@@ -36,6 +34,8 @@ typedef struct config_t
 	// socks5 
 	uint32		socks5_mode;
 	string_t 	socks5_serverip;
+	uint32		socks5_server_port;
+	uint32		socks5_local_port;
 
 }config_t;
 

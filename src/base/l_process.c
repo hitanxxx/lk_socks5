@@ -20,7 +20,7 @@ static status process_broadcast_child( int32 lsignal )
 
 	for( i = 0; i < process_num; i ++ ) {
 		if( ERROR == kill( process_arr[i].pid, lsignal ) ) {
-			err_log( "%s --- broadcast signal [%d] failed, [%d]", __func__,
+			err(" broadcast signal [%d] failed, [%d]\n",
 			lsignal, errno );
 		}
 		process_arr[i].exiting = 1;
@@ -30,7 +30,7 @@ static status process_broadcast_child( int32 lsignal )
 // process_worker_end ------------------
 static void process_worker_end( void )
 {
-	err_log( "%s --- worker process exiting", __func__ );
+	err(" worker process exiting\n" );
 	dynamic_module_end( );
 	modules_end();
 	exit(0);
@@ -50,7 +50,7 @@ static void process_worker_run( void )
 			process_worker_end( );
 		}
 		timer_expire( &timer );
-		event_loop( timer );
+		event_run( timer );
 	}
 }
 // process_spawn ------------------
@@ -60,7 +60,7 @@ static pid_t process_spawn( process_t * pro )
 
 	id = fork( );
 	if( id < 0 ) {
-		err_log( "%s --- fork failed, [%d]", __func__, errno );
+		err(" fork failed, [%d]\n", errno );
 		return ERROR;
 	} else if ( id > 0 ) {
 		// parent
@@ -83,7 +83,7 @@ static int32 process_reap( void )
 		if( process_arr[i].exited ) {
 			if( !process_arr[i].exiting && !sig_quit ) {
 				if( ERROR == process_spawn( &process_arr[i] ) ) {
-					err_log( "%s --- process_spawn failed, [%d]", __func__, errno );
+					err(" process_spawn failed, [%d]\n", errno );
 					continue;
 				}
 				process_arr[i].exited = 0;
@@ -110,7 +110,7 @@ void process_master_run( void )
 	sigaddset( &set, SIGUSR1 );
 	sigaddset( &set, SIGUSR2 );
     if( sigprocmask( SIG_BLOCK, &set, NULL ) == ERROR ) {
-		err_log( "%s --- sigs_suppend_init failed, [%d]", __func__, errno );
+		err(" sigs_suppend_init failed, [%d]\n", errno );
 		return;
     }
 	sigemptyset(&set);
@@ -118,7 +118,7 @@ void process_master_run( void )
 	// fork child
 	for( i = 0; i < process_num; i++ ) {
 		if( ERROR == process_spawn( &process_arr[i] ) ) {
-			err_log( "%s --- process spawn failed, [%d]", __func__, errno );
+			err(" process spawn failed, [%d]\n", errno );
 			return;
 		}
 	}
@@ -126,12 +126,12 @@ void process_master_run( void )
 	while( 1 ) {
 		sigsuspend( &set );
 		l_time_update( );
-		debug_log("%s --- master received signal [%d]", __func__, global_signal);
+		debug(" master received signal [%d]\n", global_signal);
 
 		if( sig_reap ) {
 			sig_reap = 0;
 			live = process_reap(  );
-			err_log("%s --- reap child", __func__ );
+			err(" reap child\n" );
 		}
 		if( !live && sig_quit ) {
 			break;
@@ -163,7 +163,7 @@ void process_single_run( void )
 			break;
 		}
 		timer_expire( &timer );
-		event_loop( timer );
+		event_run( timer );
 	}
 }
 // process_init -----------------------
@@ -174,7 +174,7 @@ status process_init( void )
 	memset( &shm_process, 0, sizeof(l_shm_t) );
 	shm_process.size = sizeof(process_t)*MAXPROCESS;
 	if( OK != l_shm_alloc( &shm_process, shm_process.size ) ) {
-		err_log("%s --- l_shm_alloc failed", __func__ );
+		err(" l_shm_alloc failed\n" );
 		return ERROR;
 	}
 	process_arr = (process_t*)shm_process.data;

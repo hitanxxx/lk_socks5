@@ -10,7 +10,7 @@ static status json_node_alloc( json_ctx_t * ctx, json_node_t ** json )
 
 	new = l_mem_alloc( ctx->page, sizeof(json_node_t) );
 	if( !new ) {
-		err_log("%s --- l_mem_alloc json node", __func__ );
+		err(" l_mem_alloc json node\n" );
 		return ERROR;
 	}
 	*json = new;
@@ -435,7 +435,7 @@ static status json_parse_obj( json_node_t * json, json_ctx_t * ctx )
 				}
 				// same level find repeat
 				if( OK == json_parse_obj_find_repeat( json, child ) ) {
-					err_log("%s --- repeat", __func__ );
+					err(" repeat\n" );
 					return ERROR;
 				}
 				if( !json->child_flag ) {
@@ -622,11 +622,9 @@ static status json_parse_num ( json_node_t * json, json_ctx_t * ctx )
 				continue;
 			} else if ( *p == ',' || *p == '}' || *p == ']' ) {
 				state = over;
-			} else if( *p == ' ' ) {
+			} else {
 				state = inte_before_end;
 				continue;
-			} else {
-				return ERROR;
 			}
 		}
 		if( state == inte_before_end ) {
@@ -654,11 +652,9 @@ static status json_parse_num ( json_node_t * json, json_ctx_t * ctx )
 				continue;
 			} else if ( *p == ',' || *p == '}' || *p == ']' ) {
 				state = over;
-			} else if( *p == ' ' ) {
+			} else {
 				state = dec_before_end;
 				continue;
-			} else {
-				return ERROR;
 			}
 		}
 		if( state == dec_before_end ) {
@@ -679,11 +675,11 @@ static status json_parse_num ( json_node_t * json, json_ctx_t * ctx )
 			end = num_string.data + num_string.len;
 			json->num = strtod( num_string.data, &end );
 			if( errno == ERANGE && ( json->num == HUGE_VAL || json->num == -HUGE_VAL ) ) {
-				err_log ( "%s --- number is too big or to less", __func__ );
+				err ( " number is too big or to less\n" );
 				return ERROR;
 			}
 			if( num_string.data == end ) {
-				err_log ( "%s --- number str empty", __func__ );
+				err ( " number str empty\n" );
 				return ERROR;
 			}
 
@@ -697,11 +693,11 @@ static status json_parse_num ( json_node_t * json, json_ctx_t * ctx )
 		end = num_string.data + num_string.len;
 		json->num = strtod( num_string.data, &end );
 		if( errno == ERANGE && ( json->num == HUGE_VAL || json->num == -HUGE_VAL ) ) {
-			err_log ( "%s --- number is too big or to less", __func__ );
+			err ( " number is too big or to less\n" );
 			return ERROR;
 		}
 		if( num_string.data == end ) {
-			err_log ( "%s --- number str empty", __func__ );
+			err ( " number str empty\n" );
 			return ERROR;
 		}
 		return OK;
@@ -721,7 +717,8 @@ static status json_parse_token( json_node_t * parent, json_ctx_t * ctx )
 			continue;
 		} else if( *p == 't' ) {
 			if( OK != json_parse_true( ctx ) ) {
-				return ERROR;
+				err("parse 'true' failed\n");
+				goto failed;
 			}
 			json_node_insert( ctx, parent, &json );
 			json->type = JSON_TRUE;
@@ -729,7 +726,8 @@ static status json_parse_token( json_node_t * parent, json_ctx_t * ctx )
 
 		} else if( *p == 'f' ) {
 			if( OK != json_parse_false( ctx ) ) {
-				return ERROR;
+				err("parse 'false' failed\n");
+				goto failed;
 			}
 			json_node_insert( ctx, parent, &json );
 			json->type = JSON_FALSE;
@@ -737,7 +735,8 @@ static status json_parse_token( json_node_t * parent, json_ctx_t * ctx )
 
 		} else if( *p == 'n' ) {
 			if( OK != json_parse_null( ctx ) ) {
-				return ERROR;
+				err("parse 'null' failed\n");
+				goto failed;
 			}
 			json_node_insert( ctx, parent, &json );
 			json->type = JSON_NULL;
@@ -746,7 +745,8 @@ static status json_parse_token( json_node_t * parent, json_ctx_t * ctx )
 		} else if( *p == '"' ) {
 			json_node_insert( ctx, parent, &json );
 			if( OK != json_parse_string( json, ctx ) ) {
-				return ERROR;
+				err("parse string failed\n");
+				goto failed;
 			}
 			json->type = JSON_STR;
 			return OK;
@@ -754,7 +754,8 @@ static status json_parse_token( json_node_t * parent, json_ctx_t * ctx )
 		} else if( *p == '{' ) {
 			json_node_insert( ctx, parent, &json );
 			if( OK != json_parse_obj( json, ctx ) ) {
-				return ERROR;
+				err("parse obj failed\n");
+				goto failed;
 			}
 			json->type = JSON_OBJ;
 			return OK;
@@ -762,7 +763,8 @@ static status json_parse_token( json_node_t * parent, json_ctx_t * ctx )
 		} else if( *p == '[' ) {
 			json_node_insert( ctx, parent, &json );
 			if( OK != json_parse_array( json, ctx ) ) {
-				return ERROR;
+				err("parse array failed\n");
+				goto failed;
 			}
 			json->type = JSON_ARR;
 			return OK;
@@ -770,12 +772,14 @@ static status json_parse_token( json_node_t * parent, json_ctx_t * ctx )
 		} else {
 			json_node_insert( ctx, parent, &json );
 			if( OK != json_parse_num( json, ctx ) ) {
-				return ERROR;
+				err("parse number failed\n");
+				goto failed;
 			}
 			json->type = JSON_NUM;
 			return OK;
 		}
 	}
+failed:
 	return ERROR;
 }
 
@@ -793,7 +797,7 @@ static status json_decode_check( json_ctx_t * ctx )
 			*p == '\t' ) {
 			continue;
 		} else {
-			err_log("%s --- after parse token, illegal [%d]", __func__, *p );
+			err(" after parse token, illegal [%d]\n", *p );
 			return ERROR;
 		}
 	}
@@ -806,12 +810,12 @@ status json_ctx_create( json_ctx_t ** json_ctx )
 
 	new = l_safe_malloc( sizeof(json_ctx_t) );
 	if( !new ) {
-		err_log("%s --- l_safe_malloc json ctx", __func__ );
+		err(" l_safe_malloc json ctx\n" );
 		return ERROR;
 	}
 	memset( new, 0, sizeof(json_ctx_t) );
 	if( OK != l_mem_page_create( &new->page, 4096 ) ) {
-		err_log("%s --- l_mem_page_alloc json ctx page", __func__ );
+		err(" l_mem_page_alloc json ctx page\n" );
 		return ERROR;
 	}
 	new->root.type = JSON_ROOT;
@@ -824,7 +828,7 @@ status json_ctx_free( json_ctx_t * ctx )
 	if( ctx ) {
 		if( ctx->page ) {
 			if( OK != l_mem_page_free( ctx->page ) ) {
-				err_log("%s --- l_mem_page_free ctx page failed", __func__ );
+				err(" l_mem_page_free ctx page failed\n" );
 				return ERROR;
 			}
 		}
@@ -852,7 +856,7 @@ json_node_t * json_add_obj( json_ctx_t * ctx, json_node_t * parent )
 {
 	json_node_t * child;
 	if( OK != json_node_insert( ctx, parent, &child ) ) {
-		err_log("%s --- json node insert", __func__ );
+		err(" json node insert\n" );
 		return NULL;
 	}
 	child->type = JSON_OBJ;
@@ -863,7 +867,7 @@ json_node_t * json_add_arr( json_ctx_t * ctx, json_node_t * parent )
 {
 	json_node_t * child;
 	if( OK != json_node_insert( ctx, parent, &child ) ) {
-		err_log("%s --- json node insert", __func__ );
+		err(" json node insert\n" );
 		return NULL;
 	}
 	child->type = JSON_ARR;
@@ -874,7 +878,7 @@ json_node_t * json_add_true( json_ctx_t * ctx, json_node_t * parent )
 {
 	json_node_t * child;
 	if( OK != json_node_insert( ctx, parent, &child ) ) {
-		err_log("%s --- json node insert", __func__ );
+		err(" json node insert\n" );
 		return NULL;
 	}
 	child->type = JSON_TRUE;
@@ -885,7 +889,7 @@ json_node_t * json_add_false ( json_ctx_t * ctx, json_node_t * parent )
 {
 	json_node_t * child;
 	if( OK != json_node_insert( ctx, parent, &child ) ) {
-		err_log("%s --- json node insert", __func__ );
+		err(" json node insert\n" );
 		return NULL;
 	}
 	child->type = JSON_FALSE;
@@ -896,7 +900,7 @@ json_node_t * json_add_null( json_ctx_t * ctx, json_node_t * parent )
 {
 	json_node_t * child;
 	if( OK != json_node_insert( ctx, parent, &child ) ) {
-		err_log("%s --- json node insert", __func__ );
+		err(" json node insert\n" );
 		return NULL;
 	}
 	child->type = JSON_NULL;
@@ -907,7 +911,7 @@ json_node_t * json_add_str( json_ctx_t * ctx, json_node_t * parent, char * str, 
 {
 	json_node_t * child;
 	if( OK != json_node_insert( ctx, parent, &child ) ) {
-		err_log("%s --- json node insert", __func__ );
+		err(" json node insert\n" );
 		return NULL;
 	}
 	child->type = JSON_STR;
@@ -920,7 +924,7 @@ json_node_t * json_add_num ( json_ctx_t * ctx, json_node_t * parent, uint32 num 
 {
 	json_node_t * child;
 	if( OK != json_node_insert( ctx, parent, &child ) ) {
-		err_log("%s --- json node insert", __func__ );
+		err(" json node insert\n" );
 		return NULL;
 	}
 	child->type = JSON_NUM;
@@ -932,7 +936,7 @@ json_node_t * json_obj_add_child( json_ctx_t * ctx, json_node_t * parent, char *
 {
 	json_node_t * child;
 	if( OK != json_node_insert( ctx, parent, &child ) ) {
-		err_log("%s --- json node insert", __func__ );
+		err(" json node insert\n" );
 		return NULL;
 	}
 	child->type = JSON_STR;
@@ -994,7 +998,7 @@ static uint32 json_stringify_token_len( json_node_t * json )
 		return len;
 	} else if ( json->type == JSON_NUM ) {
 		memset( str, 0, sizeof(str) );
-		sprintf( str, "%.2f", json->num );
+		sprintf( str, "%.2f\n", json->num );
 		len += l_strlen( str );
 		return len;
 	}
@@ -1081,7 +1085,7 @@ static char* json_stringify_token( json_node_t * json, char * p )
 		return p;
 	} else if ( json->type == JSON_NUM ) {
 		memset( str, 0, sizeof(str) );
-		sprintf( str, "%.2f", json->num );
+		sprintf( str, "%.2f\n", json->num );
 		memcpy( p, str, strlen(str) );
 		p += strlen(str);
 		return p;
