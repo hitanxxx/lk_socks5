@@ -4,11 +4,8 @@
 #define L_SSL		0x01
 #define L_NOSSL		0x02
 
-<<<<<<< HEAD
 extern mem_list_t * listens;
 
-=======
->>>>>>> 929c97a249c1bc5f3b958bfbe27aa9619335716d
 typedef status ( *listen_pt ) ( event_t * event );
 typedef struct listen_t {
 	queue_t				queue;

@@ -87,7 +87,6 @@ status l_net_accept( event_t * event )
 		if( ERROR == net_alloc( &client_con ) ) {
 			err(" client_con alloc\n" );
 			close( client_fd );
-<<<<<<< HEAD
 			return ERROR;
 		}
 		memcpy( &client_con->addr, &client_addr, len );
@@ -96,16 +95,6 @@ status l_net_accept( event_t * event )
 			net_free( client_con );
 			return ERROR;
 		}
-=======
-			return ERROR;
-		}
-		memcpy( &client_con->addr, &client_addr, len );
-		if( OK != l_socket_nonblocking( client_fd ) ) {
-			err(" socket nonblock failed\n" );
-			net_free( client_con );
-			return ERROR;
-		}
->>>>>>> 929c97a249c1bc5f3b958bfbe27aa9619335716d
 		client_con->fd = client_fd;
 		
 		client_con->recv = recvs;
@@ -229,16 +218,11 @@ status event_init( void )
 		return ERROR;
 	}
 	event_fd = epoll_create1(0);
-<<<<<<< HEAD
 	debug(" event fd [%d]\n", event_fd );
-=======
-	debug(" event fd [%d]\n",    event_fd );
->>>>>>> 929c97a249c1bc5f3b958bfbe27aa9619335716d
 	if( event_fd == ERROR ) {
 		err(" epoll create1\n" );
 		return ERROR;
 	}
-<<<<<<< HEAD
 
 	// init listen events
 	uint32 j;
@@ -253,8 +237,6 @@ status event_init( void )
 		event_opt( &listen->event, listen->fd, EV_R );
 	}
 	
-=======
->>>>>>> 929c97a249c1bc5f3b958bfbe27aa9619335716d
 	return OK;
 }
 
