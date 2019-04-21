@@ -9,7 +9,6 @@ modules_init_t init_modules[] = {
 	{l_signal_init,		"signal"},	// no end
 	{process_init,		"process"},	// no end
 	{listen_init,		"listen"},
-	//{event_init,		"event"},
 	{ssl_init,			"ssl"},		// no end
 	{serv_init,			"serv"},
 	{net_init,			"net"},
