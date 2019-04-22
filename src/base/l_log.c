@@ -128,13 +128,13 @@ status log_init( void )
 {
 	log_fd_main = open( L_PATH_LOG_MAIN, O_CREAT|O_RDWR|O_APPEND, 0644 );
 	if( log_fd_main == ERROR ) {
-		err( "open logfile-(main) [%s], [%d]",
+		err( "open logfile-(main) [%s], [%d]\n",
 		L_PATH_LOG_MAIN, errno );
 		return ERROR;
 	}
 	log_fd_access = open( L_PATH_LOG_ACCESS, O_CREAT|O_RDWR|O_APPEND, 0644 );
 	if( log_fd_access == ERROR ) {
-		err( "open logfile-(access) [%s], [%d]",
+		err( "open logfile-(access) [%s], [%d]\n",
 		L_PATH_LOG_ACCESS, errno );
 		return ERROR;
 	}
