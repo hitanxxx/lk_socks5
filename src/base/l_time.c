@@ -40,7 +40,7 @@ status l_time_update( void )
 	local.tm_mon++;
     local.tm_year += 1900;
 	snprintf( cache_time_log_str, sizeof(cache_time_log_str),
-		"%04d.%02d.%02d %02d:%02d:%02d",
+		"%04d.%02d.%02d %02d:%02d:%02d ",
 		local.tm_year,
 		local.tm_mon,
 		local.tm_mday,
