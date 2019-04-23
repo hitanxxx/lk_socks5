@@ -640,7 +640,7 @@ static status socks5_server_accept_check( event_t * event )
 				timer_add( &c->event.timer, SOCKS5_TIME_OUT );
 				return AGAIN;
 			}
-			err( "%s -- downstream ssl handshake\n" );
+			err( " downstream ssl handshake\n" );
 			goto failed;
 		}
 		return socks5_server_accept_ssl_handshake( event );
