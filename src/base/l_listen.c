@@ -78,7 +78,7 @@ status listen_start( void )
 		listen = mem_list_get( listens, i+1 );
 		
 		if( OK != listen_open( listen ) ) {
-			err("%s -- listen_open failed, [%d]\n", errno );
+			err(" listen_open failed, [%d]\n", errno );
 			goto failed;
 		}
 	}

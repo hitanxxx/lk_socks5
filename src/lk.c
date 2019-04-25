@@ -98,7 +98,7 @@ static status lk_daemon( void )
     }
 #if 0
     if (dup2(fd, STDERR_FILENO) == -1) {
-        err( "%s --- dup2(STDERR) failed", __func__ );
+        err(" dup2(STDERR) failed\n" );
         return ERROR;
     }
 #endif
