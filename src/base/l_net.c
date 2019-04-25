@@ -130,7 +130,7 @@ static status net_free_right_now( event_t * ev )
 	timer_del( &c->event.timer );
 
 	memset( &c->event, 0, sizeof( struct event_t ) );
-	c->event->data = (void*)c;
+	c->event.data = (void*)c;
 	return OK;
 }
 
