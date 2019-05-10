@@ -1,28 +1,22 @@
 # LKSOCKS5
 
 # Introduce
-lk-socks5 一个由c编写的socks5代理软件。支持linux系统。client与server使用OpenSSL加密。迅速，快捷。</br>使用LK网络框架驱动，业务逻辑代码较少。不熟悉socks5协议可以以此为用例。
-
+lksocks5 is a socks5 proxy written by ANSIC, it needs OpenSSL library .
 # Install
-lksocks5需要OpenSSL库。解决依赖后。在文件目录运行：
-* configure
-* make && make install </br>
-即可完成安装。
-在 centos7 与 debian系raspbian上都成功编译。
-安装完成后，在/usr/local/lksocks5目录可看到安装完成后的文件。
-运行/usr/local/lksocks5/sbin目录下的elf文件即可使用，但是使用之前可能需要了解配置。
-> * /usr/local/lksocks5/conf - 配置文件所在目录
-> * /usr/local/lksocks5/logs - pid，日志，缓冲文件所在目录
-> * /usr/local/lksocks5/sbin - elf执行文件所在目录
-> * /usr/local/lksocks5/certificate - ssl证书所在目录
+* >$ configure
+* >$ make && make install </br>
+it's compiled success in centos7 and debian8 .
+after install, you can find some file or folder in "/usr/local/lksocks5" .
+> * /usr/local/lksocks5/conf - the configuration file use
+> * /usr/local/lksocks5/logs - pid，log，temp file use
+> * /usr/local/lksocks5/sbin - elf file use
+> * /usr/local/lksocks5/certificate - ssl certificate file use
 
 # Command line parameters
 * -stop </br>
-作用是停止后台所有lk进程。</br>
-stop all process when works in the backend
+stop all process in the backend</br>
 * -reload </br>
-作用是重新启动子进程
-reload all worker process
+restart all work process
 
 # configuraction
 ```json
@@ -44,22 +38,18 @@ reload all worker process
 	}
 }
 ```
-一个典型的配置文件如下
-> * daemon - 守护进程开关
-> * worker_process - 工作进程数量，为0时，管理进程即为工作进程。
-> * reuse_port - socket特性，某些情景优化多进程竞争态。
-> * accept_mutex - 信号量锁开关。
-> * log_error - error日志开关。
-> * log_debug - debug日志开关。（影响性能）
-> * sslcrt - SSL证书&公钥。
-> * sslkey - SSL私钥。
-* socks5 块，socks5模块的相关设置。
-> * mode - socks5模块运行的模式。支持client/server两种模式。</br>
-client占用1080端口。server占用3333端口。</br>
-以client运行时，需要制定serverip字段，设置server的ip信息。
-> * serverip - 以client模式运行时，server的ip地址。
-> * { </br>
-		"mode":"client",</br>
-		"serverip":"1.1.1.1"
-	}
-配置完成后，使用firefox浏览器，设置socks协议v5到client端的1080端口。勾选代理dns查询即可。
+a typical configuration file just like this:
+* normal block:
+> * daemon - witch of daemon process
+> * worker_process - identification worker process number
+> * log_error - switch of log error
+> * log_debug - switch of log debug
+> * sslcrt - ssl certificate file public key
+> * sslkey - ssl certificate file private key
+* socks5 block:
+> * mode - identification work mode of socks5 module</br>
+> * serverip - identification socks5 server ipaddress 
+> * serverport - identification socks5 server port
+> * clientport - identification socks5 client port 
+# tips
+recommended use firefox browser use lkscosk5, chosen to use socks5 proxy DNS request.

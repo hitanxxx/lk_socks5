@@ -231,21 +231,6 @@ static status socks5_server_response_prepare( event_t * event )
 }
 
 
-static status socks5_server_connect_test( connection_t * c )
-{
-	int	err = 0;
-    socklen_t  len = sizeof(int);
-
-	if (getsockopt( c->fd, SOL_SOCKET, SO_ERROR, (void *) &err, &len) == -1 ) {
-		err = errno;
-	}
-	if (err) {
-		err(" connect test failed, %d\n", errno );
-		return ERROR;
-	}
-	return OK;
-}
-
 static status socks5_server_connect_check( event_t * event )
 {
 	connection_t* c;
