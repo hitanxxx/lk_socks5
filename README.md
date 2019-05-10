@@ -3,8 +3,8 @@
 # Introduce
 lksocks5 is a socks5 proxy written by ANSIC, it needs OpenSSL library .
 # Install
-* >$ configure
-* >$ make && make install </br>
+*  configure
+*  make && make install </br>
 it's compiled success in centos7 and debian8 .
 after install, you can find some file or folder in "/usr/local/lksocks5" .
 > * /usr/local/lksocks5/conf - the configuration file use
