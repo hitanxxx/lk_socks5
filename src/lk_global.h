@@ -83,6 +83,6 @@ typedef uint32_t	uint32;
 typedef int32_t     status;
 typedef volatile uint32	l_atomic_t;
 
-typedef struct connection_t connection_t;
+typedef struct l_connection_t connection_t;
 
 #endif

@@ -2,8 +2,8 @@
 #define _L_META_H_INCLUDED_
 
 #define meta_len( start, end )	( (uint32)( (char*)end - (char*)start ) )
-typedef struct meta_t meta_t;
-typedef struct meta_t {
+typedef struct l_meta_t meta_t;
+typedef struct l_meta_t {
 
 	// flag
 	uint32				file_flag;
@@ -20,7 +20,7 @@ typedef struct meta_t {
 
 	meta_t* 			next;
 
-} meta_t;
+} l_meta_t;
 
 status meta_file_alloc( meta_t ** meta, uint32 length );
 status meta_page_alloc( l_mem_page_t * page, uint32 size, meta_t ** out );

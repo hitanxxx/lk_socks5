@@ -8,9 +8,9 @@
 #define EV_W          EPOLLOUT
 
 typedef unsigned short  net_events;
-typedef struct event_t event_t;
+typedef struct l_event_t event_t;
 typedef status ( *event_pt ) ( event_t * event );
-typedef struct event_t {
+typedef struct l_event_t {
 
 	event_pt		read_pt;
 	event_pt 		write_pt;
@@ -22,7 +22,7 @@ typedef struct event_t {
 	uint32			f_active;
 	uint32			f_read;
 	uint32			f_write;
-}event_t;
+} l_event_t;
 
 status l_net_accept( event_t * event );
 status l_net_connect(connection_t * c, string_t* ip, string_t *port );

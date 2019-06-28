@@ -1,12 +1,12 @@
 #ifndef _L_QUEUE_H_INCLUDED_
 #define _L_QUEUE_H_INCLUDED_
 
-typedef struct queue_t queue_t;
-typedef struct queue_t
+typedef struct l_queue_t queue_t;
+typedef struct l_queue_t
 {
     queue_t  *prev;
     queue_t  *next;
-} queue_t;
+} l_queue_t;
 
 int32 queue_get_num( queue_t * queue );
 int32 queue_empty( queue_t * h );

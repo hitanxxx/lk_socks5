@@ -8,7 +8,7 @@ typedef status ( *net_recv_chain ) ( connection_t * c, meta_t * meta );
 typedef ssize_t ( *net_send ) ( connection_t * c, char * start, uint32 len );
 typedef ssize_t ( *net_recv ) ( connection_t * c, char * start, uint32 len );
 
-typedef struct connection_t {
+typedef struct l_connection_t {
 	queue_t				queue;
 
 	int32				fd;
@@ -29,7 +29,7 @@ typedef struct connection_t {
 	net_recv_chain		recv_chain;
 	net_send 			send;
 	net_recv 			recv;
-} connection_t;
+} l_connection_t;
 
 struct addrinfo * net_get_addr( string_t * ip, string_t * port );
 

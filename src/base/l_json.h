@@ -11,8 +11,8 @@
 
 #define JSON_ROOT	0xffff
 
-typedef struct json_node_t json_node_t;
-typedef struct json_node_t {
+typedef struct l_json_node_t json_node_t;
+typedef struct l_json_node_t {
 	queue_t 	queue;
 	queue_t 	child;
 	json_node_t *parent;
@@ -21,7 +21,7 @@ typedef struct json_node_t {
 	uint32 		type;
 	string_t 	name;
 	double 		num;
-} json_node_t;
+} l_json_node_t;
 
 typedef struct json_ctx_t {
 	char * 			p;

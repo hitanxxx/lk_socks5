@@ -9,9 +9,9 @@
 #define 	L_SSL_KEY_PATH_LEN		128
 
 // ssl
-typedef struct ssl_connection_t ssl_connection_t;
+typedef struct l_ssl_connection_t ssl_connection_t;
 typedef status ( * ssl_handshake_pt )( event_t * ev );
-typedef struct ssl_connection_t {
+typedef struct l_ssl_connection_t {
 	SSL_CTX	*			session_ctx;
 	SSL* 				con;
 
@@ -23,7 +23,7 @@ typedef struct ssl_connection_t {
 	event_pt			old_read_handler;
 	event_pt			old_write_handler;
 
-} ssl_connection_t;
+} l_ssl_connection_t;
 
 //
 status ssl_init( void );
