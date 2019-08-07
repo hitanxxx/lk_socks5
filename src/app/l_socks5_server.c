@@ -984,15 +984,15 @@ failed:
 
 status socks5_server_init( void )
 {
-	queue_init( &g_socks5_users );
-	if( OK != l_mem_page_create( &g_socks5_user_mempage, sizeof(socks5_user_t) ) )
-	{
-		err("alloc socks5 user mem page\n");
-		return ERROR;
-	}
-	socks5_auth_user_pull( );
-
 	if( conf.socks5_mode == SOCKS5_SERVER ) {
+		queue_init( &g_socks5_users );
+		if( OK != l_mem_page_create( &g_socks5_user_mempage, sizeof(socks5_user_t) ) )
+		{
+			err("alloc socks5 user mem page\n");
+			return ERROR;
+		}
+		socks5_auth_user_pull( );
+	
 		listen_add( conf.socks5_server_port, socks5_server_accept_check, L_SSL );
 	}
 	return OK;
