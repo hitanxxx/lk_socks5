@@ -37,6 +37,11 @@ typedef struct config_t
 	uint32		socks5_server_port;
 	uint32		socks5_local_port;
 
+	// socks5 auth
+	string_t	socks5_server_auth_file;
+	string_t 	socks5_client_user;
+	string_t 	socks5_client_passwd;
+
 }config_t;
 
 extern config_t conf;

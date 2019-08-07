@@ -7,6 +7,36 @@
 #define SOCKS5_SERVER	0x0001
 #define SOCKS5_CLIENT	0x0002
 
+#define SOCKS5_AUTH_REQ				0x1001
+#define SOCKS5_AUTH_RESP			0x1002
+
+#define SOCKS5_AUTH_SUCCESS			0x2000
+#define SOCKS5_AUTH_MAGIC_FAIL		0x2001
+#define SOCKS5_AUTH_TYPE_FAIL		0x2002
+#define SOCKS5_AUTH_NO_USER			0x2003
+#define SOCKS5_AUTH_PASSWD_FAIL		0x2004
+
+#define SOCKS5_USER_NAME_MAX		16
+#define SOCKS5_USER_PASSWD_MAX		16
+
+typedef struct socks5_user_t 
+{
+	char		name[SOCKS5_USER_NAME_MAX];
+	char 		passwd[SOCKS5_USER_PASSWD_MAX];
+
+	queue_t		queue;
+} socks5_user_t ;
+
+typedef struct socks5_auth
+{
+	int 		magic; 		// 947085
+	char 		name[32];
+	char 		passwd[32];
+
+	int			auth_type;  // 0:req  1:response 	
+	int			auth_resp_code;
+} socks5_auth_t;
+
 typedef struct socks5_init_t {
 	int32 	state;
 	char 	ver;
@@ -29,6 +59,7 @@ typedef struct socks5_request_t {
 } socks5_request_t;
 
 typedef struct socks5_cycle_t {
+	
 	socks5_init_t		init;
 	socks5_request_t	request;
 	connection_t * 		down;

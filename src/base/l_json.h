@@ -11,47 +11,49 @@
 
 #define JSON_ROOT	0xffff
 
-typedef struct l_json_node_t json_node_t;
-typedef struct l_json_node_t {
-	queue_t 	queue;
-	queue_t 	child;
-	json_node_t *parent;
-	uint32		child_flag;
+typedef struct ljson_node ljson_node_t;
+struct ljson_node 
+{
+	ljson_node_t * child, *child_last;
+	ljson_node_t * next, *parent, *prev;
 
-	uint32 		type;
+	uint32		node_type;
 	string_t 	name;
-	double 		num;
-} l_json_node_t;
+	double		num_d;
+	int			num_i;
+	float		num_f;
 
-typedef struct json_ctx_t {
+} ljson_node;
+
+typedef struct ljson_ctx {
 	char * 			p;
 	char * 			end;
-	json_node_t 	root;
+	ljson_node_t 	root;
 	l_mem_page_t * 	page;
-} json_ctx_t;
+} ljson_ctx_t;
 
 // get
-status json_get_child( json_node_t * parent, uint32 index, json_node_t ** child );
-status json_get_obj_str( json_node_t * obj, char * str, uint32 length, json_node_t ** child );
-status json_get_obj_bool( json_node_t * obj, char * str, uint32 length, json_node_t ** child );
-status json_get_obj_num( json_node_t * obj, char * str, uint32 length, json_node_t ** child );
-status json_get_obj_null( json_node_t * obj, char * str, uint32 length, json_node_t ** child );
-status json_get_obj_arr( json_node_t * obj, char * str, uint32 length, json_node_t ** child );
-status json_get_obj_obj( json_node_t * obj, char * str, uint32 length, json_node_t ** child );
-status json_get_obj_child_by_name( json_node_t * parent, char * str, uint32 length, json_node_t ** child );
+status json_get_child( ljson_node_t * parent, uint32 index, ljson_node_t ** child );
+status json_get_obj_str( ljson_node_t * obj, char * str, uint32 length, ljson_node_t ** child );
+status json_get_obj_bool( ljson_node_t * obj, char * str, uint32 length, ljson_node_t ** child );
+status json_get_obj_num( ljson_node_t * obj, char * str, uint32 length, ljson_node_t ** child );
+status json_get_obj_null( ljson_node_t * obj, char * str, uint32 length, ljson_node_t ** child );
+status json_get_obj_arr( ljson_node_t * obj, char * str, uint32 length, ljson_node_t ** child );
+status json_get_obj_obj( ljson_node_t * obj, char * str, uint32 length, ljson_node_t ** child );
+status json_get_obj_child_by_name( ljson_node_t * parent, char * str, uint32 length, ljson_node_t ** child );
 // add
-json_node_t * json_add_obj( json_ctx_t * ctx, json_node_t * parent );
-json_node_t * json_add_arr( json_ctx_t * ctx, json_node_t * parent );
-json_node_t * json_add_true( json_ctx_t * ctx, json_node_t * parent );
-json_node_t * json_add_false( json_ctx_t * ctx, json_node_t * parent );
-json_node_t * json_add_null( json_ctx_t * ctx, json_node_t * parent );
-json_node_t * json_add_str( json_ctx_t * ctx, json_node_t * parent, char* str, uint32 length );
-json_node_t * json_add_num( json_ctx_t * ctx, json_node_t * parent, uint32 num );
-json_node_t * json_obj_add_child( json_ctx_t * ctx, json_node_t * parent, char * str, uint32 length );
+ljson_node_t * json_add_obj( ljson_ctx_t * ctx, ljson_node_t * parent );
+ljson_node_t * json_add_arr( ljson_ctx_t * ctx, ljson_node_t * parent );
+ljson_node_t * json_add_true( ljson_ctx_t * ctx, ljson_node_t * parent );
+ljson_node_t * json_add_false( ljson_ctx_t * ctx, ljson_node_t * parent );
+ljson_node_t * json_add_null( ljson_ctx_t * ctx, ljson_node_t * parent );
+ljson_node_t * json_add_str( ljson_ctx_t * ctx, ljson_node_t * parent, char* str, uint32 length );
+ljson_node_t * json_add_int( ljson_ctx_t * ctx, ljson_node_t * parent, int32 num );
+ljson_node_t * json_obj_add_child( ljson_ctx_t * ctx, ljson_node_t * parent, char * str, uint32 length );
 
-status json_ctx_create( json_ctx_t ** json_ctx );
-status json_ctx_free( json_ctx_t * ctx );
-status json_decode( json_ctx_t * ctx, char * p, char * end );
-status json_encode( json_ctx_t * ctx, meta_t ** string );
+status json_ctx_create( ljson_ctx_t ** json_ctx );
+status json_ctx_free( ljson_ctx_t * ctx );
+status json_decode( ljson_ctx_t * ctx, char * p, char * end );
+status json_encode( ljson_ctx_t * ctx, meta_t ** string );
 
 #endif

@@ -1,7 +1,5 @@
 #include "lk.h"
 
-queue_t				queue_event;
-
 static int32		event_fd = 0;
 static struct epoll_event * events = NULL;
 
@@ -211,8 +209,7 @@ status event_init( void )
 {
 	uint32 i;
 	
-	events = (struct epoll_event*)
-		l_safe_malloc( sizeof(struct epoll_event)*EV_MAXEVENTS );
+	events = (struct epoll_event*) l_safe_malloc( sizeof(struct epoll_event)*EV_MAXEVENTS );
 	if( !events ) {
 		err(" l_safe_malloc events\n" );
 		return ERROR;

@@ -211,7 +211,7 @@ static status bst_travesal_print( bst_node_t * node )
 		level --;
 	}
 	*ptr = '\0';
-	debug("%s %d\n", str, node->num );
+	debug("%s %ld\n", str, node->num );
 	return OK;
 }
 // bst_travesal_breadth ---------
