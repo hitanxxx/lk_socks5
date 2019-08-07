@@ -679,22 +679,7 @@ static status socks5_server_private_auth_check( event_t * ev )
 		rc = SOCKS5_AUTH_TYPE_FAIL;
 		goto failed;
 	}
-	#if(0)
-	// find user
-	if( strncmp( auth->name, "test", strlen("test") ) != 0 )
-	{
-		err("check user name failed, [%s]\n", auth->name );
-		rc = SOCKS5_AUTH_NO_USER;
-		goto failed;
-	}
-	// chech user passwd
-	if( strncmp( auth->passwd, "123", strlen("123") ) != 0 )
-	{
-		err("socks5 server auth check passwd failed\n", auth->passwd );
-		rc = SOCKS5_AUTH_PASSWD_FAIL;
-		goto failed;
-	}
-	#endif
+	
 	string_t auth_name, auth_passwd;
 	socks5_user_t * user;
 
@@ -737,27 +722,29 @@ static status socks5_server_private_auth_recv( event_t * ev )
 	socks5_cycle_t * cycle = c->data;
 	ssize_t rc;
 
-	while( 1 )
+	timer_add( &ev->timer, SOCKS5_TIME_OUT );
+	while( meta_len( c->meta->pos, c->meta->last ) < sizeof(socks5_auth_t) )
 	{
-		if( meta_len( c->meta->pos, c->meta->last ) < sizeof(socks5_auth_t) )
+		rc = c->recv( c, c->meta->last, meta_len( c->meta->last, c->meta->end ) );
+		if( rc < 0 )
 		{
-			rc = c->recv( c, c->meta->pos, meta_len( c->meta->last, c->meta->end ) );
-			if( rc < 0 )
+			if( rc == AGAIN )
 			{
-				if( rc == AGAIN )
-				{
-					return AGAIN;
-				}
-				err("socks5 server auth recv failed\n");
-				socks5_cycle_free( cycle );
-				return ERROR;
+				// add timer
+				timer_add( &ev->timer, SOCKS5_TIME_OUT );
+				return AGAIN;
 			}
-			c->meta->last += rc;
+			err("socks5 server auth recv failed\n");
+			socks5_cycle_free( cycle );
+			return ERROR;
 		}
-
-		ev->read_pt = socks5_server_private_auth_check;
-		return ev->read_pt( ev );
+		c->meta->last += rc;		
 	}
+	timer_del( &ev->timer );
+
+	debug("recv private length [%d], socks5_auth_t size [%d]\n", meta_len( c->meta->pos, c->meta->last ), sizeof(socks5_auth_t) );
+	ev->read_pt = socks5_server_private_auth_check;
+	return ev->read_pt( ev );
 }
 
 static status socks5_server_init_cycle( event_t * event )
@@ -784,6 +771,10 @@ static status socks5_server_init_cycle( event_t * event )
 	memset( cycle, 0, sizeof(socks5_cycle_t) );
 	cycle->down = c;
 	c->data = (void*)cycle;
+
+	timer_set_data( &event->timer, cycle );
+	timer_set_pt(&event->timer, socks5_timeout_cycle );
+	timer_add( &event->timer, SOCKS5_TIME_OUT );
 	
 	event->read_pt	= socks5_server_private_auth_recv;
 	return event->read_pt( event );

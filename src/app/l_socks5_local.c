@@ -6,54 +6,53 @@ static status socks5_local_private_auth_resp( event_t * ev )
 	socks5_cycle_t * cycle = up->data;
 	socks5_auth_t * auth = NULL;
 	ssize_t rc;
-	
-	while(1)
+
+	timer_add( &ev->timer, SOCKS5_TIME_OUT );
+	while( meta_len( up->meta->pos, up->meta->last ) < sizeof(socks5_auth_t) )
 	{
 		// recv auth data structrue
-		if( meta_len( up->meta->pos, up->meta->last ) < sizeof(socks5_auth_t) )
+		rc = up->recv( up, up->meta->last, meta_len( up->meta->last, up->meta->end ) );
+		if( rc < 0 )
 		{
-			rc = up->recv( up, up->meta->pos, meta_len( up->meta->last, up->meta->end ) );
-			if( rc < 0 )
+			if( rc == AGAIN )
 			{
-				if( rc == AGAIN )
-				{
-					return AGAIN;
-				}
-				err("socks5 local auth resp recv failed\n");
-				socks5_cycle_free( cycle );
-				return ERROR;
+				timer_add( &ev->timer, SOCKS5_TIME_OUT );
+				return AGAIN;
 			}
-			up->meta->last += rc;
-		}
-
-		// check auth res
-		timer_del( &ev->timer );
-
-		auth = (socks5_auth_t*)up->meta->pos;
-		if( auth->magic != 947085 )
-		{
-			err("check magic failed, [%d] != magic [947085]\n", auth->magic );
+			err("socks5 local auth resp recv failed\n");
 			socks5_cycle_free( cycle );
 			return ERROR;
 		}
-		if( auth->auth_type != SOCKS5_AUTH_RESP )
-		{
-			err("check auth_type failed, [%x] not SOCKS5_AUTH_RESP\n", auth->auth_type );
-			socks5_cycle_free( cycle );
-			return ERROR;
-		}
-		
-		if( auth->auth_resp_code != SOCKS5_AUTH_SUCCESS )
-		{
-			err("check auth_resp_code not success, [%x]\n", auth->auth_resp_code );
-			socks5_cycle_free( cycle );
-			return ERROR;
-		}
-		ev->read_pt  = NULL;
-		ev->write_pt = socks5_pipe;
-		
-		return ev->write_pt( ev );
+		up->meta->last += rc;
 	}
+	
+	// check auth res
+	timer_del( &ev->timer );
+
+	auth = (socks5_auth_t*)up->meta->pos;
+	if( auth->magic != 947085 )
+	{
+		err("check magic failed, [%d] != magic [947085]\n", auth->magic );
+		socks5_cycle_free( cycle );
+		return ERROR;
+	}
+	if( auth->auth_type != SOCKS5_AUTH_RESP )
+	{
+		err("check auth_type failed, [%x] not SOCKS5_AUTH_RESP\n", auth->auth_type );
+		socks5_cycle_free( cycle );
+		return ERROR;
+	}
+	
+	if( auth->auth_resp_code != SOCKS5_AUTH_SUCCESS )
+	{
+		err("check auth_resp_code not success, [%x]\n", auth->auth_resp_code );
+		socks5_cycle_free( cycle );
+		return ERROR;
+	}
+	ev->read_pt  = NULL;
+	ev->write_pt = socks5_pipe;
+	
+	return ev->write_pt( ev );
 }
 
 static status socks5_local_private_auth_send( event_t * ev )
@@ -107,6 +106,7 @@ static status socks5_local_private_auth_begin( event_t * ev )
 			return ERROR;
 		}
 	}
+	
 	auth = (socks5_auth_t*)up->meta->pos;
 	memset( auth, 0, sizeof(socks5_auth_t) );
 
@@ -119,7 +119,6 @@ static status socks5_local_private_auth_begin( event_t * ev )
 	up->meta->last += sizeof(socks5_auth_t);
 	
 	ev->write_pt = socks5_local_private_auth_send;
-
 	return ev->write_pt( ev );
 }
 
