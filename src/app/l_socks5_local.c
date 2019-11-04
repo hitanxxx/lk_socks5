@@ -204,7 +204,7 @@ static status socks5_local_init_connection( event_t * ev )
 	// get server addr
 	memset( &server_addr, 0, sizeof( struct sockaddr_in ) );
 	server_addr.sin_family		= AF_INET;
-	server_addr.sin_port 		= htons( conf.socks5_server.server_port );
+	server_addr.sin_port 		= htons( conf.socks5_client.server_port );
 	server_addr.sin_addr.s_addr = inet_addr( conf.socks5_client.server_ip );
 	
 	// init struct data
