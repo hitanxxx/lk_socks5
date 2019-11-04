@@ -64,7 +64,7 @@ static status lk_daemon( void )
     int32  fd;
 	status rc;
 
-	if( !conf.daemon ) {
+	if( !conf.base.daemon ) {
 		return OK;
 	}
 	rc = fork( );
@@ -174,11 +174,10 @@ static status get_option( int argc, char * argv[] )
 // main ------------------
 int32 main( int argc, char * argv[] )
 {
-	int32 rc = ERROR;
+	int32 rc = ERROR;	
 
-	conf.http_access_log = 1;
-	conf.log_error = 1;
-	conf.log_debug = 1;
+	conf.log.error = 1;
+	conf.log.debug = 1;
 	l_time_update( );
 	if( OK != get_option( argc, argv ) ) {
 		err("get option\n");
@@ -202,7 +201,7 @@ int32 main( int argc, char * argv[] )
 		err( "listen_start failed\n" );
 		goto over;
 	}
-	if( conf.worker_process > 0 ) {
+	if( conf.base.worker_process > 0 ) {
 		process_master_run( );
 	} else {
 		process_single_run( );

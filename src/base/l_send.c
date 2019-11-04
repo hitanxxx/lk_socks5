@@ -120,6 +120,33 @@ eintr:
 		}
 	}
 }
+
+ssize_t udp_recvs( connection_t * c, char * start, uint32 len )
+{
+	ssize_t rc;
+	socklen_t socklen = sizeof(c->addr);
+
+	rc = recvfrom( c->fd, start, len, 0, (struct sockaddr*)&c->addr, &socklen );
+	if( rc == ERROR )
+	{
+		if( errno == EAGAIN )
+		{
+			return AGAIN;
+		}
+		err("udp recv failed, errno [%d]\n", errno );
+		return ERROR;
+	}
+	else if ( rc == 0 )
+	{
+		err("peer cloesd\n");
+		return ERROR;
+	}
+	else
+	{
+		return rc;
+	}
+}
+
 // recvs ----------------------
 ssize_t recvs( connection_t * c, char * start, uint32 len )
 {
@@ -139,6 +166,33 @@ ssize_t recvs( connection_t * c, char * start, uint32 len )
 		return rc;
 	}
 }
+
+ssize_t udp_sends( connection_t * c, char * start, uint32 len )
+{
+	ssize_t rc;
+	socklen_t socklen = sizeof(struct sockaddr);
+
+	rc = sendto( c->fd, start, len, 0, (struct sockaddr*)&c->addr, socklen );
+	if( rc < 0 )
+	{
+		if( errno == EAGAIN )
+		{
+			return AGAIN;
+		}
+		err("udp send failed, errno [%d]\n", errno );
+		return ERROR;
+	} 
+	else if ( rc == 0 )
+	{
+		err("peer closed\n");
+		return ERROR;
+	} 
+	else 
+	{
+		return rc;
+	}
+}
+
 // sends ----------------------
 ssize_t sends( connection_t * c, char * start, uint32 len )
 {

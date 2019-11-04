@@ -172,7 +172,7 @@ status socks5_pipe( event_t * event )
 	return AGAIN;
 }
 
-static status socks5_local_response( event_t * event )
+static status socks5_server_msg_request_response_send( event_t * event )
 {
 	connection_t * down;
 	socks5_cycle_t * cycle;
@@ -199,7 +199,7 @@ static status socks5_local_response( event_t * event )
 	return rc;
 }
 
-static status socks5_server_response_prepare( event_t * event )
+static status socks5_server_msg_request_response_prepare( event_t * event )
 {
 	socks5_cycle_t * cycle;
 	connection_t* up, *down;
@@ -229,7 +229,7 @@ static status socks5_server_response_prepare( event_t * event )
 	cycle->up->event.read_pt = NULL;
 	cycle->up->event.write_pt = NULL;
 	
-	down->event.write_pt = socks5_local_response;
+	down->event.write_pt = socks5_server_msg_request_response_send;
 	return down->event.write_pt( &down->event );
 }
 
@@ -251,10 +251,35 @@ static status socks5_server_connect_check( event_t * event )
 	timer_del( &event->timer );
 	debug(" server remote check success\n" );
 	
-	event->write_pt = socks5_server_response_prepare;
+	event->write_pt = socks5_server_msg_request_response_prepare;
 	return event->write_pt( event );
 }
 
+static struct addrinfo * socks5_server_get_addr( string_t * ip, string_t * port )
+{
+	struct addrinfo hints, *res;
+	int rc;
+	char name[100] = {0};
+	char serv[10] = {0};
+
+	memset( &hints, 0, sizeof( struct addrinfo ) );
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
+
+	memcpy( name, ip->data, ip->len );
+	memcpy( serv, port->data, port->len );
+
+	rc = getaddrinfo( name, serv, &hints, &res );
+	if( 0 != rc ) {
+		err(" getaddrinfo failed, [%d]\n", errno );
+		return NULL;
+	}
+	if( NULL == res ) {
+		err(" getaddrinfo failed, [%d]\n", errno );
+		return NULL;
+	}
+	return res;
+}
 
 static status socks5_server_connect( event_t * event )
 {
@@ -263,6 +288,7 @@ static status socks5_server_connect( event_t * event )
 	char ipstr[128] = {0}, portstr[128] = {0};
 	string_t ip, port;
 	status rc;
+	struct addrinfo * res = NULL;
 	
 	down = event->data;
 	cycle = down->data;
@@ -270,10 +296,11 @@ static status socks5_server_connect( event_t * event )
 	if( cycle->request.atyp == 0x01 ) 
 	{
 		// ip type address
-		snprintf( ipstr, sizeof(ipstr), "%d.%d.%d.%d", (unsigned char )cycle->request.dst_addr[0],
-			(unsigned char )cycle->request.dst_addr[1],
-			(unsigned char )cycle->request.dst_addr[2],
-			(unsigned char )cycle->request.dst_addr[3] );
+		snprintf( ipstr, sizeof(ipstr), "%d.%d.%d.%d",
+			(unsigned char )cycle->request.dst_addr_ipv4[0],
+			(unsigned char )cycle->request.dst_addr_ipv4[1],
+			(unsigned char )cycle->request.dst_addr_ipv4[2],
+			(unsigned char )cycle->request.dst_addr_ipv4[3] );
 		snprintf( portstr, sizeof(portstr), "%d", ntohs(*(int32*)cycle->request.dst_port) );
 		ip.data = ipstr;
 		ip.len = l_strlen(ipstr);
@@ -284,8 +311,8 @@ static status socks5_server_connect( event_t * event )
 	{
 		// domain type address
 		
-		ip.data = cycle->request.dst_addr;
-		ip.len = (unsigned char)cycle->request.host_len;
+		ip.data = cycle->request.dst_addr_domain;
+		ip.len = (unsigned char)cycle->request.dst_addr_num;
 		snprintf( portstr, sizeof(portstr), "%d", ntohs(*(int32*)cycle->request.dst_port) );
 		port.data = portstr;
 		port.len = l_strlen(portstr);		
@@ -293,6 +320,15 @@ static status socks5_server_connect( event_t * event )
 	else 
 	{
 		err(" not support socks5 request atyp [%x]\n", cycle->request.atyp );
+		socks5_cycle_free( cycle );
+		return ERROR;
+	}
+
+	res = socks5_server_get_addr( &ip, &port );
+	if( !res ) {
+		err(" net get addr failed\n" );
+		socks5_cycle_free( cycle );
+		return ERROR;
 	}
 
 	if( OK != net_alloc( &cycle->up ) ) {
@@ -305,7 +341,10 @@ static status socks5_server_connect( event_t * event )
 	event->read_pt = NULL;
 	event->write_pt = NULL;
 	
-	rc = l_net_connect( cycle->up, &ip, &port );
+	memcpy( &cycle->up->addr, res->ai_addr, sizeof(struct sockaddr_in) );
+	freeaddrinfo( res );
+	
+	rc = l_net_connect( cycle->up, &cycle->up->addr );
 	if( ERROR == rc ) {
 		err(" up net connect failed\n" );
 		socks5_cycle_free( cycle );
@@ -325,11 +364,11 @@ static status socks5_server_connect( event_t * event )
 	return cycle->up->event.write_pt( &cycle->up->event );
 }
 
-static status socks5_process_request( event_t * event )
+static status socks5_server_msg_request_process( event_t * event )
 {
 	char * p = NULL;
-	connection_t * c;
-	socks5_cycle_t * cycle = NULL;
+	connection_t * c = event->data;
+	socks5_cycle_t * cycle = c->data;
 	ssize_t rc;
 	int32 i = 0;
 
@@ -338,15 +377,14 @@ static status socks5_process_request( event_t * event )
 		cmd,
 		rsv,
 		atyp,
-		dst_addr,
-		dst_host,
+		dst_addr_ipv4,
+		dst_addr_ipv6,
+		dst_addr_domain_len,
+		dst_addr_domain,
 		dst_port,
 		dst_port_end
 	} state;
 
-	c = event->data;
-	cycle = c->data;
-	
 	while( 1 ) 
 	{
 		if( c->meta->pos == c->meta->last ) 
@@ -375,23 +413,28 @@ static status socks5_process_request( event_t * event )
 
 			if( state == ver ) 
 			{
+				/*
+					ver always 0x05
+				*/
 				cycle->request.ver = *p;
 				state = cmd;
 				continue;
 			}
 			if( state == cmd ) 
-			{
+			{	
+				/*
+					socks5 support cmd value
+					01				connect
+					02				bind
+					03				udp associate
+				*/
 				cycle->request.cmd = *p;
-				if( cycle->request.cmd != 0x01 ) {
-					err("only support CMD `connect` 0x01, [%d]\n", *p );
-					socks5_cycle_free( cycle );
-					return ERROR;
-				}
 				state = rsv;
 				continue;
 			}
 			if( state == rsv ) 
 			{
+				// rev == reserved
 				cycle->request.rsv = *p;
 				state = atyp;
 				continue;
@@ -399,38 +442,64 @@ static status socks5_process_request( event_t * event )
 			if( state == atyp ) 
 			{
 				cycle->request.atyp = *p;
-				state = dst_addr;
-				continue;
-			}
-			if( state == dst_addr ) 
-			{
-				cycle->request.dst_addr[cycle->request.offset++] = *p;
-				if( cycle->request.atyp == 0x01 )
-				{
-					if( cycle->request.offset == 4 )
-					{
-						state = dst_port;
-						continue;
-					}
-				} 
-				else if ( cycle->request.atyp == 0x03 ) 
-				{
-					cycle->request.host_len = *p;
-					cycle->request.offset = 0;
-					state = dst_host;
+				/*
+					atyp		type		dst_addr length 
+					0x01		ipv4		4
+					0x03		domain		/
+					0x04		ipv6		16
+				*/
+				if( cycle->request.atyp == 0x01 ) {
+					state = dst_addr_ipv4;
+					cycle->request.dst_addr_n = 0;
 					continue;
 				} 
 				else if ( cycle->request.atyp == 0x04 )
 				{
-					err("not support ipv6 now\n" );
-					socks5_cycle_free( cycle );
-					return ERROR;
+					state = dst_addr_ipv6;
+					cycle->request.dst_addr_n = 0;
+					continue;
+				}
+				else if ( cycle->request.atyp == 0x03 )
+				{
+					state = dst_addr_domain_len;
+					cycle->request.dst_addr_n = 0;
+					cycle->request.dst_addr_num = 0;
+					continue;
+				}
+				err("request atyp [%d] not support\n", cycle->request.atyp );
+				socks5_cycle_free( cycle );
+				return ERROR;
+			}
+			if( state == dst_addr_ipv4 )
+			{
+				cycle->request.dst_addr_ipv4[(int)cycle->request.dst_addr_n++] = *p;
+				if( cycle->request.dst_addr_n == 4 )
+				{
+					state = dst_port;
+					continue;
 				}
 			}
-			if( state == dst_host ) 
+			if( state == dst_addr_ipv6 )
 			{
-				cycle->request.dst_addr[cycle->request.offset++] = *p;
-				if( cycle->request.offset == (unsigned char)cycle->request.host_len ) 
+				cycle->request.dst_addr_ipv6[(int)cycle->request.dst_addr_n++] = *p;
+				if( cycle->request.dst_addr_n == 16 )
+				{
+					state = dst_port;
+					continue;
+				}
+			}
+			if( state == dst_addr_domain_len )
+			{
+				cycle->request.dst_addr_num = *p;
+				cycle->request.dst_addr_num = ( cycle->request.dst_addr_num < 0 ) ? 0 : cycle->request.dst_addr_num;
+
+				state = dst_addr_domain;
+				continue;
+			}
+			if( state == dst_addr_domain )
+			{
+				cycle->request.dst_addr_domain[(int)cycle->request.dst_addr_n++] = *p;
+				if( cycle->request.dst_addr_n == cycle->request.dst_addr_num )
 				{
 					state = dst_port;
 					continue;
@@ -445,6 +514,20 @@ static status socks5_process_request( event_t * event )
 			if( state == dst_port_end ) 
 			{
 				cycle->request.dst_port[1] = *p;
+
+				// goto filter
+				if( cycle->request.cmd != 0x01 ) {
+					err("only support CMD `connect` 0x01, [%d]\n", *p );
+					socks5_cycle_free( cycle );
+					return ERROR;
+				}
+				if( cycle->request.atyp == 0x04 )
+				{
+					err("not support ipv6 request, atype [%d]\n", cycle->request.atyp );
+					socks5_cycle_free( cycle );
+					return ERROR;
+				}
+				// filter over
 				
 				debug(" socks5 request process success\n" );
 				cycle->request.state = 0;
@@ -459,7 +542,7 @@ static status socks5_process_request( event_t * event )
 	}
 }
 
-static status socks5_server_auth_response ( event_t * event )
+static status socks5_server_msg_invate_response_send ( event_t * event )
 {
 	connection_t * down;
 	status rc;
@@ -478,7 +561,7 @@ static status socks5_server_auth_response ( event_t * event )
 		down->meta->pos = down->meta->last = down->meta->start;
 
 		event->write_pt = NULL;
-		event->read_pt = socks5_process_request;
+		event->read_pt = socks5_server_msg_request_process;
 		return event->read_pt( event );
 	}
 	timer_set_data( &event->timer, cycle );
@@ -488,20 +571,21 @@ static status socks5_server_auth_response ( event_t * event )
 	return AGAIN;
 }
 
-static status socks5_server_auth_response_prepare( event_t * event )
+static status socks5_server_msg_invate_response_prepare( event_t * event )
 {
-	connection_t * c;
-	
-	c = event->data;
+	connection_t * c = event->data;
+	socsk5_message_invite_response_t * invite_resp = NULL;
 	char * p = NULL;
 	/*
 		1 byte 		1 byte
 		version | ack authentication method
 	*/
 	c->meta->pos = c->meta->last = c->meta->start;
-	*c->meta->last ++ = 0x05;
-	*c->meta->last ++ = 0x00;
-
+	invite_resp = ( socsk5_message_invite_response_t* ) c->meta->pos;
+	invite_resp->ver = 0x05;
+	invite_resp->method = 0x00;
+	c->meta->last += sizeof(socsk5_message_invite_response_t);
+	
 	for( p = c->meta->pos; p < c->meta->last; p ++ ) {
 		debug(" socks5 auth replay [%x]\n", *p );
 	}
@@ -509,17 +593,18 @@ static status socks5_server_auth_response_prepare( event_t * event )
 	event_opt( event, c->fd, EV_W );
 	
 	event->read_pt = NULL;
-	event->write_pt = socks5_server_auth_response;
+	event->write_pt = socks5_server_msg_invate_response_send;
 	return event->write_pt( event );
 }
 
-static status socks5_server_auth_parse( event_t * event )
+static status socks5_server_msg_invate_process( event_t * event )
 {
 	connection_t * down;
 	socks5_cycle_t * cycle;
 	ssize_t rc;
 	char * p = NULL;
 	/*
+		invite message request format
 		1 byte		1 byte				1-255 byte
 		version | authentication method num | auth methods
 	*/
@@ -532,10 +617,10 @@ static status socks5_server_auth_parse( event_t * event )
 	down = event->data;
 	cycle = down->data;
 	
-	state = cycle->init.state;
+	state = cycle->invite.state;
 	while( 1 ) 
 	{
-		if( down->meta->pos == down->meta->last ) 
+		if( down->meta->pos == down->meta->last )
 		{
 			rc = down->recv( down, down->meta->last, meta_len( down->meta->last, down->meta->end ) );
 			if( rc < 0 ) 
@@ -560,31 +645,31 @@ static status socks5_server_auth_parse( event_t * event )
 			
 			if( state == ver ) 
 			{
-				cycle->init.ver = *p;
+				cycle->invite.ver = *p;
 				state = nmethod;
 				continue;
 			}
 			if( state == nmethod ) 
 			{
-				cycle->init.nmethod = *p;
-				cycle->init.m_offset = 0;
+				cycle->invite.method_num = *p;
+				cycle->invite.method_n = 0;
 				state = methods;
 				continue;
 			}
 			if( state == methods ) 
 			{
-				cycle->init.method[(int)cycle->init.m_offset++] = *p;
-				if( cycle->init.m_offset == cycle->init.nmethod ) 
+				cycle->invite.method[(int)cycle->invite.method_n++] = *p;
+				if( cycle->invite.method_n == cycle->invite.method_num ) 
 				{
 					// recv auth over
 					timer_del( &down->event.timer );
 					
-					event->read_pt = socks5_server_auth_response_prepare;
+					event->read_pt = socks5_server_msg_invate_response_prepare;
 					return event->read_pt(event);
 				}
 			}
 		}
-		cycle->init.state = state;
+		cycle->invite.state = state;
 	}
 }
 
@@ -628,6 +713,141 @@ static status socks5_user_add( string_t * name, string_t * passwd )
 	return OK;
 }
 
+static status socks5_auth_user_file_decode( meta_t * meta )
+{
+	ljson_ctx_t * ctx = NULL; 
+	ljson_node_t * root_obj, *db_arr, *db_index;
+	ljson_node_t * username, *userpasswd;
+	status rc = OK;
+	
+	if( OK != json_ctx_create( &ctx ) )
+	{
+		err("ctx create\n");
+		return ERROR;
+	}
+	if( OK !=  json_decode( ctx, meta->pos, meta->last ) )
+	{
+		err("json decode\n");
+		rc = ERROR;
+		goto failed;
+	}
+	 if( OK !=  json_get_child( &ctx->root, 1, &root_obj ) )
+	 {
+	 	err("json get root child\n");
+		rc = ERROR;
+		goto failed;
+	 }
+	 if( OK != json_get_obj_child_by_name( root_obj, "socks5_user_database", l_strlen("socks5_user_database"), &db_arr) )
+	 {
+		err("get database arr\n");
+		rc = ERROR;
+		goto failed;
+	 }
+	 db_index = db_arr->child;
+	 while( db_index )
+	 {
+		if( OK != json_get_obj_child_by_name( db_index, "username", l_strlen("username"), &username ) )
+		{
+			err("array child find username\n");
+			rc = ERROR;
+			goto failed;
+		}
+		if( OK != json_get_obj_child_by_name( db_index, "passwd", l_strlen("passwd"), &userpasswd ) )
+		{
+			err("array child find username\n");
+			rc = ERROR;
+			goto failed;
+		}
+		
+		debug("username [%.*s]  --- passwd [%.*s]\n", 
+			username->name.len, username->name.data,
+			userpasswd->name.len, userpasswd->name.data );
+
+		socks5_user_add( &username->name, &userpasswd->name );
+			
+		db_index = db_index->next;
+	 }
+failed:
+	json_ctx_free( ctx );
+	return rc;
+}
+
+static status socks5_auth_user_file_load( meta_t * meta )
+{
+	int fd = 0;
+	ssize_t size = 0;
+	
+	fd = open( conf.socks5_server.authfile, O_RDONLY  );
+	if( ERROR == fd )
+	{
+		err("open auth file failed, errno [%d]\n", errno );
+		return ERROR;
+	}
+	size = read( fd, meta->pos, meta_len( meta->start, meta->end ) );
+	close( fd );
+	if( size == ERROR )
+	{
+		err("read auth file\n");
+		return ERROR;
+	}
+	meta->last += size;
+	return OK;
+}
+
+static status socks5_auth_user_pull(  )
+{
+	meta_t * meta;
+	status rc = OK;
+
+	if( strlen(conf.socks5_server.authfile) < 1 )
+	{
+		err("auth file path null\n");
+		return ERROR;
+	}
+	if( OK != meta_alloc( &meta, 4096 ) )
+	{
+		err("meta alloc failed\n");
+		return ERROR;
+	}
+	if( OK != socks5_auth_user_file_load( meta ) )
+	{
+		err("load user file failed\n");
+		rc = ERROR;
+		goto failed;
+	}
+	if( OK != socks5_auth_user_file_decode( meta ) )
+	{
+		err("auth decode\n");
+		rc = ERROR;
+		goto failed;
+	}
+	#if(1)
+	// show all users
+	queue_t * q;
+	socks5_user_t * t = NULL;
+
+	for( q = queue_head( &g_socks5_users ); q != queue_tail( &g_socks5_users ); q = queue_next(q) )
+	{
+		t = l_get_struct( q, socks5_user_t, queue );
+		debug("queue show [%s] --- [%s]\n", t->name, t->passwd );
+	}
+	#endif
+failed:
+	meta_free( meta );
+	return rc;
+}
+
+status socks5_user_auth_init(  void)
+{
+	queue_init( &g_socks5_users );
+	if( OK != l_mem_page_create( &g_socks5_user_mempage, sizeof(socks5_user_t) ) )
+	{
+		err("alloc socks5 user mem page\n");
+		return ERROR;
+	}
+	return socks5_auth_user_pull( );;
+}
+
 #endif
 
 static status socks5_server_private_auth_send_resp( event_t * ev )
@@ -648,7 +868,7 @@ static status socks5_server_private_auth_send_resp( event_t * ev )
 		timer_del( &ev->timer );
 
 		ev->write_pt = NULL;
-		ev->read_pt  = socks5_server_auth_parse;
+		ev->read_pt  = socks5_server_msg_invate_process;
 		return ev->read_pt( ev );
 	}
 
@@ -673,9 +893,9 @@ static status socks5_server_private_auth_check( event_t * ev )
 		rc = SOCKS5_AUTH_MAGIC_FAIL;
 		goto failed;
 	}
-	if( auth->auth_type != SOCKS5_AUTH_REQ )
+	if( auth->message_type != SOCKS5_AUTH_REQ )
 	{
-		err("check auth type [%x] != SOCKS5_AUTH_REQ\n", auth->auth_type );
+		err("check auth type [%x] != SOCKS5_AUTH_REQ\n", auth->message_type );
 		rc = SOCKS5_AUTH_TYPE_FAIL;
 		goto failed;
 	}
@@ -707,8 +927,8 @@ static status socks5_server_private_auth_check( event_t * ev )
 	}
 	
 failed:
-	auth->auth_type			=	SOCKS5_AUTH_RESP;
-	auth->auth_resp_code	= 	rc;
+	auth->message_type			=	SOCKS5_AUTH_RESP;
+	auth->message_status	= 	rc;
 
 	ev->read_pt = NULL;
 	event_opt( &cycle->down->event, cycle->down->fd, EV_W );
@@ -780,7 +1000,7 @@ static status socks5_server_init_cycle( event_t * event )
 	return event->read_pt( event );
 }
 
-static status socks5_server_accept_ssl_handshake( event_t * event )
+static status socks5_server_accept_callback_ssl( event_t * event )
 {
 	connection_t * c;
 	
@@ -804,7 +1024,7 @@ static status socks5_server_accept_ssl_handshake( event_t * event )
 	return event->read_pt( event );
 }
 
-static status socks5_server_accept_check( event_t * event )
+static status socks5_server_accept_callback( event_t * event )
 {
 	connection_t * c;
 	status rc;
@@ -824,7 +1044,7 @@ static status socks5_server_accept_check( event_t * event )
 		{
 			if( rc == AGAIN ) 
 			{
-				c->ssl->handler = socks5_server_accept_ssl_handshake;
+				c->ssl->handler = socks5_server_accept_callback_ssl;
 				timer_set_data( &c->event.timer, (void*)c );
 				timer_set_pt( &c->event.timer, socks5_timeout_con );
 				timer_add( &c->event.timer, SOCKS5_TIME_OUT );
@@ -833,7 +1053,7 @@ static status socks5_server_accept_check( event_t * event )
 			err( " downstream ssl handshake\n" );
 			goto failed;
 		}
-		return socks5_server_accept_ssl_handshake( event );
+		return socks5_server_accept_callback_ssl( event );
 	}
 	
 	event->read_pt = socks5_server_init_cycle;
@@ -844,147 +1064,10 @@ failed:
 }
 
 
-static status socks5_auth_user_file_decode( meta_t * meta )
-{
-	ljson_ctx_t * ctx = NULL; 
-	ljson_node_t * root_obj, *db_arr, *db_index;
-	ljson_node_t * username, *userpasswd;
-	status rc = OK;
-	
-	if( OK != json_ctx_create( &ctx ) )
-	{
-		err("ctx create\n");
-		return ERROR;
-	}
-	if( OK !=  json_decode( ctx, meta->pos, meta->last ) )
-	{
-		err("json decode\n");
-		rc = ERROR;
-		goto failed;
-	}
-	 if( OK !=  json_get_child( &ctx->root, 1, &root_obj ) )
-	 {
-	 	err("json get root child\n");
-		rc = ERROR;
-		goto failed;
-	 }
-	 if( OK != json_get_obj_child_by_name( root_obj, "socks5_user_database", l_strlen("socks5_user_database"), &db_arr) )
-	 {
-		err("get database arr\n");
-		rc = ERROR;
-		goto failed;
-	 }
-	 db_index = db_arr->child;
-	 while( db_index )
-	 {
-		if( OK != json_get_obj_child_by_name( db_index, "username", l_strlen("username"), &username ) )
-		{
-			err("array child find username\n");
-			rc = ERROR;
-			goto failed;
-		}
-		if( OK != json_get_obj_child_by_name( db_index, "passwd", l_strlen("passwd"), &userpasswd ) )
-		{
-			err("array child find username\n");
-			rc = ERROR;
-			goto failed;
-		}
-		
-		debug("username [%.*s]  --- passwd [%.*s]\n", 
-			username->name.len, username->name.data,
-			userpasswd->name.len, userpasswd->name.data );
-
-		socks5_user_add( &username->name, &userpasswd->name );
-			
-		db_index = db_index->next;
-	 }
-failed:
-	json_ctx_free( ctx );
-	return rc;
-}
-
-static status socks5_auth_user_file_load( meta_t * meta )
-{
-	int fd = 0;
-	char path[64] = {0};
-	uint32 len = conf.socks5_server_auth_file.len > sizeof(path) ? sizeof(path) : conf.socks5_server_auth_file.len;
-	ssize_t size = 0;
-	
-	strncpy( path, conf.socks5_server_auth_file.data, len );
-	
-	fd = open( path, O_RDONLY  );
-	if( ERROR == fd )
-	{
-		err("open auth file failed, errno [%d]\n", errno );
-		return ERROR;
-	}
-	size = read( fd, meta->pos, meta_len( meta->start, meta->end ) );
-	close( fd );
-	if( size == ERROR )
-	{
-		err("read auth file\n");
-		return ERROR;
-	}
-	meta->last += size;
-	return OK;
-}
-
-static status socks5_auth_user_pull(  )
-{
-	meta_t * meta;
-	status rc = OK;
-
-	if( conf.socks5_server_auth_file.len < 1 )
-
-	{
-		err("auth file path null\n");
-		return ERROR;
-	}
-	if( OK != meta_alloc( &meta, 4096 ) )
-	{
-		err("meta alloc failed\n");
-		return ERROR;
-	}
-	if( OK != socks5_auth_user_file_load( meta ) )
-	{
-		err("load user file failed\n");
-		rc = ERROR;
-		goto failed;
-	}
-	if( OK != socks5_auth_user_file_decode( meta ) )
-	{
-		err("auth decode\n");
-		rc = ERROR;
-		goto failed;
-	}
-	#if(1)
-	// show all users
-	queue_t * q;
-	socks5_user_t * t = NULL;
-
-	for( q = queue_head( &g_socks5_users ); q != queue_tail( &g_socks5_users ); q = queue_next(q) )
-	{
-		t = l_get_struct( q, socks5_user_t, queue );
-		debug("queue show [%s] --- [%s]\n", t->name, t->passwd );
-	}
-	#endif
-failed:
-	meta_free( meta );
-	return rc;
-}
-
 status socks5_server_init( void )
 {
 	if( conf.socks5_mode == SOCKS5_SERVER ) {
-		queue_init( &g_socks5_users );
-		if( OK != l_mem_page_create( &g_socks5_user_mempage, sizeof(socks5_user_t) ) )
-		{
-			err("alloc socks5 user mem page\n");
-			return ERROR;
-		}
-		socks5_auth_user_pull( );
-	
-		listen_add( conf.socks5_server_port, socks5_server_accept_check, L_SSL );
+		listen_add( conf.socks5_server.server_port, socks5_server_accept_callback, L_SSL );
 	}
 	return OK;
 }

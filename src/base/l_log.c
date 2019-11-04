@@ -87,15 +87,12 @@ status l_log( uint32 id, uint32 level,  const char * func, const char * filename
 	log_content_t log_content;
 	char 	stream[LOG_LENGTH];
 
-	if( id == LOG_ID_ACCESS ) {
-		if( conf.http_access_log != 1 ) return OK;
-	}
 	switch(level) {
 		case LOG_LEVEL_DEBUG:
-			if( conf.log_debug != 1 ) return OK;
+			if( conf.log.debug != 1 ) return OK;
 			break;
 		case LOG_LEVEL_ERROR:
-			if( conf.log_error != 1 ) return OK;
+			if( conf.log.error != 1 ) return OK;
 			break;
 		default:;
 	}

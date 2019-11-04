@@ -12,19 +12,13 @@ static void l_net_timeout( void * data )
 	net_free( c );
 }
 
-status l_net_connect( connection_t * c, string_t* ip, string_t *port )
+status l_net_connect( connection_t * c, struct sockaddr_in * addr )
 {
 	struct addrinfo * res = NULL;
 	status rc;
 	int fd = 0;
-	
-	res = net_get_addr( ip, port );
-	if( !res ) {
-		err(" net get addr failed\n" );
-		return ERROR;
-	}
-	memcpy( &c->addr, res->ai_addr, sizeof(struct sockaddr_in) );
-	freeaddrinfo( res );
+
+	memcpy( &c->addr, addr, sizeof(struct sockaddr_in) );
 	
 	fd = socket(AF_INET, SOCK_STREAM, 0 );
 	if( ERROR == fd ) {

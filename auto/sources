@@ -63,7 +63,6 @@ src/base/l_send.c \
 src/base/l_serv.c \
 src/app/l_socks5_server.c \
 src/app/l_socks5_local.c \
-\
 src/test/l_ts_mem.c \
 src/test/l_ts_list.c \
 src/test/l_ts_queue.c \

@@ -179,7 +179,7 @@ status process_init( void )
 	}
 	process_arr = (process_t*)shm_process.data;
 
-	process_num = conf.worker_process;
+	process_num = conf.base.worker_process;
 	for( i = 0; i < process_num; i ++ ) {
 		process_arr[i].nid = i;
 	}

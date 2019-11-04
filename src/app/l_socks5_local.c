@@ -36,16 +36,16 @@ static status socks5_local_private_auth_resp( event_t * ev )
 		socks5_cycle_free( cycle );
 		return ERROR;
 	}
-	if( auth->auth_type != SOCKS5_AUTH_RESP )
+	if( auth->message_type != SOCKS5_AUTH_RESP )
 	{
-		err("check auth_type failed, [%x] not SOCKS5_AUTH_RESP\n", auth->auth_type );
+		err("check message_type failed, [%x] not SOCKS5_AUTH_RESP\n", auth->message_type );
 		socks5_cycle_free( cycle );
 		return ERROR;
 	}
 	
-	if( auth->auth_resp_code != SOCKS5_AUTH_SUCCESS )
+	if( auth->message_status != SOCKS5_AUTH_SUCCESS )
 	{
-		err("check auth_resp_code not success, [%x]\n", auth->auth_resp_code );
+		err("check message_status not success, [%x]\n", auth->message_status );
 		socks5_cycle_free( cycle );
 		return ERROR;
 	}
@@ -111,10 +111,10 @@ static status socks5_local_private_auth_begin( event_t * ev )
 	memset( auth, 0, sizeof(socks5_auth_t) );
 
 	auth->magic = 947085;
-	strncpy( auth->name, 	conf.socks5_client_user.data, 	conf.socks5_client_user.len );
-	strncpy( auth->passwd, 	conf.socks5_client_passwd.data, 	conf.socks5_client_passwd.len );
-	auth->auth_type	= SOCKS5_AUTH_REQ;
-	auth->auth_resp_code = 0;
+	strncpy( auth->name, 	conf.socks5_client.user, sizeof(auth->name) );
+	strncpy( auth->passwd, 	conf.socks5_client.passwd, 	sizeof(auth->passwd) );
+	auth->message_type	= SOCKS5_AUTH_REQ;
+	auth->message_status = 0;
 
 	up->meta->last += sizeof(socks5_auth_t);
 	
@@ -196,17 +196,18 @@ failed:
 
 static status socks5_local_init_connection( event_t * ev )
 {
-	connection_t * down;
-	socks5_cycle_t * cycle;
+	connection_t * down = ev->data;
+	socks5_cycle_t * cycle = NULL;
 	status rc;
-	char port_str[32] = {0};
-	string_t port_string;
+	struct sockaddr_in server_addr;
 
-	snprintf( port_str, sizeof(port_str), "%d", conf.socks5_server_port );
-	port_string.data = port_str;
-	port_string.len = l_strlen(port_str);
+	// get server addr
+	memset( &server_addr, 0, sizeof( struct sockaddr_in ) );
+	server_addr.sin_family		= AF_INET;
+	server_addr.sin_port 		= htons( conf.socks5_server.server_port );
+	server_addr.sin_addr.s_addr = inet_addr( conf.socks5_client.server_ip );
 	
-	down = ev->data;
+	// init struct data
 	cycle = l_safe_malloc( sizeof(socks5_cycle_t) );
 	if( !cycle ) 
 	{
@@ -230,8 +231,9 @@ static status socks5_local_init_connection( event_t * ev )
 	
 	cycle->up->ssl_flag = 1;
 	cycle->up->data = (void*)cycle;
-	
-	rc = l_net_connect( cycle->up, &conf.socks5_serverip, &port_string );
+
+	// goto connect
+	rc = l_net_connect( cycle->up, &server_addr );
 	if( ERROR == rc ) 
 	{
 		err(" up connect failed\n" );
@@ -257,7 +259,7 @@ failed:
 status socks5_local_init( void )
 {
 	if( conf.socks5_mode == SOCKS5_CLIENT ) {
-		listen_add( conf.socks5_local_port, socks5_local_init_connection, L_NOSSL );
+		listen_add( conf.socks5_client.local_port, socks5_local_init_connection, L_NOSSL );
 	}
 	return OK;
 }

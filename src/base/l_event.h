@@ -25,7 +25,8 @@ typedef struct l_event_t {
 } l_event_t;
 
 status l_net_accept( event_t * event );
-status l_net_connect(connection_t * c, string_t* ip, string_t *port );
+status l_net_connect( connection_t * c, struct sockaddr_in * addr );
+
 
 status event_opt( event_t * event, int32 fd, net_events events );
 status event_run( time_t time_out );

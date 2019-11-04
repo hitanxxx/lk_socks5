@@ -5,9 +5,6 @@
 #define 	L_SSL_CLIENT			10000
 #define 	L_SSL_SERVER			10001
 
-#define 	L_SSL_CERT_PATH_LEN		128
-#define 	L_SSL_KEY_PATH_LEN		128
-
 // ssl
 typedef struct l_ssl_connection_t ssl_connection_t;
 typedef status ( * ssl_handshake_pt )( event_t * ev );

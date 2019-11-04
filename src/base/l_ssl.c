@@ -116,19 +116,15 @@ status ssl_client_ctx( SSL_CTX ** s )
 status ssl_server_ctx( SSL_CTX ** s )
 {
 	int32 rc;
-	char crt[L_SSL_CERT_PATH_LEN] = {0};
-	char key[L_SSL_KEY_PATH_LEN] = {0};
 
 	if( !ctx_server ) {
 		ctx_server = SSL_CTX_new( SSLv23_server_method() );
-		l_memcpy( crt, conf.sslcrt.data, conf.sslcrt.len );
-		l_memcpy( key, conf.sslkey.data, conf.sslkey.len );
-		rc = SSL_CTX_use_certificate_chain_file (ctx_server, crt);
+		rc = SSL_CTX_use_certificate_chain_file (ctx_server, conf.base.sslcrt);
 		if( rc != 1 ) {
 			err ( " [SSL_CTX_use_certificate_chain_file] failed\n" );
 			return ERROR;
 		}
-		rc = SSL_CTX_use_PrivateKey_file( ctx_server, key, SSL_FILETYPE_PEM );
+		rc = SSL_CTX_use_PrivateKey_file( ctx_server, conf.base.sslkey, SSL_FILETYPE_PEM );
 		if( rc != 1 ) {
 			err ( " [SSL_CTX_use_PrivateKey_file] failed\n" );
 			return ERROR;

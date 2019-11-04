@@ -39,7 +39,8 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <sys/sendfile.h>
-//
+
+// file paths
 #define 	L_PATH_PIDFILE			"/usr/local/lksocks5/logs/pid"
 #define 	L_PATH_CONFIG			"/usr/local/lksocks5/config/config.json"
 #define 	L_PATH_PERFTEMP			"/usr/local/lksocks5/logs/l_perf"
@@ -47,22 +48,24 @@
 #define 	L_PATH_LOG_ACCESS		"/usr/local/lksocks5/logs/l_access"
 #define 	L_PATH_UOLOAD_FILE		"/usr/local/lksocks5/logs/l_upload_temp"
 
-#define 	HTTP_METHOD_GET		0x000a
-#define		HTTP_METHOD_HEAD	0x000b
-#define 	HTTP_METHOD_POST	0x000c
-#define 	HTTP_METHOD_PUT		0x000d
-#define 	HTTP_METHOD_DELETE	0x000e
-#define 	HTTP_METHOD_CONNECT	0x000f
+// limits
+enum limit_value {
+	IPV4_LENGTH			=	16,
+	FILEPATH_LENGTH		=	64,
+	PASSWD_LENGTH		= 	32,
+	USERNAME_LENGTH		=	32,
+	DOMAIN_LENGTH		=	64
+};
 
-#define OK 					0
-#define ERROR 				-1
-#define NOT_FOUND			-2
-#define AGAIN 				-18
-#define DONE				2
-
-#define 	HTTP_PARSE_HEADER_DONE						14
-#define 	HTTP_PARSE_INVALID_HEADER					13
-
+// statu types
+enum status_value {
+	OK			= 0,
+	ERROR		= -1,
+	NOT_FOUND	= -2,
+	AGAIN		= -18,
+	DONE		= 2
+};
+// macros
 #define l_abs(x)					(((x)>=0)?(x):(-(x)))
 #define l_unused( x ) 			 	((void)x)
 #define l_safe_free( x )			(free(x))
@@ -77,11 +80,12 @@
 	( ((char*)ptr) - offsetof( struct_type, struct_member ) )\
 )
 
-typedef char  		byte;
-typedef int32_t		int32;
-typedef uint32_t	uint32;
-typedef int32_t     status;
-typedef volatile uint32	l_atomic_t;
+// types 
+typedef char  						byte;
+typedef int32_t						int32;
+typedef uint32_t					uint32;
+typedef int32_t     				status;
+typedef volatile uint32				l_atomic_t;
 
 typedef struct l_connection_t connection_t;
 
