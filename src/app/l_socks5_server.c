@@ -204,6 +204,9 @@ static status socks5_server_msg_request_response_prepare( event_t * event )
 	socks5_cycle_t * cycle;
 	connection_t* up, *down;
 	socks5_message_request_response_t * request_response = NULL;
+	struct sockaddr addr;
+	struct sockaddr_in *addr_in = NULL;
+	socklen_t socklen;
 
 	up = event->data;
 	cycle = up->data;
@@ -212,12 +215,22 @@ static status socks5_server_msg_request_response_prepare( event_t * event )
 	down->meta->last = down->meta->pos = down->meta->start;
 	request_response = ( socks5_message_request_response_t* )down->meta->last;
 
+	socklen = 0;
+	memset( &addr, 0, sizeof(struct sockaddr) );
+	if( OK != getsockname( cycle->up->fd, &addr, &socklen ) )
+	{
+		err("get local address info failed\n");
+		socks5_cycle_free( cycle );
+		return ERROR;
+	}
+	addr_in = (struct sockaddr_in *)&addr;
+	
 	request_response->ver 	=	0x05;
 	request_response->rep	=	0x00;
 	request_response->rsv	=	0x00;
 	request_response->atyp	=	0x01;
-	request_response->bnd_addr	=	0x00;
-	request_response->bnd_port	=	htons(0x00);
+	request_response->bnd_addr	=	htons(addr_in->sin_addr.s_addr);
+	request_response->bnd_port	=	htons(addr_in->sin_port);
 
 	down->meta->last += sizeof(socks5_message_request_response_t);
 	

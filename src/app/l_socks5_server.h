@@ -54,7 +54,7 @@ typedef struct socks5_message_invite {
 typedef struct socsk5_message_invite_response {
 	char		ver;
 	char		method;
-}socsk5_message_invite_response_t;
+}__attribute__((packed)) socsk5_message_invite_response_t;
 
 typedef struct socks5_message_request {
 	int32		state;
@@ -80,7 +80,7 @@ typedef struct socks5_message_request_response_t {
 	unsigned char			atyp;
 	unsigned int	bnd_addr;
 	unsigned short	bnd_port;
-} socks5_message_request_response_t;
+}__attribute__((packed)) socks5_message_request_response_t;
 
 typedef struct socks5_cycle_t {
 	
