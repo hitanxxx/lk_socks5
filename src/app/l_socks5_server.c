@@ -203,28 +203,23 @@ static status socks5_server_msg_request_response_prepare( event_t * event )
 {
 	socks5_cycle_t * cycle;
 	connection_t* up, *down;
+	socks5_message_request_response_t * request_response = NULL;
 
 	up = event->data;
 	cycle = up->data;
 	down = cycle->down;
 	
 	down->meta->last = down->meta->pos = down->meta->start;
-	// ver
-	*down->meta->last++ = 0x05;
-	// rep
-	*down->meta->last++ = 0x00;
-	// rsv
-	*down->meta->last++ = 0x00;
-	// atyp
-	*down->meta->last++ = 0x01;
-	// BND ADDR
-	*down->meta->last++ = 0x00;
-	*down->meta->last++ = 0x00;
-	*down->meta->last++ = 0x00;
-	*down->meta->last++ = 0x00;
-	// BND PORT
-	*down->meta->last++ = 0x10;
-	*down->meta->last++ = 0x10;
+	request_response = ( socks5_message_request_response_t* )down->meta->last;
+
+	request_response->ver 	=	0x05;
+	request_response->rep	=	0x00;
+	request_response->rsv	=	0x00;
+	request_response->atyp	=	0x01;
+	request_response->bnd_addr	=	0x00;
+	request_response->bnd_port	=	htons(0x00);
+
+	down->meta->last += sizeof(socks5_message_request_response_t);
 	
 	cycle->up->event.read_pt = NULL;
 	cycle->up->event.write_pt = NULL;

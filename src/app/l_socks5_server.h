@@ -73,6 +73,15 @@ typedef struct socks5_message_request {
 	char		dst_port[2];
 } socks5_message_request_t;
 
+typedef struct socks5_message_request_response_t {
+	unsigned char			ver;
+	unsigned char			rep;
+	unsigned char			rsv;
+	unsigned char			atyp;
+	unsigned int	bnd_addr;
+	unsigned short	bnd_port;
+} socks5_message_request_response_t;
+
 typedef struct socks5_cycle_t {
 	
 	socks5_message_invite_t		invite;
