@@ -895,9 +895,9 @@ static status socks5_server_private_auth_check( event_t * ev )
 
 	auth = (socks5_auth_t*)c->meta->pos;
 	
-	if( auth->magic != 947085 )
+	if( auth->magic != SOCKS5_AUTH_MAGIC_NUM )
 	{
-		err("check magic [%d] != magic [947085]\n", auth->magic );
+		err("check magic [%d] check failed. magic [%d]\n", auth->magic, SOCKS5_AUTH_MAGIC_NUM );
 		rc = SOCKS5_AUTH_MAGIC_FAIL;
 		goto failed;
 	}
@@ -927,7 +927,7 @@ static status socks5_server_private_auth_check( event_t * ev )
 	auth_passwd.data = auth->passwd;
 	auth_passwd.len = l_strlen(auth->passwd);
 	
-	if( strncmp( user->passwd, auth_passwd.data, auth_passwd.len ) != 0 || l_strlen(user->passwd) != auth_passwd.len )
+	if(  l_strlen(user->passwd) != auth_passwd.len || strncmp( user->passwd, auth_passwd.data, auth_passwd.len ) != 0 )
 	{
 		err("user [%.*s] auth passwd not right\n", auth_name.len, auth_name.data );
 		rc = SOCKS5_AUTH_PASSWD_FAIL;

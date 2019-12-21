@@ -8,6 +8,8 @@
 #define SOCKS5_USER_NAME_MAX		16
 #define SOCKS5_USER_PASSWD_MAX		16
 
+#define SOCKS5_AUTH_MAGIC_NUM		947085
+
 /* scoks5 module run model */
 enum socks5_module_run_model {
 	SOCKS5_SERVER,
@@ -35,7 +37,7 @@ typedef struct socks5_user_t {
 } socks5_user_t ;
 
 typedef struct socks5_auth {
-	int 		magic; 				// magic num, must be 947085
+	int 		magic; 				// magic num filed
 	int			message_type;  		// private auth message type. enum socks5_message_type
 	int			message_status;		// private auth message status, enum socks5_message_status
 

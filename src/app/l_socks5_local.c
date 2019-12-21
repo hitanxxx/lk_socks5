@@ -30,9 +30,9 @@ static status socks5_local_private_auth_resp( event_t * ev )
 	timer_del( &ev->timer );
 
 	auth = (socks5_auth_t*)up->meta->pos;
-	if( auth->magic != 947085 )
+	if( auth->magic != SOCKS5_AUTH_MAGIC_NUM )
 	{
-		err("check magic failed, [%d] != magic [947085]\n", auth->magic );
+		err("check magic [%d] failed, magic [%d]\n", auth->magic, SOCKS5_AUTH_MAGIC_NUM );
 		socks5_cycle_free( cycle );
 		return ERROR;
 	}
@@ -110,7 +110,7 @@ static status socks5_local_private_auth_begin( event_t * ev )
 	auth = (socks5_auth_t*)up->meta->pos;
 	memset( auth, 0, sizeof(socks5_auth_t) );
 
-	auth->magic = 947085;
+	auth->magic = SOCKS5_AUTH_MAGIC_NUM;
 	strncpy( auth->name, 	conf.socks5_client.user, sizeof(auth->name) );
 	strncpy( auth->passwd, 	conf.socks5_client.passwd, 	sizeof(auth->passwd) );
 	auth->message_type	= SOCKS5_AUTH_REQ;
