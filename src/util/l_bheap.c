@@ -77,7 +77,7 @@ status heap_del( heap_t * heap, uint32 del_index )
 		child_min = HEAP_LCHILD(i);
 		if( HEAP_RCHILD(i) <= heap->index ) 
 		{
-			child_min = ( heap->array[HEAP_RCHILD(i)]->key < child_min ) ? HEAP_RCHILD(i): child_min;
+		child_min = ( heap->array[HEAP_RCHILD(i)]->key < heap->array[child_min]->key ) ? HEAP_RCHILD(i): child_min;
 		}
 		
 		if( tail_node->key >= heap->array[child_min]->key )
