@@ -20,7 +20,7 @@ status listen_add( uint32 port, listen_pt handler, uint32 type )
 static status listen_open( listen_t * listens )
 {
 	listens->server_addr.sin_family = AF_INET;
-	listens->server_addr.sin_port = htons( listens->port );
+	listens->server_addr.sin_port = htons( (uint16_t)listens->port );
 	listens->server_addr.sin_addr.s_addr = htonl( INADDR_ANY );
 	
 	listens->fd = socket( AF_INET, SOCK_STREAM, 0 );

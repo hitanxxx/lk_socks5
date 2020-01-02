@@ -41,12 +41,12 @@ status l_time_update( void )
     local.tm_year += 1900;
 	snprintf( cache_time_log_str, sizeof(cache_time_log_str),
 		"%04d.%02d.%02d %02d:%02d:%02d ",
-		local.tm_year,
-		local.tm_mon,
-		local.tm_mday,
-		local.tm_hour,
-		local.tm_min,
-		local.tm_sec
+		(unsigned int)(local.tm_year%1000),
+		(unsigned int)(local.tm_mon%100),
+		(unsigned int)(local.tm_mday%100),
+		(unsigned int)(local.tm_hour%100),
+		(unsigned int)(local.tm_min%100),
+		(unsigned int)(local.tm_sec%100)
 	);
 	cache_time_log.data = cache_time_log_str;
 	cache_time_log.len = l_strlen(cache_time_log_str);

@@ -229,7 +229,7 @@ static status socks5_server_msg_request_response_prepare( event_t * event )
 	request_response->rep	=	0x00;
 	request_response->rsv	=	0x00;
 	request_response->atyp	=	0x01;
-	request_response->bnd_addr	=	htons(addr_in->sin_addr.s_addr);
+	request_response->bnd_addr	=	htons((uint16_t)addr_in->sin_addr.s_addr);
 	request_response->bnd_port	=	htons(addr_in->sin_port);
 
 	down->meta->last += sizeof(socks5_message_request_response_t);
@@ -309,7 +309,7 @@ static status socks5_server_connect( event_t * event )
 			(unsigned char )cycle->request.dst_addr_ipv4[1],
 			(unsigned char )cycle->request.dst_addr_ipv4[2],
 			(unsigned char )cycle->request.dst_addr_ipv4[3] );
-		snprintf( portstr, sizeof(portstr), "%d", ntohs(*(int32*)cycle->request.dst_port) );
+		snprintf( portstr, sizeof(portstr), "%d", ntohs(*(uint16_t*)cycle->request.dst_port) );
 		ip.data = ipstr;
 		ip.len = l_strlen(ipstr);
 		port.data = portstr;
@@ -321,7 +321,7 @@ static status socks5_server_connect( event_t * event )
 		
 		ip.data = cycle->request.dst_addr_domain;
 		ip.len = (unsigned char)cycle->request.dst_addr_num;
-		snprintf( portstr, sizeof(portstr), "%d", ntohs(*(int32*)cycle->request.dst_port) );
+		snprintf( portstr, sizeof(portstr), "%d", ntohs(*(uint16_t*)cycle->request.dst_port) );
 		port.data = portstr;
 		port.len = l_strlen(portstr);		
 	} 
