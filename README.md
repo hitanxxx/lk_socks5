@@ -40,7 +40,7 @@ restart all work process
 
 	"socks5":{
 		"mode":"server",
-		"serverport"12345,
+		"serverport":12345,
 		"serverauthfile":"/usr/local/lksocks5/config/auth.json"
 	}
 }
@@ -55,7 +55,7 @@ restart all work process
 	"socks5":{
 		"mode":"client",
 		"serverip":"1.1.1.1",
-		"serverport"12345,
+		"serverport":12345,
 		"localport":1080,
 		"client_username":"user",
 		"client_user_passwd":"passwd"
@@ -76,7 +76,7 @@ restart all work process
 ```
 * a typical configuration file can be  divided into a few parts:
 
-* normal block:
+* Gobal block:
 > * daemon - witch of daemon process
 > * worker_process - identification worker process number
 > * log_error - switch of log error
@@ -84,7 +84,7 @@ restart all work process
 > * sslcrt - ssl certificate file public key
 > * sslkey - ssl certificate file private key
 
-* socks5 block:
+* Socks5 block:
 > * mode - identification work mode of socks5 module.
 > * serverip - identification socks5 server ipaddress.
 > * serverport - identification socks5 server port.
