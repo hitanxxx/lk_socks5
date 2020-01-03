@@ -46,12 +46,10 @@ restart all work process
 }
 ```
 
-> * if run in client mode, the configuration file was like that.
+> * if run in client mode, the configuration file's socks5 part was like that.
 
 ``` json
 {
-	"daemon":true,
-	...
 	"socks5":{
 		"mode":"client",
 		"serverip":"1.1.1.1",
