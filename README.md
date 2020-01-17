@@ -6,6 +6,7 @@ lksocks5 is a socks5 proxy written by ANSIC, it needs OpenSSL library .
 * Support private auth protocol
 * Support event dirvers
 * Support bidirectional event buffer
+* Support SSL encrypt
 
 # Install
 *  configure
