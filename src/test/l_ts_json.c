@@ -1,5 +1,5 @@
-#include "lk.h"
-
+#include "l_base.h"
+#include "l_test.h"
 // ---------------------
 static void json_test_empty ( void  )
 {
@@ -360,7 +360,7 @@ static void json_test_encode ( void  )
 	}
 	rc = json_encode( ctx, &meta );
 	t_assert( rc == OK );
-	t_echo( INFO, "%.*s", meta_len( meta->pos, meta->last ), meta->pos );
+	t_echo( "%.*s", meta_len( meta->pos, meta->last ), meta->pos );
 
 	rc = meta_alloc( &meta_cache, meta_len(meta->pos, meta->last) );
 	t_assert(rc == OK);

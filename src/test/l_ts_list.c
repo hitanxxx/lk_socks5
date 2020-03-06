@@ -1,5 +1,5 @@
-#include "lk.h"
-
+#include "l_base.h"
+#include "l_test.h"
 static mem_list_t * list;
 static string_t x = string("1");
 static string_t y = string("2");

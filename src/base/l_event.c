@@ -1,4 +1,4 @@
-#include "lk.h"
+#include "l_base.h"
 
 static int32		event_fd = 0;
 static struct epoll_event * events = NULL;
@@ -143,7 +143,7 @@ status event_opt( event_t * event, int32 fd, net_events events )
 	}
 	
 	ev.data.ptr = (void*)event;
-	ev.events =  EPOLLET | events;
+	ev.events = (uint32) (EPOLLET | events);
 	
 	if( OK != epoll_ctl( event_fd, op, fd, &ev ) ) {
 		err(" epoll_ctl failed, [%d]\n", errno );

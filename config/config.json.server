@@ -1,0 +1,19 @@
+{
+	"daemon":true,
+	"worker_process":2,
+
+	"reuse_port":false,
+	"accept_mutex":false,
+
+	"log_error":true,
+	"log_debug":false,
+
+	"sslcrt":"/usr/local/lks5/certificate/server.crt",
+	"sslkey":"/usr/local/lks5/certificate/server.key",
+
+	"socks5":{
+		"mode":"server",
+		"serverport":12345,
+		"serverauthfile":"/usr/local/lks5/config/auth.json"
+	}
+}

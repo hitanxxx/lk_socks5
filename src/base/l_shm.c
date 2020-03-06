@@ -1,4 +1,4 @@
-#include "lk.h"
+#include "l_base.h"
 
 // l_shm_alloc ----------------
 status l_shm_alloc( l_shm_t * shm, uint32 size )

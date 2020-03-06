@@ -1,5 +1,5 @@
-#include "lk.h"
-
+#include "l_base.h"
+#include "l_test.h"
 static bst_t  tree;
 static bst_node_t arr[7], arr1[10];
 static uint32 perform_num = 10;
@@ -29,7 +29,7 @@ static void ts_bst_add( void )
 	}
 	t_assert( 7 == tree.elem_num );
 
-	bst_travesal_breadth( &tree );
+	//bst_travesal_breadth( &tree );
 }
 // -------------------
 static void ts_bst_del( void )

@@ -1,4 +1,4 @@
-#include "lk.h"
+#include "l_base.h"
 
 int32			global_signal = 0;
 sig_atomic_t	sig_quit = 0;

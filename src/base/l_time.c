@@ -1,11 +1,11 @@
-#include "lk.h"
+#include "l_base.h"
 
 string_t	cache_time_gmt;
 string_t	cache_time_log;
 int64_t		cache_time_msec;
 
 static char		cache_time_gmt_str[sizeof("Mon, 28 Sep 1970 06:00:00 GMT")+1];
-static char		cache_time_log_str[sizeof("0000.00.00 00:00:00 ")+1];
+static char		cache_time_log_str[sizeof("0000.00.00 00:00:00 ")+1] = {"0000.00.00 00:00:00 "};
 
 static char  *week[] = { "Sun", "Mon", "Tue",  "Wed", "Thu", "Fri", "Sat" };
 static char  *months[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
@@ -14,7 +14,8 @@ static char  *months[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug
 status l_time_update( void )
 {
 	struct timeval tv;
-	int64_t sec, msec;
+	int64_t msec;
+	time_t sec;
 	struct tm gmt, local;
 	
 	gettimeofday( &tv, NULL );

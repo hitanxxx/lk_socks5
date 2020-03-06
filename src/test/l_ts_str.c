@@ -1,5 +1,5 @@
-#include "lk.h"
-
+#include "l_base.h"
+#include "l_test.h"
 // -------------
 static void ts_find_str( void )
 {

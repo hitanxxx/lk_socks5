@@ -10,11 +10,7 @@
 
 #define SOCKS5_AUTH_MAGIC_NUM		947085
 
-/* scoks5 module run model */
-enum socks5_module_run_model {
-	SOCKS5_SERVER,
-	SOCKS5_CLIENT
-};
+
 /* socks5 message type */
 enum socks5_private_auth_message_type {
 	SOCKS5_AUTH_REQ,

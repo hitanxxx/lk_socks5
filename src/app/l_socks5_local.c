@@ -1,4 +1,7 @@
-#include "lk.h"
+#include "l_base.h"
+#include "l_socks5_local.h"
+#include "l_socks5_server.h"
+
 
 static status socks5_local_private_auth_resp( event_t * ev )
 {

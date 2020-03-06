@@ -1,4 +1,6 @@
-#include "lk.h"
+#include "l_base.h"
+#include "l_socks5_local.h"
+#include "l_socks5_server.h"
 
 static queue_t g_socks5_users;
 static l_mem_page_t * g_socks5_user_mempage = NULL;

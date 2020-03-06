@@ -1,4 +1,4 @@
-#include "lk.h"
+#include "l_base.h"
 
 char * l_strncpy( char * dst, uint32 dst_len, char * src, uint32 src_len )
 {
