@@ -3,9 +3,8 @@ INC_DIR         +=      $(PROJDIR)/base/util
 INC_DIR         +=      $(PROJDIR)/base
 INC_DIR 	+= 	$(PROJDIR)/bin
 INC_DIR 	+= 	$(PROJDIR)/test
-INC_DIR 	+= 	$(PROJDIR)/lib/include
-INC_DIR 	+= 	$(PROJDIR)/lib/crypto
-
+INC_DIR += $(PROJDIR)/lib/include
+INC_DIR += $(PROJDIR)/lib/crypto
 DEPEND_OBJS     +=      $(PROJDIR)/base/libbase.a
 DEPEND_OBJS     +=      $(PROJDIR)/app/libapp.a
 

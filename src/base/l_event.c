@@ -203,7 +203,7 @@ status event_init( void )
 {
 	uint32 i;
 	
-	events = (struct epoll_event*) l_safe_malloc( sizeof(struct epoll_event)*EV_MAXEVENTS );
+	events = (struct epoll_event*) l_safe_malloc ( sizeof(struct epoll_event)*EV_MAXEVENTS );
 	if( !events ) {
 		err(" l_safe_malloc events\n" );
 		return ERROR;

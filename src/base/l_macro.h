@@ -10,6 +10,7 @@
 #define 	L_PATH_LOG_ACCESS		"/usr/local/lks5/logs/l_access"
 #define 	L_PATH_UOLOAD_FILE		"/usr/local/lks5/logs/l_upload_temp"
 
+
 /* scoks5 module run model */
 enum socks5_module_run_model {
 	SOCKS5_SERVER,

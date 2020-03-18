@@ -121,11 +121,6 @@ static status config_parse_socks5( ljson_node_t * json )
 				return ERROR;
 			}
 			strncpy( conf.socks5_server.authfile, v->name.data, v->name.len );
-			if( OK != socks5_user_auth_init() )
-			{
-				err("socks5 server user auth init failed\n");
-				return ERROR;
-			}
 		} 
 		else if ( OK == l_strncmp_cap( v->name.data, v->name.len, "client", l_strlen("client") ) ) 
 		{

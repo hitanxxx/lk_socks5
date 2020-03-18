@@ -2,8 +2,7 @@
 #include "l_socks5_local.h"
 #include "l_socks5_server.h"
 
-static queue_t g_socks5_users;
-static l_mem_page_t * g_socks5_user_mempage = NULL;
+
 
 status socks5_cycle_free( socks5_cycle_t * cycle )
 {
@@ -683,182 +682,6 @@ static status socks5_server_msg_invate_process( event_t * event )
 	}
 }
 
-#if(1)
-static status socks5_user_find( string_t * name, socks5_user_t ** user )
-{
-	queue_t * q;
-	socks5_user_t * t = NULL;
-
-	for( q = queue_head( &g_socks5_users ); q != queue_tail( &g_socks5_users ); q = queue_next(q) )
-	{
-		t = l_get_struct( q, socks5_user_t, queue );
-		if( t && strncmp( t->name, name->data, name->len ) == 0 && l_strlen(t->name) == name->len )
-		{
-			if( user )
-			{
-				*user = t;
-			}
-			return OK;
-		}
-	}
-	return ERROR;
-}
-
-static status socks5_user_add( string_t * name, string_t * passwd )
-{
-	socks5_user_t * user = NULL;
-
-	user = l_mem_alloc( g_socks5_user_mempage, sizeof(socks5_user_t) );
-	if( !user )
-	{
-		err("alloc new user\n");
-		return ERROR;
-	}
-	memset( user, 0, sizeof(socks5_user_t) );
-
-	strncpy( user->name, name->data, name->len );
-	strncpy( user->passwd, passwd->data, passwd->len );
-	queue_insert_tail( &g_socks5_users, &user->queue );
-
-	return OK;
-}
-
-static status socks5_auth_user_file_decode( meta_t * meta )
-{
-	ljson_ctx_t * ctx = NULL; 
-	ljson_node_t * root_obj, *db_arr, *db_index;
-	ljson_node_t * username, *userpasswd;
-	status rc = OK;
-	
-	if( OK != json_ctx_create( &ctx ) )
-	{
-		err("ctx create\n");
-		return ERROR;
-	}
-	if( OK !=  json_decode( ctx, meta->pos, meta->last ) )
-	{
-		err("json decode\n");
-		rc = ERROR;
-		goto failed;
-	}
-	 if( OK !=  json_get_child( &ctx->root, 1, &root_obj ) )
-	 {
-	 	err("json get root child\n");
-		rc = ERROR;
-		goto failed;
-	 }
-	 if( OK != json_get_obj_child_by_name( root_obj, "socks5_user_database", l_strlen("socks5_user_database"), &db_arr) )
-	 {
-		err("get database arr\n");
-		rc = ERROR;
-		goto failed;
-	 }
-	 db_index = db_arr->child;
-	 while( db_index )
-	 {
-		if( OK != json_get_obj_child_by_name( db_index, "username", l_strlen("username"), &username ) )
-		{
-			err("array child find username\n");
-			rc = ERROR;
-			goto failed;
-		}
-		if( OK != json_get_obj_child_by_name( db_index, "passwd", l_strlen("passwd"), &userpasswd ) )
-		{
-			err("array child find username\n");
-			rc = ERROR;
-			goto failed;
-		}
-		
-		debug("username [%.*s]  --- passwd [%.*s]\n", 
-			username->name.len, username->name.data,
-			userpasswd->name.len, userpasswd->name.data );
-
-		socks5_user_add( &username->name, &userpasswd->name );
-			
-		db_index = db_index->next;
-	 }
-failed:
-	json_ctx_free( ctx );
-	return rc;
-}
-
-static status socks5_auth_user_file_load( meta_t * meta )
-{
-	int fd = 0;
-	ssize_t size = 0;
-	
-	fd = open( conf.socks5_server.authfile, O_RDONLY  );
-	if( ERROR == fd )
-	{
-		err("open auth file failed, errno [%d]\n", errno );
-		return ERROR;
-	}
-	size = read( fd, meta->pos, meta_len( meta->start, meta->end ) );
-	close( fd );
-	if( size == ERROR )
-	{
-		err("read auth file\n");
-		return ERROR;
-	}
-	meta->last += size;
-	return OK;
-}
-
-static status socks5_auth_user_pull(  )
-{
-	meta_t * meta;
-	status rc = OK;
-
-	if( strlen(conf.socks5_server.authfile) < 1 )
-	{
-		err("auth file path null\n");
-		return ERROR;
-	}
-	if( OK != meta_alloc( &meta, 4096 ) )
-	{
-		err("meta alloc failed\n");
-		return ERROR;
-	}
-	if( OK != socks5_auth_user_file_load( meta ) )
-	{
-		err("load user file failed\n");
-		rc = ERROR;
-		goto failed;
-	}
-	if( OK != socks5_auth_user_file_decode( meta ) )
-	{
-		err("auth decode\n");
-		rc = ERROR;
-		goto failed;
-	}
-	#if(1)
-	// show all users
-	queue_t * q;
-	socks5_user_t * t = NULL;
-
-	for( q = queue_head( &g_socks5_users ); q != queue_tail( &g_socks5_users ); q = queue_next(q) )
-	{
-		t = l_get_struct( q, socks5_user_t, queue );
-		debug("queue show [%s] --- [%s]\n", t->name, t->passwd );
-	}
-	#endif
-failed:
-	meta_free( meta );
-	return rc;
-}
-
-status socks5_user_auth_init(  void)
-{
-	queue_init( &g_socks5_users );
-	if( OK != l_mem_page_create( &g_socks5_user_mempage, sizeof(socks5_user_t) ) )
-	{
-		err("alloc socks5 user mem page\n");
-		return ERROR;
-	}
-	return socks5_auth_user_pull( );;
-}
-
-#endif
 
 static status socks5_server_private_auth_send_resp( event_t * ev )
 {
@@ -911,7 +734,7 @@ static status socks5_server_private_auth_check( event_t * ev )
 	}
 	
 	string_t auth_name, auth_passwd;
-	socks5_user_t * user;
+	user_t * user;
 
 	memset( &auth_name, 0, sizeof(string_t) );
 	memset( &auth_passwd, 0, sizeof(string_t) );
@@ -919,7 +742,7 @@ static status socks5_server_private_auth_check( event_t * ev )
 	auth_name.data = auth->name;
 	auth_name.len = l_strlen(auth->name);
 	
-	if( OK != socks5_user_find( &auth_name, &user ) )
+	if( OK != user_find( &auth_name, &user ) )
 	{
 		err("can't find user [%.*s]\n", auth_name.len, auth_name.data );
 		rc = SOCKS5_AUTH_NO_USER;
@@ -1073,21 +896,130 @@ failed:
 	return ERROR;
 }
 
+static status socks5_auth_user_file_decode( meta_t * meta )
+{
+	ljson_ctx_t * ctx = NULL; 
+	ljson_node_t * root_obj, *db_arr, *db_index;
+	ljson_node_t * username, *userpasswd;
+	status rc = OK;
+	
+	if( OK != json_ctx_create( &ctx ) )
+	{
+		err("ctx create\n");
+		return ERROR;
+	}
+	if( OK !=  json_decode( ctx, meta->pos, meta->last ) )
+	{
+		err("json decode\n");
+		rc = ERROR;
+		goto failed;
+	}
+	 if( OK !=  json_get_child( &ctx->root, 1, &root_obj ) )
+	 {
+	 	err("json get root child\n");
+		rc = ERROR;
+		goto failed;
+	 }
+	 if( OK != json_get_obj_child_by_name( root_obj, "socks5_user_database", l_strlen("socks5_user_database"), &db_arr) )
+	 {
+		err("get database arr\n");
+		rc = ERROR;
+		goto failed;
+	 }
+	 db_index = db_arr->child;
+	 while( db_index )
+	 {
+		if( OK != json_get_obj_child_by_name( db_index, "username", l_strlen("username"), &username ) )
+		{
+			err("array child find username\n");
+			rc = ERROR;
+			goto failed;
+		}
+		if( OK != json_get_obj_child_by_name( db_index, "passwd", l_strlen("passwd"), &userpasswd ) )
+		{
+			err("array child find username\n");
+			rc = ERROR;
+			goto failed;
+		}
+		
+		debug("username [%.*s]  --- passwd [%.*s]\n", 
+			username->name.len, username->name.data,
+			userpasswd->name.len, userpasswd->name.data );
+
+		user_add( &username->name, &userpasswd->name );
+			
+		db_index = db_index->next;
+	 }
+failed:
+	json_ctx_free( ctx );
+	return rc;
+}
+
+static status socks5_auth_user_file_load( meta_t * meta )
+{
+	int fd = 0;
+	ssize_t size = 0;
+	
+	fd = open( conf.socks5_server.authfile, O_RDONLY  );
+	if( ERROR == fd )
+	{
+		err("open auth file failed, errno [%d]\n", errno );
+		return ERROR;
+	}
+	size = read( fd, meta->pos, meta_len( meta->start, meta->end ) );
+	close( fd );
+	if( size == ERROR )
+	{
+		err("read auth file\n");
+		return ERROR;
+	}
+	meta->last += size;
+	return OK;
+}
+
+static status socks5_auth_user_pull(  )
+{
+	meta_t * meta;
+	status rc = OK;
+
+	if( strlen(conf.socks5_server.authfile) < 1 )
+	{
+		err("auth file path null\n");
+		return ERROR;
+	}
+	if( OK != meta_alloc( &meta, 4096 ) )
+	{
+		err("meta alloc failed\n");
+		return ERROR;
+	}
+	if( OK != socks5_auth_user_file_load( meta ) )
+	{
+		err("load user file failed\n");
+		rc = ERROR;
+		goto failed;
+	}
+	if( OK != socks5_auth_user_file_decode( meta ) )
+	{
+		err("auth decode\n");
+		rc = ERROR;
+		goto failed;
+	}
+failed:
+	meta_free( meta );
+	return rc;
+}
 
 status socks5_server_init( void )
 {
-	if( conf.socks5_mode == SOCKS5_SERVER ) {
+	if( conf.socks5_mode == SOCKS5_SERVER ) 
+	{
 		listen_add( conf.socks5_server.server_port, socks5_server_accept_callback, L_SSL );
+		socks5_auth_user_pull( );
 	}
 	return OK;
 }
 
 status socks5_server_end( void )
 {
-	if( g_socks5_user_mempage )
-	{
-		l_mem_page_free(g_socks5_user_mempage);
-		g_socks5_user_mempage = NULL;
-	}
 	return OK;
 }

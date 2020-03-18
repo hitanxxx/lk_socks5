@@ -1,67 +1,11 @@
-#include "lk.h"
 #include "l_base.h"
+#include "l_module.h"
 #include "l_socks5_server.h"
 #include "l_socks5_local.h"
 
-static char * l_process_signal = NULL;
-static int32  l_process_signal_type = 0;
+static char * g_opt_str = NULL;
+static int32  g_opt_type = 0;
 
-modules_init_t init_modules[] = {
-	{log_init,			"log"},
-	{config_init,		"config"},
-	{l_signal_init,		"signal"},	// no end
-	{process_init,		"process"},	// no end
-	{listen_init,		"listen"},
-	{ssl_init,			"ssl"},		// no end
-	{serv_init,			"serv"},
-	{net_init,			"net"},
-	{timer_init,		"timer"},
-		
-	{socks5_server_init,	"socks5_serv"},	// no end
-	{socks5_local_init,		"socks5_local"},// no end
-	{NULL,	NULL}
-};
-// module_init -----------------
-static status module_init( void )
-{
-	int i = 0;
-	
-	while( init_modules[i].pt != NULL ) {
-		if( OK != init_modules[i].pt() ) {
-			err("modules init failed [%s]\n", init_modules[i].str );
-			return ERROR;
-		}
-		i++;
-	}
-	return OK;
-}
-// modules_end ----------------
-status modules_end( void )
-{
-	debug("running\n");
-	log_end();
-	config_end();
-	listen_end();
-	
-	serv_end();
-
-	net_end();
-	timer_end();
-	return OK;
-}
-// dynamic_module_init ------------
-status dynamic_module_init( void )
-{
-	event_init();
-	return OK;
-}
-// dynamic_module_end ------------
-status dynamic_module_end( void )
-{
-	event_end();
-	return OK;
-}
-// lk_daemon ---------------
 static status lk_daemon( void )
 {
     int32  fd;
@@ -113,7 +57,7 @@ static status lk_daemon( void )
     }
     return OK;
 }
-// create_pid_file -------------
+
 static status create_pid_file(  )
 {
 	int32 pid_file;
@@ -134,77 +78,106 @@ static status create_pid_file(  )
 	close( pid_file );
 	return OK;
 }
-// delete_pid_file --------------
+
 static status delete_pid_file(  )
 {
 	unlink( L_PATH_PIDFILE );
 	return OK;
 }
-// do_option -------------
-static status do_option(  )
-{
-	if( OK != l_signal_self( l_process_signal_type ) ) {
-		err("signal to self failed\n");
-		return ERROR;
-	}
-	return OK;
-}
-// get_option --------------
+
 static status get_option( int argc, char * argv[] )
 {
-	if( argc < 2 ) {
+	if( argc < 2 ) 
+	{
 		return OK;
 	}
-	if( argc > 2 ) {
-		err("too many parameter\n" );
+	if( argc > 2 ) 
+	{
+		err("too many parameter [%d], only support 1 args\n", argc - 1 );
 		return ERROR;
 	}
-	l_process_signal = argv[1];
-	if( *l_process_signal++ != '-' ) {
+	g_opt_str = argv[1];
+	debug("option argv [%s]\n", g_opt_str );
+	if( *g_opt_str++ != '-' ) 
+	{
+		err("formast error\n" );
+		return ERROR;
+	}
+	if ( strcmp( g_opt_str, "reload" ) == 0 ) 
+	{
+		g_opt_type = 1;
+		return OK;
+	} 
+	else if( strcmp( g_opt_str, "stop" ) == 0 ) 
+	{
+		g_opt_type = 2;
+		return OK;
+	}
+	else
+	{
 		err("invaild parameter\n" );
 		return ERROR;
 	}
-	if ( strcmp( l_process_signal, "reload" ) == 0 ) {
-		l_process_signal_type = 1;
-		return OK;
-	} else if( strcmp( l_process_signal, "stop" ) == 0 ) {
-		l_process_signal_type = 2;
+	if( g_opt_str != NULL ) 
+	{
+		pid_t self_pid;
+		if( OK != process_self_pid( &self_pid ) )
+		{
+			err("get self pid failed, errno [%d]\n", errno );
+			return ERROR;
+		}
+
+		if( OK != process_send_signal( self_pid, g_opt_type ) )
+		{
+			err("send signal to self failed\n");
+			return ERROR;
+		}
 		return OK;
 	}
-	err("invaild parameter\n" );
-	return ERROR;
 }
-// main ------------------
+
+
 int32 main( int argc, char * argv[] )
 {
 	int32 rc = ERROR;	
 
+	// set init log value
 	conf.log.error = 1;
 	conf.log.debug = 1;
+
+	// get time info
 	l_time_update( );
-	if( OK != get_option( argc, argv ) ) {
+
+	// get cmd options
+	if( OK != get_option( argc, argv ) ) 
+	{
 		err("get option\n");
 		return ERROR;
 	}
-	if( l_process_signal ) {
-		return do_option( );
-	}
-	if( OK != module_init( ) ) {
+	
+	if( OK != module_init( ) ) 
+	{
 		err("static module init\n");
 		return ERROR;
 	}
 	lk_daemon( );
-	if( OK != create_pid_file( ) ) {
+	
+	if( OK != create_pid_file( ) )
+	{
 		err("create pid file\n" );
 		goto over;
 	}
-	if( OK != listen_start( ) ) {
+	if( OK != listen_start( ) ) 
+	{
 		err( "listen_start failed\n" );
 		goto over;
 	}
-	if( conf.base.worker_process > 0 ) {
+	if( conf.base.worker_process > 0 ) 
+	{
 		process_master_run( );
-	} else {
+	} 
+	else 
+	{
 		process_single_run( );
 	}
 over:

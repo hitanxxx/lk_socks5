@@ -5,6 +5,7 @@ SRC_DIR += $(PROJDIR)/base
 INC_DIR += $(PROJDIR)/app
 INC_DIR += $(PROJDIR)/base
 INC_DIR += $(PROJDIR)/base/util
+
 INC_DIR += $(PROJDIR)/lib/include
 INC_DIR += $(PROJDIR)/lib/crypto
 

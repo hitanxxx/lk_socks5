@@ -5,8 +5,7 @@
 #define SOCKS5_META_LENGTH			4096
 #define SOCKS5_TIME_OUT				3
 
-#define SOCKS5_USER_NAME_MAX		16
-#define SOCKS5_USER_PASSWD_MAX		16
+
 
 #define SOCKS5_AUTH_MAGIC_NUM		947085
 
@@ -24,13 +23,6 @@ enum socks5_private_auth_message_status {
 	SOCKS5_AUTH_NO_USER,
 	SOCKS5_AUTH_PASSWD_FAIL
 };
-
-typedef struct socks5_user_t {
-	char		name[SOCKS5_USER_NAME_MAX];
-	char 		passwd[SOCKS5_USER_PASSWD_MAX];
-
-	queue_t		queue;
-} socks5_user_t ;
 
 typedef struct socks5_auth {
 	int 		magic; 				// magic num filed
