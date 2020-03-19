@@ -4,14 +4,16 @@
 #define NET_TRANSPORT_BUFFER_SIZE  8192
 #define NET_TRANSPORT_BUFFER_NUM    10
 
-typedef struct net_transport_t {
-  connection_t*   recv_connection;
-  connection_t*   send_connection;
-  meta_t *  recv_meta;
-  uint32    recv_error;
-  uint32    recv_time;
-  meta_t *  send_meta;
+typedef struct net_transport_t
+{
+	connection_t*   recv_connection;
+	connection_t*   send_connection;
+	meta_t *  recv_meta;
+	uint32    recv_time;
+	uint32    recv_error;
+	meta_t *  send_meta;
 
+	uint32	cache_size;
 } net_transport_t;
 
 status net_transport_alloc( net_transport_t ** t );

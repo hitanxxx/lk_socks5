@@ -10,7 +10,6 @@ typedef struct modules_init
 	char *			module_name;
 }modules_init_t;
 
-
 status modules_end( void );
 status module_init( void );
 

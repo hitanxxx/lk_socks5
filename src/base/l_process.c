@@ -1,5 +1,5 @@
 #include "l_base.h"
-
+#include "l_module.h"
 
 #define				L_PROCESS_MASTER		0xff
 

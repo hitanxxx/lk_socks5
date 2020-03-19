@@ -3,14 +3,14 @@ export PROJDIR
 
 
 all:
-	@make -C app		TARGET=app 	lib
 	@make -C base		TARGET=base	lib
+	@make -C app		TARGET=app	lib
 	@make -C bin		bin
 
 .PHONY: test clean
 test:
-	@make -C app		TARGET=app 	lib
 	@make -C base		TARGET=base	lib
+	@make -C app		TARGET=app	lib
 	@make -C test		bin
 
 clean:
