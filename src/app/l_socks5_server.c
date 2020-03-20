@@ -2,10 +2,14 @@
 #include "l_socks5_local.h"
 #include "l_socks5_server.h"
 
+//#define CACHE
+
+#if !defined(CACHE)
 static status lks5_down_recv( event_t * ev );
 static status lks5_up_send( event_t * ev );
 static status lks5_up_recv( event_t * ev );
 static status lks5_down_send( event_t * ev );
+#endif
 
 status socks5_cycle_free( socks5_cycle_t * cycle )
 {
@@ -44,12 +48,99 @@ void socks5_timeout_con( void * data )
 
 	net_free( c );
 }
+#if defined(CACHE)
+static status socks5_remote2local_recv( event_t * ev )
+{
+	connection_t * c;
+	status rc;
+	socks5_cycle_t * cycle;
 
-/*
- * recv always recv data unitl buffer full or recvd
- * return again, or error. if error, then send the
- * data that recvd then close the connection
- */
+	c = ev->data;
+	cycle = c->data;
+
+	rc = net_transport( cycle->remote2local, 0 );
+	if( rc == ERROR ) {
+		err("remote2local recv failed\n" );
+		socks5_cycle_free( cycle );
+		return ERROR;
+	}
+	
+	timer_set_data( &ev->timer, (void*)cycle );
+	timer_set_pt( &ev->timer, socks5_timeout_cycle );
+	timer_add( &ev->timer, SOCKS5_TIME_OUT );
+
+	return rc;
+}
+
+static status socks5_local2remote_send( event_t * ev )
+{
+	connection_t * c;
+	status rc;
+	socks5_cycle_t * cycle;
+
+	c = ev->data;
+	cycle = c->data;
+	
+	rc = net_transport( cycle->local2remote, 1 );
+	if( rc == ERROR ) {
+		err("local2remote send failed\n" );
+		socks5_cycle_free( cycle );
+		return ERROR;
+	}
+	
+	timer_set_data( &ev->timer, (void*)cycle );
+	timer_set_pt( &ev->timer, socks5_timeout_cycle );
+	timer_add( &ev->timer, SOCKS5_TIME_OUT );
+	
+	return rc;
+}
+
+static status socks5_remote2local_send( event_t * ev )
+{
+	connection_t * c;
+	status rc;
+	socks5_cycle_t * cycle;
+
+	c = ev->data;
+	cycle = c->data;
+
+	rc = net_transport( cycle->remote2local, 1 );
+	if( rc == ERROR ) {
+		err("remote2local send failed\n" );
+		socks5_cycle_free( cycle );
+		return ERROR;
+	}
+	
+	timer_set_data( &ev->timer, (void*)cycle );
+	timer_set_pt( &ev->timer, socks5_timeout_cycle );
+	timer_add( &ev->timer, SOCKS5_TIME_OUT );
+	
+	return rc;
+}
+
+static status socks5_local2remote_recv( event_t * ev )
+{
+	connection_t * c;
+	status rc;
+	socks5_cycle_t * cycle;
+
+	c = ev->data;
+	cycle = c->data;
+
+	rc = net_transport( cycle->local2remote, 0 );
+	if( rc == ERROR ) {
+		err("local2remote recv failed\n" );
+		socks5_cycle_free( cycle );
+		return ERROR;
+	}
+	
+	timer_set_data( &ev->timer, (void*)cycle );
+	timer_set_pt( &ev->timer, socks5_timeout_cycle );
+	timer_add( &ev->timer, SOCKS5_TIME_OUT );
+
+	return rc;
+}
+#else
 static status lks5_down_recv( event_t * ev )
 {
 	connection_t * down = ev->data;
@@ -221,14 +312,44 @@ static status lks5_down_send( event_t * ev )
 
 	return cycle->up->event.read_pt( &cycle->up->event );
 }
-
+#endif
 
 status socks5_pipe( event_t * ev )
 {
 	connection_t * c = ev->data;
 	socks5_cycle_t * cycle = c->data;
 	l_meta_t * meta = NULL;
+#if defined(CACHE)
+	
+	if( OK != net_transport_alloc( &cycle->local2remote ) ) {
+		err(" net_transport local2remote alloc\n" );
+		socks5_cycle_free( cycle );
+		return ERROR;
+	}
+	if( OK != net_transport_alloc( &cycle->remote2local ) ) {
+		err(" net_transport remote2local alloc\n" );
+		socks5_cycle_free( cycle );
+		return ERROR;
+	}
 
+	cycle->local2remote->recv_connection = cycle->down;
+	cycle->local2remote->send_connection = cycle->up;
+
+	cycle->remote2local->recv_connection = cycle->up;
+	cycle->remote2local->send_connection = cycle->down;
+
+	event_opt( &cycle->up->event, cycle->up->fd, EV_R );
+	event_opt( &cycle->up->event, cycle->up->fd, EV_W );
+
+	cycle->up->event.read_pt = socks5_remote2local_recv;
+	cycle->up->event.write_pt = socks5_local2remote_send;
+
+	event_opt( &cycle->down->event, cycle->down->fd, EV_R );	
+	event_opt( &cycle->down->event, cycle->down->fd, EV_W );	
+	
+	cycle->down->event.read_pt = socks5_local2remote_recv;
+	cycle->down->event.write_pt = socks5_remote2local_send;
+#else
 	cycle->down->event.read_pt = lks5_down_recv;
 	cycle->down->event.write_pt = NULL;
 
@@ -244,7 +365,7 @@ status socks5_pipe( event_t * ev )
 	// local will use this function, need to alloc down and up meta buffer
 	if( !cycle->down->meta )
 	{
-		if( OK != meta_alloc( &cycle->down->meta, 4096 ) )
+		if( OK != meta_alloc( &cycle->down->meta, SOCKS5_META_LENGTH ) )
 		{
 			err(" down meta alloc\n" );
 			socks5_cycle_free( cycle );
@@ -256,7 +377,7 @@ status socks5_pipe( event_t * ev )
 
 	if( !cycle->up->meta )
 	{
-		if( OK != meta_alloc( &cycle->up->meta, 4096 ) )
+		if( OK != meta_alloc( &cycle->up->meta, SOCKS5_META_LENGTH ) )
 		{
 			err(" up meta alloc\n" );
 			socks5_cycle_free( cycle );
@@ -265,7 +386,7 @@ status socks5_pipe( event_t * ev )
 	}
 	meta = cycle->up->meta;
 	meta->pos = meta->last = meta->start;
-
+#endif
 	return cycle->down->event.read_pt( &cycle->down->event );
 }
 
@@ -399,19 +520,31 @@ static status socks5_server_connect( event_t * event )
 	down = event->data;
 	cycle = down->data;
 
+	if( OK != net_alloc( &cycle->up ) ) {
+		err(" net alloc up\n" );
+		socks5_cycle_free( cycle );
+		return ERROR;
+	}
+
 	if( cycle->request.atyp == 0x01 )
 	{
+		int local_port = 0;
 		// ip type address
 		snprintf( ipstr, sizeof(ipstr), "%d.%d.%d.%d",
 			(unsigned char )cycle->request.dst_addr_ipv4[0],
 			(unsigned char )cycle->request.dst_addr_ipv4[1],
 			(unsigned char )cycle->request.dst_addr_ipv4[2],
 			(unsigned char )cycle->request.dst_addr_ipv4[3] );
-		snprintf( portstr, sizeof(portstr), "%d", ntohs(*(uint16_t*)cycle->request.dst_port) );
+		local_port = ntohs(*(uint16_t*)cycle->request.dst_port);
+		snprintf( portstr, sizeof(portstr), "%d", local_port );
 		ip.data = ipstr;
 		ip.len = l_strlen(ipstr);
 		port.data = portstr;
 		port.len = l_strlen(portstr);
+
+		cycle->up->addr.sin_family	= AF_INET;
+		cycle->up->addr.sin_port 	= htons( local_port );
+		cycle->up->addr.sin_addr.s_addr = inet_addr( ipstr );
 	}
 	else if ( cycle->request.atyp == 0x03 )
 	{
@@ -422,6 +555,16 @@ static status socks5_server_connect( event_t * event )
 		snprintf( portstr, sizeof(portstr), "%d", ntohs(*(uint16_t*)cycle->request.dst_port) );
 		port.data = portstr;
 		port.len = l_strlen(portstr);
+
+		res = socks5_server_get_addr( &ip, &port );
+		if( !res ) 
+		{
+			err(" net get addr failed\n" );
+			socks5_cycle_free( cycle );
+			return ERROR;
+		}
+		memcpy( &cycle->up->addr, res->ai_addr, sizeof(struct sockaddr_in) );
+		freeaddrinfo( res );
 	}
 	else
 	{
@@ -430,26 +573,21 @@ static status socks5_server_connect( event_t * event )
 		return ERROR;
 	}
 
-	res = socks5_server_get_addr( &ip, &port );
-	if( !res ) {
-		err(" net get addr failed\n" );
-		socks5_cycle_free( cycle );
-		return ERROR;
-	}
-
-	if( OK != net_alloc( &cycle->up ) ) {
-		err(" net alloc up\n" );
-		socks5_cycle_free( cycle );
-		return ERROR;
-	}
 	cycle->up->data = cycle;
 
 	event->read_pt = NULL;
 	event->write_pt = NULL;
 
-	memcpy( &cycle->up->addr, res->ai_addr, sizeof(struct sockaddr_in) );
-	freeaddrinfo( res );
-
+	if( !cycle->up->meta ) 
+	{
+		if( OK != meta_alloc( &cycle->up->meta, SOCKS5_META_LENGTH ) ) 
+		{
+			err(" up meta alloc\n" );
+			socks5_cycle_free( cycle );
+			return ERROR;
+		}
+	}
+	
 	rc = l_net_connect( cycle->up, &cycle->up->addr );
 	if( ERROR == rc ) {
 		err(" up net connect failed\n" );
@@ -913,7 +1051,7 @@ static status socks5_server_init_cycle( event_t * event )
 	c = event->data;
 	if( !c->meta )
 	{
-		if( OK != meta_alloc( &c->meta, 4096 ) )
+		if( OK != meta_alloc( &c->meta, SOCKS5_META_LENGTH ) )
 		{
 			err(" down meta alloc\n" );
 			net_free( c );

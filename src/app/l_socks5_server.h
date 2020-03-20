@@ -2,7 +2,7 @@
 #define _L_SOCKS5_H_INCLUDED_
 
 // socks5 private macro
-#define SOCKS5_META_LENGTH			4096
+#define SOCKS5_META_LENGTH			(4096*4)
 #define SOCKS5_TIME_OUT				3
 
 
