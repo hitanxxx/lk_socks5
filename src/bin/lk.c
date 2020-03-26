@@ -97,7 +97,6 @@ static status get_option( int argc, char * argv[] )
 		return ERROR;
 	}
 	g_opt_str = argv[1];
-	debug("option argv [%s]\n", g_opt_str );
 	if( *g_opt_str++ != '-' ) 
 	{
 		err("formast error\n" );
@@ -106,19 +105,17 @@ static status get_option( int argc, char * argv[] )
 	if ( strcmp( g_opt_str, "reload" ) == 0 ) 
 	{
 		g_opt_type = 1;
-		return OK;
 	} 
 	else if( strcmp( g_opt_str, "stop" ) == 0 ) 
 	{
 		g_opt_type = 2;
-		return OK;
 	}
 	else
 	{
 		err("invaild parameter\n" );
 		return ERROR;
 	}
-	if( g_opt_str != NULL ) 
+	if( g_opt_type != 0 ) 
 	{
 		pid_t self_pid;
 		if( OK != process_self_pid( &self_pid ) )
@@ -132,8 +129,9 @@ static status get_option( int argc, char * argv[] )
 			err("send signal to self failed\n");
 			return ERROR;
 		}
-		return OK;
+		exit (0);
 	}
+	return OK;
 }
 
 
@@ -162,11 +160,8 @@ int32 main( int argc, char * argv[] )
 	}
 	lk_daemon( );
 	
-	if( OK != create_pid_file( ) )
-	{
-		err("create pid file\n" );
-		goto over;
-	}
+	create_pid_file( );
+	
 	if( OK != listen_start( ) ) 
 	{
 		err( "listen_start failed\n" );
