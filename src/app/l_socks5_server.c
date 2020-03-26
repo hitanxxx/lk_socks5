@@ -686,27 +686,37 @@ static status socks5_server_msg_invate_process( event_t * event )
 static status socks5_server_private_auth_send_resp( event_t * ev )
 {
 	connection_t * c = ev->data;
-	socks5_cycle_t * cycle = c->data;
 	status rc;
+	socks5_cycle_t * cycle;
 
 	rc = c->send_chain( c, c->meta );
 	if( rc == ERROR )
 	{
 		err("socks5 server auth send resp failed\n");
-		socks5_cycle_free( cycle );
+		net_free( c );
 		return ERROR;
 	} 
 	else if ( rc == DONE )
 	{
 		timer_del( &ev->timer );
 
+		cycle = l_safe_malloc( sizeof(socks5_cycle_t) );
+		if( !cycle ) {
+			err(" malloc socks5 cycle failed\n" );
+			net_free( c );
+			return ERROR;
+		}
+		memset( cycle, 0, sizeof(socks5_cycle_t) );
+		cycle->down = c;
+		c->data = (void*)cycle;
+
 		ev->write_pt = NULL;
 		ev->read_pt  = socks5_server_msg_invate_process;
 		return ev->read_pt( ev );
 	}
 
-	timer_set_data( &ev->timer, cycle );
-	timer_set_pt(&ev->timer, socks5_timeout_cycle );
+	timer_set_data( &ev->timer, c );
+	timer_set_pt(&ev->timer, socks5_timeout_con );
 	timer_add( &ev->timer, SOCKS5_TIME_OUT );
 	return AGAIN;
 }
@@ -714,9 +724,10 @@ static status socks5_server_private_auth_send_resp( event_t * ev )
 static status socks5_server_private_auth_check( event_t * ev )
 {	
 	connection_t * c = ev->data;
-	socks5_cycle_t * cycle = c->data;
 	socks5_auth_t * auth = NULL;
 	status rc = SOCKS5_AUTH_SUCCESS;
+	string_t auth_name, auth_passwd;
+	user_t * user;
 
 	auth = (socks5_auth_t*)c->meta->pos;
 	
@@ -732,9 +743,6 @@ static status socks5_server_private_auth_check( event_t * ev )
 		rc = SOCKS5_AUTH_TYPE_FAIL;
 		goto failed;
 	}
-	
-	string_t auth_name, auth_passwd;
-	user_t * user;
 
 	memset( &auth_name, 0, sizeof(string_t) );
 	memset( &auth_passwd, 0, sizeof(string_t) );
@@ -760,11 +768,11 @@ static status socks5_server_private_auth_check( event_t * ev )
 	}
 	
 failed:
-	auth->message_type			=	SOCKS5_AUTH_RESP;
-	auth->message_status	= 	rc;
+	auth->message_type       =  SOCKS5_AUTH_RESP;
+	auth->message_status     =  rc;
 
 	ev->read_pt = NULL;
-	event_opt( &cycle->down->event, cycle->down->fd, EV_W );
+	event_opt( &c->event, c->fd, EV_W );
 	ev->write_pt = socks5_server_private_auth_send_resp;
 	return ev->write_pt( ev );
 }
@@ -772,7 +780,6 @@ failed:
 static status socks5_server_private_auth_recv( event_t * ev )
 {
 	connection_t * c = ev->data;
-	socks5_cycle_t * cycle = c->data;
 	ssize_t rc;
 
 	timer_add( &ev->timer, SOCKS5_TIME_OUT );
@@ -788,7 +795,7 @@ static status socks5_server_private_auth_recv( event_t * ev )
 				return AGAIN;
 			}
 			err("socks5 server auth recv failed\n");
-			socks5_cycle_free( cycle );
+			net_free(c);
 			return ERROR;
 		}
 		c->meta->last += rc;		
@@ -803,7 +810,6 @@ static status socks5_server_private_auth_recv( event_t * ev )
 static status socks5_server_init_cycle( event_t * event )
 {
 	connection_t * c;
-	socks5_cycle_t * cycle = NULL;
 
 	c = event->data;
 	if( !c->meta ) 
@@ -815,18 +821,9 @@ static status socks5_server_init_cycle( event_t * event )
 			return ERROR;
 		}
 	}
-	cycle = l_safe_malloc( sizeof(socks5_cycle_t) );
-	if( !cycle ) {
-		err(" malloc socks5 cycle failed\n" );
-		net_free( c );
-		return ERROR;
-	}
-	memset( cycle, 0, sizeof(socks5_cycle_t) );
-	cycle->down = c;
-	c->data = (void*)cycle;
 
-	timer_set_data( &event->timer, cycle );
-	timer_set_pt(&event->timer, socks5_timeout_cycle );
+	timer_set_data( &event->timer, c );
+	timer_set_pt(&event->timer, socks5_timeout_con );
 	timer_add( &event->timer, SOCKS5_TIME_OUT );
 	
 	event->read_pt	= socks5_server_private_auth_recv;
