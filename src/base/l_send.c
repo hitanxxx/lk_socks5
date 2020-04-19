@@ -157,10 +157,10 @@ ssize_t recvs( connection_t * c, char * start, uint32 len )
 		if( errno == EAGAIN ) {
 			return AGAIN;
 		}
-		err(" recv failed, [%d]\n", errno );
+		err("recvs failed, [%d]\n", errno );
 		return ERROR;
 	} else if ( rc == 0 ) {
-		err ( " recv return 0, peer closed\n" );
+		err ( "recvs return 0, peer closed\n" );
 		return ERROR;
 	} else {
 		return rc;
@@ -181,13 +181,13 @@ ssize_t udp_sends( connection_t * c, char * start, uint32 len )
 		}
 		err("udp send failed, errno [%d]\n", errno );
 		return ERROR;
-	} 
+	}
 	else if ( rc == 0 )
 	{
 		err("peer closed\n");
 		return ERROR;
-	} 
-	else 
+	}
+	else
 	{
 		return rc;
 	}

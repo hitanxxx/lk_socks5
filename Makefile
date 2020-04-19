@@ -12,6 +12,7 @@ install:
 	-test -d /usr/local/lks5/sbin || mkdir -p /usr/local/lks5/sbin
 	-cp -rf src/bin/lks5 /usr/local/lks5/sbin
 	-cp -rf certificate /usr/local/lks5
+	-cp -rf www     /usr/local/lks5
 
 server:all install
 	-cp -rf config/config.json.server /usr/local/lks5/config/config.json

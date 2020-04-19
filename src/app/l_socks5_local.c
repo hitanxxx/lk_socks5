@@ -114,8 +114,8 @@ static status socks5_local_private_auth_begin( event_t * ev )
 	memset( auth, 0, sizeof(socks5_auth_t) );
 
 	auth->magic = SOCKS5_AUTH_MAGIC_NUM;
-	strncpy( auth->name, 	conf.socks5_client.user, sizeof(auth->name) );
-	strncpy( auth->passwd, 	conf.socks5_client.passwd, 	sizeof(auth->passwd) );
+	strncpy( auth->name, 	conf.socks5.client.user, sizeof(auth->name) );
+	strncpy( auth->passwd, 	conf.socks5.client.passwd, 	sizeof(auth->passwd) );
 	auth->message_type	= SOCKS5_AUTH_REQ;
 	auth->message_status = 0;
 
@@ -207,8 +207,8 @@ static status socks5_local_init_connection( event_t * ev )
 	// get server addr
 	memset( &server_addr, 0, sizeof( struct sockaddr_in ) );
 	server_addr.sin_family		= AF_INET;
-	server_addr.sin_port 		= htons( (uint16_t)conf.socks5_client.server_port );
-	server_addr.sin_addr.s_addr = inet_addr( conf.socks5_client.server_ip );
+	server_addr.sin_port 		= htons( (uint16_t)conf.socks5.client.server_port );
+	server_addr.sin_addr.s_addr = inet_addr( conf.socks5.client.server_ip );
 	
 	// init struct data
 	cycle = l_safe_malloc( sizeof(socks5_cycle_t) );
@@ -261,8 +261,9 @@ failed:
 
 status socks5_local_init( void )
 {
-	if( conf.socks5_mode == SOCKS5_CLIENT ) {
-		listen_add( conf.socks5_client.local_port, socks5_local_init_connection, L_NOSSL );
+	if( conf.socks5_mode == SOCKS5_CLIENT )
+	{
+		listen_add( conf.socks5.client.local_port, socks5_local_init_connection, L_NOSSL );
 	}
 	return OK;
 }

@@ -2,21 +2,27 @@
 	"daemon":true,
 	"worker_process":2,
 
-	"reuse_port":false,
-	"accept_mutex":false,
-
 	"log_error":true,
 	"log_debug":false,
 
 	"sslcrt":"/usr/local/lks5/certificate/server.crt",
 	"sslkey":"/usr/local/lks5/certificate/server.key",
 
-	"socks5":{
+	"socks5":
+	{
 		"mode":"client",
 		"serverip":"1.1.1.1",
 		"serverport":12345,
 		"localport":1080,
 		"client_username":"user1",
 		"client_user_passwd":"12345"
+	},
+
+	"http":
+	{
+		"port":[80],
+		"ssl_port":[443],
+		"home":"/usr/local/lks5/www",
+		"index":"index.html"
 	}
 }

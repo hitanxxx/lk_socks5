@@ -37,8 +37,9 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <sys/sendfile.h>
-#include "../lib/include/openssl/ssl.h"
-#include "../lib/include/openssl/err.h"
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+
 
 #include "l_macro.h"
 #include "l_shm.h"

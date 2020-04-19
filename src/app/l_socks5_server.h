@@ -79,13 +79,15 @@ typedef struct socks5_cycle_t {
 	
 	connection_t * 		down;
 	connection_t * 		up;
+
+	char down_recv_error;
+	char up_recv_error;
 	
 	net_transport_t * local2remote;
 	net_transport_t * remote2local;
 
 } socks5_cycle_t;
 
-status socks5_user_auth_init(  void);
 
 
 status socks5_server_init( void );

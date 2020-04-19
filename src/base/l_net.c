@@ -138,6 +138,11 @@ status net_free( connection_t * c )
 {
 	status rc;
 
+	if( c == NULL )
+	{
+		return ERROR;
+	}
+
 	if( c->ssl_flag && c->ssl ) {
 		rc = ssl_shutdown( c->ssl );
 		if( rc == AGAIN ) {
