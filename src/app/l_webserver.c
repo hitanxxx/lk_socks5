@@ -572,7 +572,7 @@ static status webser_entity_start ( webser_t * webser )
 
 	if( OK != stat( webser->filepath, &st ) ) 
 	{
-		err("stat request file, errno [%d]\n", errno );
+		err("stat request file [%s] errno [%d]\n", webser->filepath, errno );
 		webser->re_status = 400;
 		return OK;
 	}
@@ -588,6 +588,34 @@ static status webser_entity_start ( webser_t * webser )
 	return OK;
 }
 
+static status webser_process_request_body( event_t * ev )
+{
+	int32 status;
+	connection_t * c;
+	webser_t * webser;
+
+	c = ev->data;
+	webser = c->data;
+	status = webser->request_body->handler.process( webser->request_body );
+	if( status == ERROR )
+	{
+		err("get webser body\n");
+		webser_over( webser );
+		return ERROR;
+	} 
+	else if( status == DONE ) 
+	{
+		timer_del( &c->event.timer );
+
+		return webser->request_body->over_cb( ev );
+	}
+	timer_set_data( &c->event.timer, (void*)webser );
+	timer_set_pt( &c->event.timer, webser_time_out );
+	timer_add( &c->event.timer, WEBSER_TIMEOUT );
+	return status;
+}
+
+
 static status webser_process_entity ( event_t * ev )
 {
 	connection_t * c;
@@ -595,6 +623,24 @@ static status webser_process_entity ( event_t * ev )
 
 	c = ev->data;
 	webser = c->data;
+
+	/*
+	 * if not recv request body, goto recvd request body
+	 */
+	if( !webser->request_body || !(webser->request_body->status & HTTP_BODY_DONE) )
+	{
+		if( OK != http_entitybody_create( webser->c, &webser->request_body, 1 ) )
+		{
+			err( "http_entitybody_create error\n");
+			webser_over( webser );
+			return ERROR;
+		}
+		webser->request_body->body_type = webser->request_head->body_type;
+		webser->request_body->content_length = webser->request_head->content_length;
+		webser->request_body->over_cb = webser_process_entity;
+		
+		c->event.read_pt = webser_process_request_body;
+	}
 
 	if( OK != webser_entity_start( webser ) )
 	{
@@ -635,40 +681,6 @@ static status webser_process_api( event_t * ev )
 	return webser->api_handler( (void*)webser );
 }
 
-static status webser_process_request_body( event_t * ev )
-{
-	int32 status;
-	connection_t * c;
-	webser_t * webser;
-
-	c = ev->data;
-	webser = c->data;
-	status = webser->request_body->handler.process( webser->request_body );
-	if( status == ERROR )
-	{
-		err("get webser body\n");
-		webser_over( webser );
-		return ERROR;
-	} 
-	else if( status == DONE ) 
-	{
-		timer_del( &c->event.timer );
-
-		if( webser->api_flag == 1 )
-		{
-			c->event.read_pt = webser_process_api;
-		}
-		else
-		{
-			c->event.read_pt = webser_process_entity;
-		}
-		return c->event.read_pt( ev );
-	}
-	timer_set_data( &c->event.timer, (void*)webser );
-	timer_set_pt( &c->event.timer, webser_time_out );
-	timer_add( &c->event.timer, WEBSER_TIMEOUT );
-	return status;
-}
 
 static status webser_process_router( event_t * ev )
 {
@@ -677,6 +689,9 @@ static status webser_process_router( event_t * ev )
 	int32 content_length;
 	int discard_body;
 
+	/*
+	 * if found api, do api handler
+	 */
 	if( OK == serv_api_find( &webser->request_head->uri, &webser->api_handler ) ) 
 	{
 		webser->api_flag = 1;
@@ -684,16 +699,8 @@ static status webser_process_router( event_t * ev )
 	} 
 	else 
 	{
-		webser->api_flag = 0;
-		if( OK != http_entitybody_create( webser->c, &webser->request_body, 1 ) )
-		{
-			err( "http_entitybody_create error\n");
-			webser_over( webser );
-			return ERROR;
-		}
-		webser->request_body->body_type = webser->request_head->body_type;
-		webser->request_body->content_length = webser->request_head->content_length;
-		c->event.read_pt = webser_process_request_body;
+	    webser->api_flag = 0;
+		c->event.read_pt = webser_process_entity;
 	}
 	return c->event.read_pt( ev );
 }

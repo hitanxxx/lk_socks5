@@ -210,8 +210,7 @@ static status http_entity_process_content( http_entitybody_t * bd )
 			if( !bd->content_need ) 
 			{
 				bd->all_length = bd->content_length;
-
-				bd->finish = 1;
+				bd->status = HTTP_BODY_RECVD;
 				return DONE;
 			}
 		}
@@ -275,7 +274,7 @@ static status http_entity_process_chunk( http_entitybody_t * bd )
 		rc = http_entity_parse_chunk( bd );
 		if( rc == DONE ) 
 		{
-			bd->finish = 1;
+			bd->status = HTTP_BODY_RECVD;
 			return DONE;
 		} 
 		else if ( rc == ERROR ) 
@@ -295,7 +294,7 @@ static status http_entitybody_start( http_entitybody_t * bd )
 	busy_head = meta_len( bd->c->meta->pos, bd->c->meta->last );
 	if( bd->body_type == HTTP_ENTITYBODY_NULL )
 	{
-		bd->finish = 1;
+		bd->status = HTTP_BODY_EMPTY;
 		return DONE;
 	}
 	else if( bd->body_type == HTTP_ENTITYBODY_CONTENT ) 
@@ -308,7 +307,7 @@ static status http_entitybody_start( http_entitybody_t * bd )
 			bd->all_length = bd->content_length;
 			if( !bd->cache ) 
 			{
-				bd->finish = 1;
+				bd->status = HTTP_BODY_EMPTY;
 				return DONE;
 			} 
 			else 
@@ -322,7 +321,7 @@ static status http_entitybody_start( http_entitybody_t * bd )
 				l_memcpy( bd->body_last->last, bd->c->meta->pos, busy_head );
 				bd->body_last->last += busy_head;
 				
-				bd->finish = 1;
+				bd->status = HTTP_BODY_RECVD;
 				return DONE;
 			}
 		} 

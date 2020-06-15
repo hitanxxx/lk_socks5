@@ -22,6 +22,15 @@ struct http_entitybody_t {
 
 	uint32 				body_type;
 	uint32				cache;
+
+
+	// for over callback use
+	event_pt			over_cb;
+	int					status;
+
+	/*
+	 * private infos
+	 */
 	// content infos
 	uint32				content_length;
 	uint32				content_need;
@@ -39,9 +48,6 @@ struct http_entitybody_t {
 	meta_t *			body_last;
 
 	uint32				all_length;
-
-	// finish flag
-	int32				finish;
 };
 
 

@@ -30,6 +30,10 @@ enum http_body_type
 	HTTP_ENTITYBODY_CHUNK
 };
 
+#define HTTP_BODY_DONE 		0x01
+#define HTTP_BODY_EMPTY		0x03
+#define HTTP_BODY_RECVD		0x05
+
 /* scoks5 module run model */
 enum socks5_module_run_model {
 	SOCKS5_SERVER,

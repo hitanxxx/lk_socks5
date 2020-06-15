@@ -13,6 +13,6 @@ DIR_BIN         +=      .
 APP_BIN		+= 	lks5
 
 CMP_FLAGS 	+= -fomit-frame-pointer -O -W -Wall -Wpointer-arith -Wconversion -Winline -Wmissing-prototypes -Wno-unused -Werror -g
-LD_FLAGS 	+= -lpthread -lresolv -lm -lrt -lz -ldl -lcrypto -lssl
+LD_FLAGS 	+= -lpthread -lresolv -lm -lrt -ldl -lcrypto -lssl
 
 include $(PROJDIR)/build.mk
