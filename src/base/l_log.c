@@ -36,7 +36,7 @@ static status log_format_text( log_content_t * log_content )
 
 	length += snprintf( log_content->p + length, LOG_TEXT_LENGTH - (size_t)length, "[%s]:", log_content->filename );
 	length += snprintf( log_content->p + length, LOG_TEXT_LENGTH - (size_t)length, "[%d]-", log_content->line );
-	length += snprintf( log_content->p + length, LOG_TEXT_LENGTH - (size_t)length, "[%s]-", log_content->func );
+	length += snprintf( log_content->p + length, LOG_TEXT_LENGTH - (size_t)length, "[%s]- ", log_content->func );
 	length += vsnprintf( log_content->p + length, LOG_TEXT_LENGTH - (size_t)length, log_content->args, log_content->args_list );
 
 	length = ( length <= LOG_TEXT_LENGTH ) ? length : LOG_TEXT_LENGTH;

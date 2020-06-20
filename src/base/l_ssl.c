@@ -5,6 +5,7 @@ static SSL_CTX * ctx_server = NULL;
 static status ssl_write_handler( event_t * event );
 static status ssl_read_handler( event_t * event );
 static int32  ssl_con_index;
+static char g_err_msg[1024] = {0};
 
 // ssl_shutdown_handler -----------------
 status ssl_shutdown_handler( event_t * ev )
@@ -116,24 +117,28 @@ status ssl_client_ctx( SSL_CTX ** s )
 status ssl_server_ctx( SSL_CTX ** s )
 {
 	int32 rc;
+	SSL_CTX * local_ctx = NULL;
 
 	if( !ctx_server ) {
-		ctx_server = SSL_CTX_new( SSLv23_server_method() );
-		rc = SSL_CTX_use_certificate_chain_file (ctx_server, conf.base.sslcrt);
+		local_ctx = SSL_CTX_new( SSLv23_server_method() );
+		rc = SSL_CTX_use_certificate_chain_file (local_ctx, conf.base.sslcrt);
 		if( rc != 1 ) {
-			err ( " [SSL_CTX_use_certificate_chain_file] failed\n" );
+			err ("crt file [%s], failed. error [%s]\n", conf.base.sslcrt, ERR_error_string(ERR_get_error(),g_err_msg) );
 			return ERROR;
 		}
-		rc = SSL_CTX_use_PrivateKey_file( ctx_server, conf.base.sslkey, SSL_FILETYPE_PEM );
+		rc = SSL_CTX_use_PrivateKey_file( local_ctx, conf.base.sslkey, SSL_FILETYPE_PEM );
 		if( rc != 1 ) {
-			err ( " [SSL_CTX_use_PrivateKey_file] failed\n" );
+			err ("failed\n");
+			SSL_CTX_free( local_ctx );
 			return ERROR;
 		}
-		rc = SSL_CTX_check_private_key( ctx_server );
+		rc = SSL_CTX_check_private_key( local_ctx );
 		if( rc != 1 ) {
-			err ( " [SSL_CTX_check_private_key] error\n" );
+			err ("error\n");
+			SSL_CTX_free( local_ctx );
 			return ERROR;
 		}
+		ctx_server = local_ctx;
 	}
 	*s = ctx_server;
 	return OK;
@@ -252,6 +257,7 @@ status ssl_create_connection( connection_t * c, uint32 flag )
 {
 	ssl_connection_t * sc = NULL;
 	SSL_CTX * ctx;
+	int rc = 0;
 
 	if ( (flag != L_SSL_CLIENT) && (flag != L_SSL_SERVER) ) {
 		err(" flag not support\n" );
@@ -264,10 +270,16 @@ status ssl_create_connection( connection_t * c, uint32 flag )
 	}
 	memset( sc, 0, sizeof(ssl_connection_t) );
 	if( flag == L_SSL_CLIENT ) {
-		ssl_client_ctx( &ctx );
+		rc = ssl_client_ctx( &ctx );
 	} else {
-		ssl_server_ctx( &ctx );
+		rc = ssl_server_ctx( &ctx );
 	}
+	if( rc != OK )
+	{
+		err("ssl ctx create failed\n");
+		return ERROR;
+	}
+	
 	sc->session_ctx = ctx;
 	sc->con = SSL_new( sc->session_ctx );
 	if( !sc->con ) {
