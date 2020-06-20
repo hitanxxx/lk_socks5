@@ -606,7 +606,7 @@ static status webser_process_request_body( event_t * ev )
 	else if( status == DONE ) 
 	{
 		timer_del( &c->event.timer );
-
+		debug("process body success\n");
 		return webser->request_body->over_cb( ev );
 	}
 	timer_set_data( &c->event.timer, (void*)webser );
@@ -640,6 +640,7 @@ static status webser_process_entity ( event_t * ev )
 		webser->request_body->over_cb = webser_process_entity;
 		
 		c->event.read_pt = webser_process_request_body;
+		return c->event.read_pt( ev );
 	}
 
 	if( OK != webser_entity_start( webser ) )
@@ -673,14 +674,11 @@ static status webser_process_entity ( event_t * ev )
 static status webser_process_api( event_t * ev )
 {
 	int32 rc;
-	connection_t * c;
-	webser_t * webser;
+	connection_t * c = ev->data;
+	webser_t * webser = c->data;
 
-	c = ev->data;
-	webser = c->data;
-	return webser->api_handler( (void*)webser );
+	return webser->api_handler( ev );
 }
-
 
 static status webser_process_router( event_t * ev )
 {

@@ -1,7 +1,7 @@
 #ifndef _L_SERV_H_INCLUDED_
 #define _L_SERV_H_INCLUDED_
 
-typedef status ( * serv_api_handler  ) ( void * data );
+typedef status ( * serv_api_handler  ) ( event_t * ev );
 typedef struct serv_api_t {
 	string_t 			name;
 	serv_api_handler	handler;
