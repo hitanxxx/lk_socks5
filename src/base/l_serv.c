@@ -37,7 +37,7 @@ status serv_api_register( serv_api_t * api )
 }
 
 status serv_init( void )
-{
+	{
 	if( OK != mem_list_create( &api_list, sizeof(serv_api_t*) ) )
 	{
 		err(" mem_list_create api_list\n" );

@@ -5,11 +5,10 @@
 
 typedef struct l_mem_page_t l_mem_page_t;
 struct l_mem_page_t {
-    char *      data;
-    char *      start;
-    char *      end;
-
     l_mem_page_t * next;
+	
+    char *start, *end;
+	char data[0];
 };
 
 status l_mem_page_create( l_mem_page_t ** alloc, uint32 size );

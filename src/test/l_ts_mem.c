@@ -28,8 +28,10 @@ static void ts_mem_alloc_large( void )
     l_mem_alloc( page, 8192 );
 
     n = page->next;
+	t_assert( n != NULL );
     t_assert( n->next == NULL );
     t_assert( n->start == n->end );
+	t_assert( ( n->end - n->data ) == 8192 );
 }
 // ---------
 static void ts_mem_alloc_part( void )
@@ -39,10 +41,12 @@ static void ts_mem_alloc_part( void )
     l_mem_alloc( page, 3000 );
 
     n = page->next->next;
+	t_assert( n != NULL );
     t_assert( n->start + 1096 == n->end );
 
     l_mem_alloc( page, 3000 );
     n = page->next->next->next;
+	t_assert( n != NULL );
     t_assert( n->start + 1096 == n->end );
 }
 // ----------
