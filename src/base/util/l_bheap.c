@@ -42,6 +42,10 @@ status heap_add( heap_t * heap, heap_node_t * node )
 	while( HEAP_PARENT(i) &&  node->key < heap->array[HEAP_PARENT(i)]->key )	
 	{
 		heap->array[i] 			= heap->array[HEAP_PARENT(i)];
+
+		/* 
+		 change parent's index 
+		 */
 		heap->array[i]->index 	= i;	 
 		
 		i = HEAP_PARENT(i);
@@ -58,26 +62,29 @@ status heap_del( heap_t * heap, uint32 del_index )
 	heap_node_t *tail_node, *parent_node;
 	uint32 	child_min;
 	
-	if( heap->index < 1 || heap->space < 1) 
+	if( OK == heap_empty( heap ) )
 	{
 		return ERROR;
 	}
+	
 	if( del_index > heap->index ) 
 	{
 		return ERROR;
 	}
-	// do del
+	
+	/* 
+	  get last node
+	 */
 	tail_node = heap->array[heap->index];
 	heap->index--;
 	
-	// sort
 	i = del_index;
 	while ( HEAP_LCHILD(i) <= heap->index ) 
 	{
 		child_min = HEAP_LCHILD(i);
-		if( HEAP_RCHILD(i) <= heap->index ) 
+		if( child_min <= heap->index && HEAP_RCHILD(i) <= heap->index ) 
 		{
-		child_min = ( heap->array[HEAP_RCHILD(i)]->key < heap->array[child_min]->key ) ? HEAP_RCHILD(i): child_min;
+			child_min = ( heap->array[HEAP_RCHILD(i)]->key < heap->array[child_min]->key ) ? HEAP_RCHILD(i): child_min;
 		}
 		
 		if( tail_node->key >= heap->array[child_min]->key )

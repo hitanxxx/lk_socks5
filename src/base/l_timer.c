@@ -30,8 +30,6 @@ status timer_del( l_timer_t * timer )
 		return ERROR;
 	}
 	timer->f_timeset = 0;
-	timer->timeout_handler = NULL;
-	timer->data = NULL;
 	return OK;
 }
 

@@ -45,6 +45,9 @@ status webser_over( webser_t * webser );
 status webser_init( void );
 status webser_end( void );
 
+status webser_process_request_body( event_t * ev );
+
+
 status webser_process_init( void );
 status webser_process_end( void );
 

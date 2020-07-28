@@ -3,42 +3,18 @@
 #include "l_http_request_head.h"
 #include "l_http_response_head.h"
 #include "l_webserver.h"
+#include "l_webapi.h"
 
 // private data
 static queue_t 	g_queue_use;
 static queue_t 	g_queue_usable;
 static webser_t * g_pool = NULL;
 
-// 400
-static string_t response_string_400 = string("HTTP/1.1 400 Bad Request\r\n"
-"Connection: Close\r\n"
-"Server: lk-v1.0\r\n"
-"Content-type: text/html\r\n"
-"Content-Length: 80\r\n\r\n"
-"<html><title>400 bad Request</title><body>"
-"<h1>400 bad Request</h1>"
-"</body></html>");
-// 403
-static string_t response_string_403 = string("HTTP/1.1 403 Forbidden\r\n"
-"Connection: Close\r\n"
-"Server: lk-v1.0\r\n"
-"Content-type: text/html\r\n"
-"Content-Length: 76\r\n\r\n"
-"<html><title>403 forbidden</title><body>"
-"<h1>403 Forbidden</h1>"
-"</body></html>");
-// 404
-static string_t response_string_404 = string("HTTP/1.1 404 Not Found\r\n"
-"Connection: Close\r\n"
-"Server: lk-v1.0\r\n"
-"Content-type: text/html\r\n"
-"Content-Length: 76\r\n\r\n"
-"<html><title>404 not found</title><body>"
-"<h1>404 Not Found</h1>"
-"</body></html>");
+
 
 static mime_type_t mimetype_table[] =
 {
+	{string(".*"),				string("Content-type: application/octet-stream\r\n")},
 	{string(".html"),			string("Content-type: text/html\r\n")},
 	{string(".js"),             string("Content-type: application/x-javascript\r\n")},
 	{string(".json"),			string("Content-type: application/json\r\n")},
@@ -52,10 +28,8 @@ static mime_type_t mimetype_table[] =
 	{string(".htm"),			string("Content-type: text/html\r\n")},
 	{string(".mp3"),			string("Content-type: audio/mpeg\r\n")}
 };
-static string_t default_mimetype	= string("Content-type: application/octet-stream\r\n");
 
 static status webser_process_request_header( event_t * ev );
-static status webser_over_abnormal( webser_t * webser, uint32 status_code);
 status webser_over( webser_t * webser );
 
 status webser_set_mimetype( webser_t * webser, char * str, uint32 length )
@@ -76,7 +50,7 @@ static string_t * webser_get_mimetype( webser_t * webser )
 		}
 	}
 	err( "%s --- mimitype not found\n", __func__ );
-	return NULL;
+	return &mimetype_table[0].header;
 }
 
 static status webser_alloc( webser_t ** webser )
@@ -236,48 +210,6 @@ status webser_over( webser_t * webser )
 	webser_close( webser );
 	net_free( c );
 	return OK;
-}
-
-static status webser_over_abnormal( webser_t * webser, uint32 status_code)
-{
-	connection_t * c;
-	string_t * string;
-	meta_t * meta = NULL;
-
-	c = webser->c;
-	if( webser->re_status == 400 ) 
-	{
-		string = &response_string_400;
-	}
-	else if ( webser->re_status == 403 ) 
-	{
-		string = &response_string_403;
-	} 
-	else if ( webser->re_status == 404 ) 
-	{
-		string = &response_string_404;
-	} 
-	else
-	{
-		err( "status code [%d] not support yet\n",status_code );
-		webser_over( webser );
-		return ERROR;
-	}
-	meta = (meta_t*)l_safe_malloc( sizeof(meta_t) );
-	if( !meta ) 
-	{
-		err(" l_safe_malloc meta\n");
-		webser_over( webser );
-		return ERROR;
-	}
-	memset( meta, 0, sizeof(meta_t) );
-	meta->next = NULL;
-	meta->start = meta->pos = string->data;
-	meta->last = meta->end = string->data + string->len;
-
-	webser->response_head = meta;
-	c->event.read_pt = webser_response;
-	return c->event.read_pt( &c->event );
 }
 
 static status webser_send_response( event_t * ev )
@@ -457,38 +389,50 @@ static status webser_entity_body( webser_t * webser )
 status webser_entity_head( webser_t * webser )
 {
 	string_t * mimetype = NULL;
+	char content_len_str[1024] = {0};
+	uint32 head_len = 0, cur_len = 0;
 	char * ptr;
-	char str[1024] = {0};
-	uint32 head_len = 0;
 
-	head_len += l_strlen("HTTP/1.1 200 OK\r\n");
-	mimetype = webser_get_mimetype( webser );
-	if( !mimetype ) 
+	switch( webser->re_status )
 	{
-		mimetype = &default_mimetype;
+		case 200:
+			head_len += l_strlen("HTTP/1.1 200 OK\r\n");
+			break;
+		case 400:
+			head_len += l_strlen("HTTP/1.1 400 Bad Request\r\n");
+			break;
+		case 404:
+			head_len += l_strlen("HTTP/1.1 404 Not Found\r\n");
+			break;
+		case 500:
+			head_len += l_strlen("HTTP/1.1 500 Internal Server Error\r\n");
+			break;
+		case 403:
+			head_len += l_strlen("HTTP/1.1 403 Forbidden\r\n");
+			break;
+		default:
+			head_len += l_strlen("HTTP/1.1 400 Bad Request\r\n");
 	}
-	head_len += mimetype->len;
-	snprintf( str, sizeof(str), "Content-Length: %d\r\n", webser->filesize );
-	head_len += l_strlen(str);
+
+	if( webser->filesize > 0 )
+	{
+		head_len += snprintf( content_len_str, sizeof(content_len_str), "Content-Length: %d\r\n", webser->filesize );
+		mimetype = webser_get_mimetype( webser );
+		head_len += mimetype->len;
+	}
 	head_len += l_strlen("Server: lk-web-v1\r\n");
 	head_len += l_strlen("Accept-Charset: utf-8\r\n");
 
-	if( webser->request_head->headers_in.connection != NULL )
+	if( webser->request_head->headers_in.connection && ((uint32)webser->request_head->headers_in.connection->len > l_strlen("close")) )
 	{
-		if( (uint32)webser->request_head->headers_in.connection->len > l_strlen("close") ) 
-		{
-			head_len += l_strlen("Connection: keep-alive\r\n");
-		} 
-		else 
-		{
-			head_len += l_strlen("Connection: close\r\n");
-		}
+		head_len += l_strlen("Connection: keep-alive\r\n");
 	} 
 	else 
 	{
 		head_len += l_strlen("Connection: close\r\n");
-	}
+	} 
 	head_len += l_strlen("\r\n");
+
 
 	if( OK != meta_alloc( &webser->response_head, head_len ) ) 
 	{
@@ -496,46 +440,51 @@ status webser_entity_head( webser_t * webser )
 		return ERROR;
 	}
 	ptr = webser->response_head->data;
-	memcpy( ptr, "HTTP/1.1 200 OK\r\n", l_strlen("HTTP/1.1 200 OK\r\n") );
-	
-	ptr += l_strlen("HTTP/1.1 200 OK\r\n");
-	memcpy( ptr, "Server: lk-web-v1\r\n", l_strlen("Server: lk-web-v1\r\n") );
-	
-	ptr += l_strlen("Server: lk-web-v1\r\n");
-	memcpy( ptr, "Accept-Charset: utf-8\r\n",
-		
-	l_strlen("Accept-Charset: utf-8\r\n") );
-	ptr += l_strlen("Accept-Charset: utf-8\r\n");
-	
-	if( webser->request_head->headers_in.connection != NULL )
-	{
-		if( (uint32)webser->request_head->headers_in.connection->len > l_strlen("close") ) 
-		{
-			memcpy( ptr, "Connection: keep-alive\r\n",
-			l_strlen("Connection: keep-alive\r\n") );
-			ptr += l_strlen("Connection: keep-alive\r\n");
-		} 
-		else
-		{
-			memcpy( ptr, "Connection: close\r\n",
-			l_strlen("Connection: close\r\n") );
-			ptr += l_strlen("Connection: close\r\n");
-		}
-	} 
-	else 
-	{
-		memcpy( ptr, "Connection: close\r\n",l_strlen("Connection: close\r\n"));
-		ptr += l_strlen("Connection: close\r\n");
-	}
-	memcpy( ptr, mimetype->data, mimetype->len );
-	ptr += mimetype->len;
-	
-	memcpy( ptr, str, l_strlen(str) );
-	ptr += l_strlen(str);
-	
-	memcpy( ptr, "\r\n", l_strlen("\r\n") );
-	ptr += l_strlen("\r\n");
 
+	switch( webser->re_status )
+	{
+		case 200:
+			cur_len += snprintf( ptr + cur_len, head_len - cur_len, "HTTP/1.1 200 OK\r\n" );
+			break;
+		case 400:
+			cur_len += snprintf( ptr + cur_len, head_len - cur_len, "HTTP/1.1 400 Bad Request\r\n" );
+			break;
+		case 404:
+			cur_len += snprintf( ptr + cur_len, head_len - cur_len, "HTTP/1.1 404 Not Found\r\n" );
+			break;
+		case 500:
+			cur_len += snprintf( ptr + cur_len, head_len - cur_len, "HTTP/1.1 500 Internal Server Error\r\n" );
+			break;
+		case 403:
+			cur_len += snprintf( ptr + cur_len, head_len - cur_len, "HTTP/1.1 403 Forbidden\r\n" );
+			break;
+		default:
+			cur_len += snprintf( ptr + cur_len, head_len - cur_len, "HTTP/1.1 400 Bad Request\r\n" );
+	}
+	
+	cur_len += snprintf( ptr + cur_len, head_len - cur_len, "Server: lk-web-v1\r\n" );
+	cur_len += snprintf( ptr + cur_len, head_len - cur_len, "Accept-Charset: utf-8\r\n" );
+	if( webser->request_head->headers_in.connection && ((uint32)webser->request_head->headers_in.connection->len > l_strlen("close")) )
+	{
+		cur_len += snprintf( ptr + cur_len, head_len - cur_len, "Connection: keep-alive\r\n" );
+	}
+	else
+	{
+		cur_len += snprintf( ptr + cur_len, head_len - cur_len, "Connection: close\r\n" );
+	}
+	
+	if( webser->filesize > 0 )
+	{
+		cur_len += snprintf( ptr + cur_len, head_len - cur_len, "%s", content_len_str );
+		cur_len += snprintf( ptr + cur_len, head_len - cur_len, "%.*s", mimetype->len, mimetype->data );
+	}
+	cur_len += snprintf( ptr + cur_len, head_len - cur_len, "\r\n" );
+
+	if( cur_len != head_len )
+	{
+		err("header build failed, curlen [%d] head_len [%d]\n", cur_len, head_len );
+		return ERROR;
+	}
 	webser->response_head->last += head_len;
 	return OK;
 }
@@ -588,7 +537,7 @@ static status webser_entity_start ( webser_t * webser )
 	return OK;
 }
 
-static status webser_process_request_body( event_t * ev )
+status webser_process_request_body( event_t * ev )
 {
 	int32 status;
 	connection_t * c;
@@ -649,11 +598,6 @@ static status webser_process_entity ( event_t * ev )
 		webser_over( webser );
 		return ERROR;
 	}
-	if( webser->re_status != 200 ) 
-	{
-		return webser_over_abnormal( webser, webser->re_status );
-	}
-
 	
 	if( OK != webser_entity_head( webser ) ) 
 	{
@@ -661,6 +605,13 @@ static status webser_process_entity ( event_t * ev )
 		webser_over( webser );
 		return ERROR;
 	}
+	
+	if( webser->re_status != 200 ) 
+	{
+		c->event.read_pt = webser_response;
+		return c->event.read_pt( &c->event );
+	}
+	
 	if( OK != webser_entity_body( webser ) ) 
 	{
 		err( " entity body\n");
@@ -677,7 +628,29 @@ static status webser_process_api( event_t * ev )
 	connection_t * c = ev->data;
 	webser_t * webser = c->data;
 
-	return webser->api_handler( ev );
+	rc = webser->api_handler( ev );
+	if( rc == OK || rc == ERROR )
+	{
+		if( rc == OK )
+		{	
+			webser->re_status = 200;
+			debug("process api success\n");
+		}
+		else if ( rc == ERROR )
+		{
+			webser->re_status = 500;
+			err("process api failed\n");
+		}
+		if( OK != webser_entity_head( webser ) )
+		{
+			err("head build failed\n");
+			webser_close(webser);
+			return ERROR;
+		}
+		c->event.read_pt = webser_response;
+		return c->event.read_pt( &c->event );
+	}	
+	return rc;
 }
 
 static status webser_process_router( event_t * ev )
@@ -850,6 +823,8 @@ status webser_init( void )
 	{
 		queue_insert_tail( &g_queue_usable, &g_pool[i].queue );
 	}
+
+	webapi_init();
 	return OK;
 }
 
