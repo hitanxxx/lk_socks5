@@ -12,6 +12,7 @@ typedef struct l_connection_t {
 	queue_t				queue;
 
 	int32				fd;
+	uint32				con_type;	// enum connection_type
 	void*				data;
 	meta_t*				meta;
 
@@ -39,7 +40,6 @@ status l_socket_fastopen( int32 fd );
 status l_socket_nodelay(  int32 fd );
 status l_socket_nopush( int32 fd );
 status l_socket_check_status( int fd );
-
 
 status net_alloc( connection_t ** connection );
 status net_free( connection_t * connection );

@@ -1,18 +1,17 @@
-INC_DIR         +=  $(PROJDIR)/app
-INC_DIR         +=  $(PROJDIR)/base/util
-INC_DIR         +=  $(PROJDIR)/base
-INC_DIR 		+= 	$(PROJDIR)/bin
-INC_DIR 		+= 	$(PROJDIR)/test
-INC_DIR 		+=  $(PROJDIR)/lib/include
-INC_DIR 		+=  $(PROJDIR)/lib/crypto
-DEPEND_OBJS     +=  $(PROJDIR)/base/libbase.a
-DEPEND_OBJS     +=  $(PROJDIR)/app/libapp.a
 
-DIR_BIN         +=      .
-APP_BIN         +=      lktest
+INC_DIR += $(PROJDIR)/app
+INC_DIR += $(PROJDIR)/base
+INC_DIR += $(PROJDIR)/base/util
+INC_DIR += $(PROJDIR)/bin
+INC_DIR += $(PROJDIR)/http
+INC_DIR += $(PROJDIR)/dns
 
-CMP_FLAGS 	+= -fomit-frame-pointer -O -W -Wall -Wpointer-arith -Wconversion -Winline -Wmissing-prototypes -Wno-unused -Werror -g
-LD_FLAGS 	+= -lpthread -lresolv -lm -lrt -ldl
+SRC_DIR += $(PROJDIR)/base/util
+SRC_DIR += $(PROJDIR)/base
+SRC_DIR += $(PROJDIR)/http
+SRC_DIR += $(PROJDIR)/dns
+SRC_DIR += $(PROJDIR)/app
 
 include $(PROJDIR)/build.mk
 
+all:lib

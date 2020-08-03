@@ -12,15 +12,24 @@ static void l_net_timeout( void * data )
 	net_free( c );
 }
 
-status l_net_connect( connection_t * c, struct sockaddr_in * addr )
+status l_net_connect( connection_t * c, struct sockaddr_in * addr, uint32 con_type )
 {
 	struct addrinfo * res = NULL;
 	status rc;
 	int fd = 0;
 
-	memcpy( &c->addr, addr, sizeof(struct sockaddr_in) );
-	
-	fd = socket(AF_INET, SOCK_STREAM, 0 );
+	if( 0 != memcmp( &c->addr, addr, sizeof(struct sockaddr_in) ) )
+	{
+		memcpy( &c->addr, addr, sizeof(struct sockaddr_in) );
+	}
+
+	c->con_type = con_type;
+	if( c->con_type != TYPE_TCP && c->con_type != TYPE_UDP )
+	{
+		err("not support con type [%x]\n", con_type );
+		return ERROR;
+	}
+	fd = socket(AF_INET, (c->con_type == TYPE_TCP) ? SOCK_STREAM : SOCK_DGRAM, 0 );
 	if( ERROR == fd ) {
 		err(" socket failed, [%d]\n", errno );
 		return ERROR;
@@ -46,11 +55,14 @@ status l_net_connect( connection_t * c, struct sockaddr_in * addr )
 		rc = AGAIN;
 	}
 	c->fd = fd;
-	
-	c->send = sends;
-	c->recv = recvs;
-	c->send_chain = send_chains;
-	c->recv_chain = NULL;
+
+	if( con_type == TYPE_TCP )
+	{
+		c->send = sends;
+		c->recv = recvs;
+		c->send_chain = send_chains;
+		c->recv_chain = NULL;
+	}
 	return rc;	
 }
 
@@ -88,7 +100,8 @@ status l_net_accept( event_t * event )
 			return ERROR;
 		}
 		client_con->fd = client_fd;
-		
+
+		client_con->con_type = TYPE_TCP;
 		client_con->recv = recvs;
 		client_con->send = sends;
 		client_con->recv_chain = NULL;

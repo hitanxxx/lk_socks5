@@ -5,8 +5,6 @@
 #define SOCKS5_META_LENGTH			(4096*4)
 #define SOCKS5_TIME_OUT				3
 
-
-
 #define SOCKS5_AUTH_MAGIC_NUM		947085
 
 
@@ -82,10 +80,11 @@ typedef struct socks5_cycle_t {
 
 	char down_recv_error;
 	char up_recv_error;
+
+	dns_cycle_t * dns_cycle;
 	
 	net_transport_t * local2remote;
 	net_transport_t * remote2local;
-
 } socks5_cycle_t;
 
 

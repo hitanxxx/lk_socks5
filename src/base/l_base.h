@@ -1,45 +1,6 @@
 #ifndef _L_BASE_H_INCLUDED_
 #define _L_BASE_H_INCLUDED_
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/wait.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <netinet/in.h>
-#include <limits.h>
-#include <signal.h>
-#include <semaphore.h>
-#include <fcntl.h>
-#include <sys/select.h>
-#include <malloc.h>
-#include <errno.h>
-#include <sys/un.h>
-#include <pthread.h>
-#include <sys/stat.h>
-#include <dirent.h>
-#include <sys/epoll.h>
-#include <sys/timerfd.h>
-#include <sys/mman.h>
-#include <sys/uio.h>
-#include <assert.h>
-#include <stdint.h>
-#include <stdarg.h>
-#include <stdlib.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <sys/ioctl.h>
-#include <sys/time.h>
-#include <arpa/inet.h>
-#include <math.h>
-#include <ctype.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <sys/sendfile.h>
-#include <openssl/ssl.h>
-#include <openssl/err.h>
-
 
 #include "l_macro.h"
 #include "l_shm.h"

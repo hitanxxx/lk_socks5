@@ -1,7 +1,9 @@
 #include "l_base.h"
 #include "l_module.h"
+#include "l_dns.h"
 #include "l_socks5_server.h"
 #include "l_socks5_local.h"
+#include "l_test.h"
 
 static char * g_opt_str = NULL;
 static int32  g_opt_type = 0;
@@ -161,12 +163,16 @@ int32 main( int argc, char * argv[] )
 	lk_daemon( );
 	
 	create_pid_file( );
-	
 	if( OK != listen_start( ) ) 
 	{
 		err( "listen_start failed\n" );
 		goto over;
 	}
+	/*
+	 unit test run..
+	 */
+	test_start( );
+	
 	if( conf.base.worker_process > 0 ) 
 	{
 		process_master_run( );

@@ -1,4 +1,5 @@
 #include "l_base.h"
+#include "l_dns.h"
 #include "l_socks5_local.h"
 #include "l_socks5_server.h"
 
@@ -28,6 +29,12 @@ status socks5_cycle_free( socks5_cycle_t * cycle )
 	if( cycle->remote2local ) {
 		net_transport_free( cycle->remote2local );
 		cycle->remote2local = NULL;
+	}
+	if( cycle->dns_cycle )
+	{
+		err("dns cycle free [%p]\n", cycle->dns_cycle );
+		l_dns_free( cycle->dns_cycle );
+		cycle->dns_cycle = NULL;
 	}
 	l_safe_free( cycle );
 	return OK;
@@ -508,14 +515,117 @@ static struct addrinfo * socks5_server_get_addr( string_t * ip, string_t * port 
 	return res;
 }
 
-static status socks5_server_connect( event_t * event )
+static status socks5_server_connect( event_t * ev )
+{
+	status rc;
+	connection_t * up = ev->data;
+	socks5_cycle_t * cycle = up->data;
+
+	cycle->down->event.read_pt = NULL;
+	cycle->down->event.write_pt = NULL;
+
+	if( !cycle->up->meta ) 
+	{
+		if( OK != meta_alloc( &cycle->up->meta, SOCKS5_META_LENGTH ) ) 
+		{
+			err(" up meta alloc\n" );
+			socks5_cycle_free( cycle );
+			return ERROR;
+		}
+	}
+
+	rc = l_net_connect( cycle->up, &cycle->up->addr, TYPE_TCP );
+	if( ERROR == rc ) {
+		err(" up net connect failed\n" );
+		socks5_cycle_free( cycle );
+		return ERROR;
+	}
+	event_opt( &cycle->up->event, cycle->up->fd, EV_W);
+	cycle->up->event.read_pt = NULL;
+	cycle->up->event.write_pt = socks5_server_connect_check;
+
+	if( AGAIN == rc ) {
+		timer_set_data( &cycle->up->event.timer, (void*)cycle );
+		timer_set_pt( &cycle->up->event.timer, socks5_timeout_cycle );
+		timer_add( &cycle->up->event.timer, SOCKS5_TIME_OUT );
+		return rc;
+	}
+	return cycle->up->event.write_pt( &cycle->up->event );
+}
+
+static void socks5_server_resolv_dns_cb( void * data )
+{
+	socks5_cycle_t * cycle = data;
+	dns_cycle_t * dns_cycle = cycle->dns_cycle;
+	char ipstr[128] = {0};
+
+	if( dns_cycle )
+	{
+		if( OK == dns_cycle->dns_status )
+		{
+#if(0)
+			debug("socks5 dns resolv success, addr %d.%d.%d.%d\n", 
+				dns_cycle->answer.rdata->data[0],
+				dns_cycle->answer.rdata->data[1],
+				dns_cycle->answer.rdata->data[2],
+				dns_cycle->answer.rdata->data[3]
+			);
+#endif
+			snprintf( ipstr, sizeof(ipstr), "%d.%d.%d.%d",
+				dns_cycle->answer.rdata->data[0],
+				dns_cycle->answer.rdata->data[1],
+				dns_cycle->answer.rdata->data[2],
+				dns_cycle->answer.rdata->data[3]
+			);
+			
+			cycle->up->addr.sin_family	= AF_INET;
+			cycle->up->addr.sin_port 	= *(uint16_t*)cycle->request.dst_port;
+			cycle->up->addr.sin_addr.s_addr = inet_addr( ipstr );
+			
+			cycle->up->event.read_pt = NULL;
+			cycle->up->event.write_pt = socks5_server_connect;
+			cycle->up->event.write_pt( &cycle->up->event );
+		}
+		else
+		{
+			err("socks5 dns resolv failed\n");
+			socks5_cycle_free( cycle );
+		}
+	}
+}
+
+static status socks5_server_connection_try_read( event_t * ev  )
+{
+	connection_t * down = ev->data;
+	socks5_cycle_t * cycle = down->data;
+
+	char buf[1];
+	socklen_t len;
+	int err = 0;
+	ssize_t n;
+
+	len = sizeof(int);
+	if( getsockopt( down->fd, SOL_SOCKET, SO_ERROR, (void*)&err, &len ) == -1 ) 
+	{
+		err = errno;
+	}
+
+	if( err )
+	{
+		err("socks5 down try read failed\n");
+		socks5_cycle_free( cycle );
+		return ERROR;
+	}
+	return OK;
+}
+
+
+static status socks5_server_msg_request_process_addr( event_t * event )
 {
 	connection_t * down;
 	socks5_cycle_t * cycle;
 	char ipstr[128] = {0}, portstr[128] = {0};
-	string_t ip, port;
 	status rc;
-	struct addrinfo * res = NULL;
 
 	down = event->data;
 	cycle = down->data;
@@ -525,6 +635,7 @@ static status socks5_server_connect( event_t * event )
 		socks5_cycle_free( cycle );
 		return ERROR;
 	}
+	cycle->up->data = cycle;
 
 	if( cycle->request.atyp == 0x01 )
 	{
@@ -537,75 +648,37 @@ static status socks5_server_connect( event_t * event )
 			(unsigned char )cycle->request.dst_addr_ipv4[3] );
 		local_port = ntohs(*(uint16_t*)cycle->request.dst_port);
 		snprintf( portstr, sizeof(portstr), "%d", local_port );
-		ip.data = ipstr;
-		ip.len = l_strlen(ipstr);
-		port.data = portstr;
-		port.len = l_strlen(portstr);
 
 		cycle->up->addr.sin_family	= AF_INET;
 		cycle->up->addr.sin_port 	= htons( local_port );
 		cycle->up->addr.sin_addr.s_addr = inet_addr( ipstr );
+
+		cycle->up->event.read_pt = NULL;
+		cycle->up->event.write_pt = socks5_server_connect;
+		return cycle->up->event.write_pt( &cycle->up->event );
 	}
 	else if ( cycle->request.atyp == 0x03 )
 	{
-		// domain type address
-
-		ip.data = cycle->request.dst_addr_domain;
-		ip.len = (unsigned char)cycle->request.dst_addr_num;
-		snprintf( portstr, sizeof(portstr), "%d", ntohs(*(uint16_t*)cycle->request.dst_port) );
-		port.data = portstr;
-		port.len = l_strlen(portstr);
-
-		res = socks5_server_get_addr( &ip, &port );
-		if( !res ) 
-		{
-			err(" net get addr failed\n" );
-			socks5_cycle_free( cycle );
-			return ERROR;
-		}
-		memcpy( &cycle->up->addr, res->ai_addr, sizeof(struct sockaddr_in) );
-		freeaddrinfo( res );
-	}
-	else
-	{
-		err(" not support socks5 request atyp [%x]\n", cycle->request.atyp );
-		socks5_cycle_free( cycle );
-		return ERROR;
-	}
-
-	cycle->up->data = cycle;
-
-	event->read_pt = NULL;
-	event->write_pt = NULL;
-
-	if( !cycle->up->meta ) 
-	{
-		if( OK != meta_alloc( &cycle->up->meta, SOCKS5_META_LENGTH ) ) 
-		{
-			err(" up meta alloc\n" );
-			socks5_cycle_free( cycle );
-			return ERROR;
-		}
-	}
+		down->event.read_pt = socks5_server_connection_try_read;
 	
-	rc = l_net_connect( cycle->up, &cycle->up->addr );
-	if( ERROR == rc ) {
-		err(" up net connect failed\n" );
-		socks5_cycle_free( cycle );
-		return ERROR;
-	}
-	event_opt( &cycle->up->event, cycle->up->fd, EV_W);
+		// domain type address
+		rc = l_dns_create( &cycle->dns_cycle );
+		if( rc == ERROR )
+		{
+			err("dns cycle create failed\n");
+			socks5_cycle_free( cycle );
+			return ERROR;
+		}
+		strncpy( cycle->dns_cycle->query, cycle->request.dst_addr_domain, sizeof(cycle->dns_cycle->query) );
+		strncpy( cycle->dns_cycle->dns_serv, l_dns_get_serv(), sizeof(cycle->dns_cycle->dns_serv) );
+		cycle->dns_cycle->cb = socks5_server_resolv_dns_cb;
+		cycle->dns_cycle->cb_data = cycle;
 
-	cycle->up->event.read_pt = NULL;
-	cycle->up->event.write_pt = socks5_server_connect_check;
-
-	if( AGAIN == rc ) {
-		timer_set_data( &cycle->up->event.timer, (void*)cycle );
-		timer_set_pt( &cycle->up->event.timer, socks5_timeout_cycle );
-		timer_add( &cycle->up->event.timer, SOCKS5_TIME_OUT );
-		return rc;
+		return l_dns_start( cycle->dns_cycle );
 	}
-	return cycle->up->event.write_pt( &cycle->up->event );
+	err(" not support socks5 request atyp [%x]\n", cycle->request.atyp );
+	socks5_cycle_free( cycle );
+	return ERROR;
 }
 
 
@@ -779,7 +852,7 @@ static status socks5_server_msg_request_process( event_t * event )
 				timer_del( &c->event.timer );
 
 				event->write_pt = NULL;
-				event->read_pt  = socks5_server_connect;
+				event->read_pt  = socks5_server_msg_request_process_addr;
 
 				return event->read_pt( event );
 			}
@@ -832,9 +905,11 @@ static status socks5_server_msg_invate_response_prepare( event_t * event )
 	invite_resp->method = 0x00;
 	c->meta->last += sizeof(socsk5_message_invite_response_t);
 
+#if(0)
 	for( p = c->meta->pos; p < c->meta->last; p ++ ) {
 		debug(" socks5 auth replay [%x]\n", *p );
 	}
+#endif
 
 	event_opt( event, c->fd, EV_W );
 

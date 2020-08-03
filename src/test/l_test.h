@@ -35,6 +35,7 @@ typedef struct manager_t
 	uint32			num;
 } manager_t;
 
+extern void ts_dns_init(void);
 extern void ts_list_init( void );
 extern void ts_queue_init( void );
 extern void ts_bst_init( void );
@@ -45,7 +46,8 @@ extern void ts_mem_init( void );
 
 status test_add ( test_pt pt );
 status test_run( void );
-status test_init( void );
-status test_end( void );
+status test_start(  void);
+
+
 
 #endif

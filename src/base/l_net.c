@@ -104,6 +104,9 @@ static status net_free_right_now( event_t * ev )
 	queue_remove( &c->queue );
 	queue_insert_tail( &usable, &c->queue );
 
+	ev->read_pt = NULL;
+	ev->write_pt = NULL;
+
 	if( c->fd ) {
 		c->event.f_active = 0;
 		close( c->fd );

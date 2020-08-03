@@ -10,8 +10,6 @@ static queue_t 	g_queue_use;
 static queue_t 	g_queue_usable;
 static webser_t * g_pool = NULL;
 
-
-
 static mime_type_t mimetype_table[] =
 {
 	{string(".*"),				string("Content-type: application/octet-stream\r\n")},
@@ -261,7 +259,7 @@ static status webser_send_response( event_t * ev )
 				}
 			}
 			timer_del( &c->event.timer );
-			debug("success\n");
+			debug("send http response success\n");
 			//if( webser->re_status == 200 && conf.http_keepalive && webser->request_head->keepalive_flag ) 
 			if( webser->re_status == 200 && webser->request_head->keepalive_flag ) 
 			{
@@ -555,7 +553,7 @@ status webser_process_request_body( event_t * ev )
 	else if( status == DONE ) 
 	{
 		timer_del( &c->event.timer );
-		debug("process body success\n");
+		debug("process body success, body length [%d]\n", webser->request_body->content_length );
 		return webser->request_body->over_cb( ev );
 	}
 	timer_set_data( &c->event.timer, (void*)webser );

@@ -1,4 +1,4 @@
-#include "l_base.h"
+#include "l_macro.h"
 #include "l_test.h"
 
 static manager_t manager;
@@ -11,6 +11,7 @@ static test_init_pt init_t[] = {
 	ts_bheap_init,
 	ts_str_init,
 	ts_json_init,
+	ts_dns_init,
 	NULL
 };
 
@@ -41,7 +42,7 @@ status test_run( void )
 	return OK;
 }
 
-int main(  )
+status test_start( void )
 {
 	uint32 i;
 

@@ -77,6 +77,11 @@ status meta_alloc( meta_t ** meta, uint32 size )
 {
 	meta_t * new = NULL;
 
+	if( size < 0 )
+	{
+		err("meta alloc size error [%d]\n", size );
+		return ERROR;
+	}
 	new = (meta_t*)l_safe_malloc( sizeof(meta_t) );
 	if( !new ) {
 		return ERROR;
@@ -85,15 +90,17 @@ status meta_alloc( meta_t ** meta, uint32 size )
 	new->data = NULL;
 	new->next = NULL;
 
-	new->data = (char*)l_safe_malloc( size*sizeof(char) );
-	if( !new->data ) {
-		l_safe_free( new );
-		return ERROR;
+	if( size > 0 )
+	{
+		new->data = (char*)l_safe_malloc( size*sizeof(char) );
+		if( !new->data ) {
+			l_safe_free( new );
+			return ERROR;
+		}
+		memset( new->data, 0, size*sizeof(char) );
+		new->start = new->pos = new->last = new->data;
+		new->end = new->start + size*sizeof(char);
 	}
-	memset( new->data, 0, size*sizeof(char) );
-	new->start = new->pos = new->last = new->data;
-	new->end = new->start + size*sizeof(char);
-
 	*meta = new;
 	return OK;
 }

@@ -1,4 +1,5 @@
 #include "l_base.h"
+#include "l_dns.h"
 #include "l_socks5_local.h"
 #include "l_socks5_server.h"
 
@@ -236,7 +237,7 @@ static status socks5_local_init_connection( event_t * ev )
 	cycle->up->data = (void*)cycle;
 
 	// goto connect
-	rc = l_net_connect( cycle->up, &server_addr );
+	rc = l_net_connect( cycle->up, &server_addr, TYPE_TCP );
 	if( ERROR == rc ) 
 	{
 		err(" up connect failed\n" );

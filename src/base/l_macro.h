@@ -1,14 +1,62 @@
 #ifndef _L_MACRO_H_INCLUDED_
 #define _L_MACRO_H_INCLUDED_
 
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <limits.h>
+#include <signal.h>
+#include <semaphore.h>
+#include <fcntl.h>
+#include <sys/select.h>
+#include <malloc.h>
+#include <errno.h>
+#include <sys/un.h>
+#include <pthread.h>
+#include <sys/stat.h>
+#include <dirent.h>
+#include <sys/epoll.h>
+#include <sys/timerfd.h>
+#include <sys/mman.h>
+#include <sys/uio.h>
+#include <assert.h>
+#include <stdint.h>
+#include <stdarg.h>
+#include <stdlib.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <sys/ioctl.h>
+#include <sys/time.h>
+#include <arpa/inet.h>
+#include <math.h>
+#include <ctype.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <sys/sendfile.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+
+
 // file paths
 #define 	L_PATH_PIDFILE			   "/usr/local/lks5/logs/pid"
-#define 	L_PATH_CONFIG			     "/usr/local/lks5/config/config.json"
+#define 	L_PATH_CONFIG			   "/usr/local/lks5/config/config.json"
 #define 	L_PATH_PERFTEMP			   "/usr/local/lks5/logs/l_perf"
 #define 	L_PATH_LOG_MAIN			   "/usr/local/lks5/logs/l_log"
 #define 	L_PATH_LOG_ACCESS		   "/usr/local/lks5/logs/l_access"
-#define 	L_PATH_UOLOAD_FILE		 "/usr/local/lks5/logs/l_upload_temp"
+#define 	L_PATH_UOLOAD_FILE		   "/usr/local/lks5/logs/l_upload_temp"
 #define 	L_OPEN_PORT_MAX			   64
+
+enum connection_type 
+{
+	TYPE_TCP		       = 0x1,
+	TYPE_UDP,
+};
+
 // http
 enum http_process_status
 {
@@ -78,7 +126,7 @@ typedef char                  byte;
 typedef int32_t               int32;
 typedef uint32_t              uint32;
 typedef int32_t               status;
-typedef volatile uint32				l_atomic_t;
+typedef volatile uint32       l_atomic_t;
 
 typedef struct l_connection_t connection_t;
 
