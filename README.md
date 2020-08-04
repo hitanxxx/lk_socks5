@@ -1,3 +1,1 @@
-          ----------------------------------------
-local <=> | ssl encrypt && private authorization | <=> server
-          ---------------------------------------
+###  local <=> | ssl encrypt && private authorization | <=> server
