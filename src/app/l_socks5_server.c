@@ -3,17 +3,27 @@
 #include "l_socks5_local.h"
 #include "l_socks5_server.h"
 
-//#define CACHE
 
-#if !defined(CACHE)
+#if defined(UNFIXED_CACHE)
+static status socks5_remote2local_recv( event_t * ev );
+static status socks5_local2remote_send( event_t * ev );
+static status socks5_remote2local_send( event_t * ev );
+static status socks5_local2remote_recv( event_t * ev );
+#else
 static status lks5_down_recv( event_t * ev );
 static status lks5_up_send( event_t * ev );
 static status lks5_up_recv( event_t * ev );
 static status lks5_down_send( event_t * ev );
 #endif
 
+
 status socks5_cycle_free( socks5_cycle_t * cycle )
 {
+	cycle->up->event.read_pt = NULL;
+	cycle->up->event.write_pt = NULL;
+	cycle->down->event.read_pt = NULL;
+	cycle->down->event.write_pt = NULL;
+
 	if( cycle->up) {
 		net_free( cycle->up );
 		cycle->up = NULL;
@@ -55,7 +65,9 @@ void socks5_timeout_con( void * data )
 
 	net_free( c );
 }
-#if defined(CACHE)
+
+
+#if defined(UNFIXED_CACHE)
 static status socks5_remote2local_recv( event_t * ev )
 {
 	connection_t * c;
