@@ -19,10 +19,16 @@ static status lks5_down_send( event_t * ev );
 
 status socks5_cycle_free( socks5_cycle_t * cycle )
 {
-	cycle->up->event.read_pt = NULL;
-	cycle->up->event.write_pt = NULL;
-	cycle->down->event.read_pt = NULL;
-	cycle->down->event.write_pt = NULL;
+	if( cycle->up )
+	{
+		cycle->up->event.read_pt = NULL;
+		cycle->up->event.write_pt = NULL;
+	}
+	if( cycle->down )
+	{
+		cycle->down->event.read_pt = NULL;
+		cycle->down->event.write_pt = NULL;
+	}
 
 	if( cycle->up) {
 		net_free( cycle->up );

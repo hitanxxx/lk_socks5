@@ -191,7 +191,7 @@ void process_master_run( void )
 	{
 		sigsuspend( &set );
 		l_time_update( );
-		debug(" master received signal [%d]\n", g_signal);
+		err(" master received signal [%d]\n", g_signal);
 
 		if( sig_reap ) 
 		{
