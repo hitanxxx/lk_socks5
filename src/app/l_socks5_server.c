@@ -344,8 +344,8 @@ status socks5_pipe( event_t * ev )
 	connection_t * c = ev->data;
 	socks5_cycle_t * cycle = c->data;
 	l_meta_t * meta = NULL;
-#if defined(CACHE)
 	
+#if defined(UNFIXED_CACHE)
 	if( OK != net_transport_alloc( &cycle->local2remote ) ) {
 		err(" net_transport local2remote alloc\n" );
 		socks5_cycle_free( cycle );
