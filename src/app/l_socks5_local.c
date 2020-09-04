@@ -11,7 +11,6 @@ static status socks5_local_private_auth_resp( event_t * ev )
 	socks5_auth_t * auth = NULL;
 	ssize_t rc;
 
-	timer_add( &ev->timer, SOCKS5_TIME_OUT );
 	while( meta_len( up->meta->pos, up->meta->last ) < sizeof(socks5_auth_t) )
 	{
 		// recv auth data structrue
@@ -20,6 +19,8 @@ static status socks5_local_private_auth_resp( event_t * ev )
 		{
 			if( rc == AGAIN )
 			{
+				timer_set_data( &ev->timer, cycle );
+				timer_set_pt(&ev->timer, socks5_timeout_cycle );
 				timer_add( &ev->timer, SOCKS5_TIME_OUT );
 				return AGAIN;
 			}
@@ -79,12 +80,8 @@ static status socks5_local_private_auth_send( event_t * ev )
 		up->meta->last = up->meta->pos = up->meta->start;
 		
 		ev->write_pt = NULL;
-		event_opt( &cycle->up->event, cycle->up->fd, EV_R );
 		ev->read_pt  = socks5_local_private_auth_resp;
-
-		timer_set_data( &ev->timer, cycle );
-		timer_set_pt(&ev->timer, socks5_timeout_cycle );
-		// socks5_timeout_cycle seconds for recv complated scoks5 auth data
+		event_opt( &cycle->up->event, cycle->up->fd, EV_R );
 		
 		return ev->read_pt( ev );
 	}
@@ -103,7 +100,7 @@ static status socks5_local_private_auth_begin( event_t * ev )
 
 	if( !up->meta ) 
 	{
-		if( OK != meta_alloc( &up->meta, 4096 ) ) 
+		if( OK != meta_alloc( &up->meta, SOCKS5_META_LENGTH ) ) 
 		{
 			err("socks5 local auth begin up conn meta alloc\n" );
 			socks5_cycle_free( cycle );

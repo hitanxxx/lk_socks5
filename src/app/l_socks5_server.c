@@ -384,8 +384,8 @@ status socks5_pipe( event_t * ev )
 	event_opt( &cycle->up->event, cycle->up->fd, EV_W );
 	event_opt( &cycle->up->event, cycle->up->fd, EV_R );
 
-	event_opt( &cycle->up->event, cycle->up->fd, EV_W );
-	event_opt( &cycle->up->event, cycle->up->fd, EV_R );
+	event_opt( &cycle->down->event, cycle->down->fd, EV_W );
+	event_opt( &cycle->down->event, cycle->down->fd, EV_R );
 
 	// local will use this function, need to alloc down and up meta buffer
 	if( !cycle->down->meta )
