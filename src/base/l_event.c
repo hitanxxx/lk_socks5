@@ -5,10 +5,7 @@ static struct epoll_event * events = NULL;
 
 static void l_net_timeout( void * data )
 {
-	connection_t * c;
-
-	c = data;
-
+	connection_t * c = data;
 	net_free( c );
 }
 
@@ -58,66 +55,67 @@ status l_net_connect( connection_t * c, struct sockaddr_in * addr, uint32 con_ty
 
 	if( con_type == TYPE_TCP )
 	{
-		c->send = sends;
-		c->recv = recvs;
-		c->send_chain = send_chains;
-		c->recv_chain = NULL;
+		c->send 		= sends;
+		c->recv 		= recvs;
+		c->send_chain 	= send_chains;
+		c->recv_chain 	= NULL;
 	}
 	return rc;	
 }
 
-status l_net_accept( event_t * event )
+status l_net_accept( event_t * ev )
 {
-	listen_t * listen;
-	int32 client_fd;
-	connection_t * client_con;
+	listen_t * listen = ev->data;
+	int32 c_fd;
+	connection_t * c;
 	
 	struct sockaddr_in client_addr;
 	socklen_t len = sizeof( struct sockaddr_in );
-
-	listen = event->data;
 	
-	while( 1 ) {
+	while( 1 ) 
+	{
 		memset( &client_addr, 0, len );
 		
-		client_fd = accept( listen->fd, (struct sockaddr *)&client_addr, &len );
-		if( ERROR == client_fd ) {
+		c_fd = accept( listen->fd, (struct sockaddr *)&client_addr, &len );
+		if( ERROR == c_fd ) 
+		{
 			if( errno == EWOULDBLOCK || errno == EAGAIN ) {
 				return AGAIN;
 			}
 			err(" accept failed, [%d]\n", errno );
 			return ERROR;
 		}
-		if( ERROR == net_alloc( &client_con ) ) {
+		if( ERROR == net_alloc( &c ) ) {
 			err(" client_con alloc\n" );
-			close( client_fd );
+			close( c_fd );
 			return ERROR;
 		}
-		memcpy( &client_con->addr, &client_addr, len );
-		if( OK != l_socket_nonblocking( client_fd ) ) {
+		memcpy( &c->addr, &client_addr, len );
+		if( OK != l_socket_nonblocking( c_fd ) ) 
+		{
 			err(" socket nonblock failed\n" );
-			net_free( client_con );
+			net_free( c );
 			return ERROR;
 		}
-		client_con->fd = client_fd;
+		c->fd = c_fd;
 
-		client_con->con_type = TYPE_TCP;
-		client_con->recv = recvs;
-		client_con->send = sends;
-		client_con->recv_chain = NULL;
-		client_con->send_chain = send_chains;
+		c->con_type 	= TYPE_TCP;
+		c->recv 		= recvs;
+		c->send 		= sends;
+		c->recv_chain 	= NULL;
+		c->send_chain 	= send_chains;
 
-		client_con->ssl_flag = (listen->type == L_SSL ) ? 1 : 0;
+		c->ssl_flag = (listen->type == L_SSL ) ? 1 : 0;
 
-		client_con->event.timer.data = client_con;
-		client_con->event.timer.timeout_handler = l_net_timeout;
-		timer_add( &client_con->event.timer, 3 );
+		timer_set_data( &c->event.timer, (void*)c );
+		timer_set_pt( &c->event.timer, l_net_timeout );
+		timer_add( &c->event.timer, 3 );
 
-		event_opt( &client_con->event, client_con->fd, EV_R );
+		c->event.read_pt 	= listen->handler;
+		c->event.write_pt 	= NULL;
+		event_opt( &c->event, c->fd, EV_R );
 
-		client_con->event.read_pt = listen->handler;
-		client_con->event.write_pt = NULL;
-		client_con->event.read_pt( &client_con->event );
+		c->event.read_pt( &c->event );
 	}
 	return OK;
 }
@@ -131,32 +129,39 @@ status event_opt( event_t * event, int32 fd, net_events events )
 	
 	cache = events;
 	
-	if( events == EV_R ) {
-		if( event->f_read == 1) {
+	if( events == EV_R ) 
+	{
+		if( event->f_read == 1) 
+		{
 			return OK;
 		}
-		pre_flag = event->f_write;
-		pre_events = EV_W;
-	} else if ( events == EV_W ) {
-		if( event->f_write == 1) {
+		pre_flag 	= event->f_write;
+		pre_events 	= EV_W;
+	} else if ( events == EV_W ) 
+	{
+		if( event->f_write == 1) 
+		{
 			return OK;
 		}
-		pre_flag = event->f_read;
-		pre_events = EV_R;
+		pre_flag 	= event->f_read;
+		pre_events 	= EV_R;
 	} else {
 		err(" not support events\n" );
 		return ERROR;
 	}
 	
-	if( pre_flag == 1) {
+	if( pre_flag == 1) 
+	{
 		events |= pre_events;
 		op = EPOLL_CTL_MOD;
-	} else {
+	} 
+	else 
+	{
 		op = EPOLL_CTL_ADD;
 	}
 	
 	ev.data.ptr = (void*)event;
-	ev.events = (uint32) (EPOLLET | events);
+	ev.events 	= (uint32) (EPOLLET | events);
 	
 	if( OK != epoll_ctl( event_fd, op, fd, &ev ) ) {
 		err(" epoll_ctl failed, [%d]\n", errno );
@@ -164,10 +169,12 @@ status event_opt( event_t * event, int32 fd, net_events events )
 	}
 	
 	event->f_active = 1;
-	if( cache == EV_R ) {
+	if( cache == EV_R ) 
+	{
 		event->f_read = 1;
 	}
-	if( cache == EV_W ) {
+	if( cache == EV_W ) 
+	{
 		event->f_write = 1;
 	}
 	return OK;
@@ -181,31 +188,39 @@ status event_run( time_t time_out )
 
 	action_num = epoll_wait( event_fd, events, EV_MAXEVENTS, (int)time_out );
 	l_time_update( );
-	if( action_num == ERROR ) {
-		if( errno == EINTR ) {
+	if( action_num == ERROR ) 
+	{
+		if( errno == EINTR ) 
+		{
 			debug(" epoll_wait interrupted by signal\n" );
 			return OK;
 		}
 		err(" epoll_wait failed, [%d]\n", errno );
 		return ERROR;
-	} else if( action_num == 0 ) {
-		if( time_out != -1 ) {
+	} 
+	else if( action_num == 0 ) 
+	{
+		if( time_out != -1 ) 
+		{
 			return OK;
 		}
 		err(" epoll_wait return 0\n" );
 		return ERROR;
 	}
 
-	for( i = 0; i < action_num; i ++ ) {
+	for( i = 0; i < action_num; i ++ ) 
+	{
 		event = (event_t*)events[i].data.ptr;
 		if( !event->f_active ) continue;
 
 		ev = events[i].events;
 		
-		if( (ev & EV_R) && event->f_active ) {
+		if( (ev & EV_R) && event->f_active ) 
+		{
 			if( event->read_pt ) event->read_pt( event );
 		}
-		if( (ev & EV_W) && event->f_active ) {
+		if( (ev & EV_W) && event->f_active ) 
+		{
 			if( event->write_pt ) event->write_pt( event );
 		}
 	}
@@ -235,12 +250,11 @@ status event_init( void )
 	for( i = 0; i < listens->elem_num; i ++ ) {
 		listen = mem_list_get( listens, i+1 );
 
-		listen->event.data = listen;
-		listen->event.read_pt = l_net_accept;
+		listen->event.data 		= listen;
+		listen->event.read_pt 	= l_net_accept;
 	
 		event_opt( &listen->event, listen->fd, EV_R );
 	}
-	
 	return OK;
 }
 

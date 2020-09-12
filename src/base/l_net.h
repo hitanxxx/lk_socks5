@@ -1,7 +1,7 @@
 #ifndef _L_NET_H_INCLUDED_
 #define _L_NET_H_INCLUDED_
 
-#define MAXCON	2048
+#define MAXCON	100
 
 typedef status ( *net_send_chain ) ( connection_t * c, meta_t * meta );
 typedef status ( *net_recv_chain ) ( connection_t * c, meta_t * meta );
@@ -17,14 +17,11 @@ typedef struct l_connection_t {
 	meta_t*				meta;
 
 	struct sockaddr_in 	addr;
-	int32				active_flag;
 
 	ssl_connection_t*	ssl;
 	uint32				ssl_flag;
 
 	event_t				event;
-	// this timer is optional to use
-	l_timer_t*			timer;
 
 	net_send_chain 		send_chain;
 	net_recv_chain		recv_chain;
@@ -32,7 +29,6 @@ typedef struct l_connection_t {
 	net_recv 			recv;
 } l_connection_t;
 
-struct addrinfo * net_get_addr( string_t * ip, string_t * port );
 
 status l_socket_nonblocking( int32 fd );
 status l_socket_reuseaddr( int32 fd );

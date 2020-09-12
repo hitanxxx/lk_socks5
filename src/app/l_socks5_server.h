@@ -44,47 +44,46 @@ typedef struct socsk5_message_invite_response {
 	char		method;
 }__attribute__((packed)) socsk5_message_invite_response_t;
 
-typedef struct socks5_message_request {
-	int32		state;
-	char		ver;
-	char		cmd;
-	char		rsv;
-	char		atyp;
+typedef struct socks5_message_advcance {
+	int32				state;
+	unsigned char		ver;
+	unsigned char		cmd;
+	unsigned char		rsv;
+	unsigned char		atyp;
 
-	char		dst_addr_num;
-	char		dst_addr_n;
-	union {
-		char	dst_addr_domain[256];
-		char	dst_addr_ipv4[4];
-		char	dst_addr_ipv6[16];
-	};
-	char		dst_port[2];
-} socks5_message_request_t;
+	unsigned char		addr_len;
+	unsigned char		addr_recv;
 
-typedef struct socks5_message_request_response_t {
+	unsigned char 		addr_str[256];
+	unsigned char		addr_port[2];
+} socks5_message_advance_t;
+
+typedef struct socks5_message_advance_response {
 	unsigned char			ver;
 	unsigned char			rep;
 	unsigned char			rsv;
 	unsigned char			atyp;
 	unsigned int	bnd_addr;
 	unsigned short	bnd_port;
-}__attribute__((packed)) socks5_message_request_response_t;
+}__attribute__((packed)) socks5_message_advance_response_t;
 
-typedef struct socks5_cycle_t {
-	
+typedef struct socks5_cycle_t 
+{
 	socks5_message_invite_t		invite;
-	socks5_message_request_t	request;
+	socks5_message_advance_t	advance;
+
+	connection_t *		down;
+	connection_t *		up;
 	
-	connection_t * 		down;
-	connection_t * 		up;
-
-	char down_recv_error;
-	char up_recv_error;
-
 	dns_cycle_t * dns_cycle;
-	
+
+#if defined(S5_UNFIXED_CACHE)
 	net_transport_t * local2remote;
 	net_transport_t * remote2local;
+#else
+	char down_recv_error;
+	char up_recv_error;
+#endif
 } socks5_cycle_t;
 
 

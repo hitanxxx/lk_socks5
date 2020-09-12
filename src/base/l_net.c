@@ -66,73 +66,51 @@ status l_socket_check_status( int fd )
 	return OK;
 }
 
-
-struct addrinfo * net_get_addr( string_t * ip, string_t * port )
-{
-	struct addrinfo hints, *res;
-	int rc;
-	char name[100] = {0};
-	char serv[10] = {0};
-
-	memset( &hints, 0, sizeof( struct addrinfo ) );
-	hints.ai_family = AF_INET;
-	hints.ai_socktype = SOCK_STREAM;
-
-	memcpy( name, ip->data, ip->len );
-	memcpy( serv, port->data, port->len );
-
-	rc = getaddrinfo( name, serv, &hints, &res );
-	if( 0 != rc ) {
-		err(" getaddrinfo failed, [%d]\n", errno );
-		return NULL;
-	}
-	if( NULL == res ) {
-		err(" getaddrinfo failed, [%d]\n", errno );
-		return NULL;
-	}
-	return res;
-}
-
 static status net_free_right_now( event_t * ev )
 {
-	connection_t * c;
+	connection_t * c = ev->data;
 	status rc;
-	meta_t * cl, *n;
+	meta_t * cur = NULL, * next = NULL;
 
-	c = ev->data;
+	ev->read_pt 	= NULL;
+	ev->write_pt 	= NULL;
 
 	queue_remove( &c->queue );
 	queue_insert_tail( &usable, &c->queue );
 
-	ev->read_pt = NULL;
-	ev->write_pt = NULL;
-
-	if( c->fd ) {
-		c->event.f_active = 0;
+	if( c->fd ) 
+	{
 		close( c->fd );
 		c->fd = 0;
+		c->event.f_active = 0;
 	}
-	
+
 	c->data = NULL;
-	if( c->meta ) {
-		c->meta->pos = c->meta->last = c->meta->start;
-		cl = c->meta->next;
-		while( cl ) {
-			debug(" free meta list loop\n" );
-			n = cl->next;
-			meta_free( cl );
-			cl = n;
+	if( c->meta )
+	{
+		cur = c->meta->next;
+		while( cur )
+		{
+			next = cur->next;
+			l_safe_free(cur);
+			cur = next;
 		}
+		c->meta = NULL;
 	}
+
 	memset( &c->addr, 0, sizeof(struct sockaddr_in) );
-	c->active_flag = 0;
 
 	c->ssl = NULL;
 	c->ssl_flag = 0;
 
 	timer_del( &c->event.timer );
-
 	memset( &c->event, 0, sizeof( event_t ) );
+
+	c->send			= NULL;
+	c->send_chain	= NULL;
+	c->recv			= NULL;
+	c->recv_chain	= NULL;
+	
 	c->event.data = (void*)c;
 	return OK;
 }
@@ -161,8 +139,9 @@ status net_alloc( connection_t ** c )
 	connection_t * new;
 	queue_t * q;
 
-	if( queue_empty( &usable ) ) {
-		err(" usbale empty\n" );
+	if( queue_empty( &usable ) ) 
+	{
+		err("usbale empty\n" );
 		return ERROR;
 	}
 

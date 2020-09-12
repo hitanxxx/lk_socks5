@@ -1,10 +1,9 @@
-#include "l_base.h"
+#include "l_macro.h"
 #include "l_test.h"
 #include "l_dns.h"
 
+#if(0)
 static l_timer_t g_ts_timer;
-
-
 static void local_dns_callback(  void * data )
 {
 	dns_cycle_t * cycle = data;
@@ -32,10 +31,11 @@ static void ts_dns_timer_pt( void * data )
 	t_echo("dns timer action\n");
 	l_dns_start( cycle );
 }
-
+#endif
 
 void ts_dns_init( )
 {
+#if(0)
 	int rc = 0;
 	dns_cycle_t * cycle = NULL;
 	rc = l_dns_create( &cycle );
@@ -50,6 +50,6 @@ void ts_dns_init( )
 	timer_set_data( &g_ts_timer, (void*)cycle );
 	timer_set_pt( &g_ts_timer, ts_dns_timer_pt );
 	timer_add( &g_ts_timer, 1 );
-
+#endif
 }
 

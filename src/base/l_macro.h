@@ -113,6 +113,7 @@ enum status_value {
 #define l_safe_malloc( len )              (malloc((size_t)(len)))
 #define l_strlen( str )                   ((uint32)strlen( str ))
 #define l_min( x, y )                     ( (x<y) ? x : y )
+#define l_max( x, y )                     ( (x>y) ? x : y )
 #define l_memcpy( dst, src, len )         ( memcpy((char*)dst, (char*)src, (size_t)len) );
 
 #define l_get_struct( ptr, struct_type, struct_member ) \
