@@ -1,118 +1,147 @@
 #include "l_base.h"
 
-// meta_file_alloc ------------
 status meta_file_alloc( meta_t ** meta, uint32 length )
 {
-	meta_t * new = NULL;
+	char * local_meta = NULL;
+	meta_t * t = NULL;
 
-	new = (meta_t*)l_safe_malloc( sizeof(meta_t) );
-	if( !new ) {
+	if( length <= 0 )
+	{
+		err("length <= 0");
 		return ERROR;
 	}
-	memset( new, 0, sizeof(meta_t) );
-	new->data = NULL;
-	new->next = NULL;
+	if( meta == NULL )
+	{
+		err("meta NULL\n");
+		return ERROR;
+	}
 
-	new->file_flag = 1;
-	new->file_pos = 0;
-	new->file_last = length;
+	local_meta = (char*)l_safe_malloc( sizeof(meta_t) );
+	if( !local_meta ) 
+	{
+		return ERROR;
+	}
+	memset( local_meta, 0, sizeof(meta_t) );
 
-	*meta = new;
+	t = (meta_t*)local_meta;
+	t->next 		= NULL;
+
+	t->file_flag 	= 1;
+	t->file_pos 	= 0;
+	t->file_last 	= length;
+
+	*meta = (meta_t*)local_meta;
 	return OK;
 }
-// meta_page_alloc ----------
+
 status meta_page_alloc ( l_mem_page_t * page, uint32 size, meta_t ** out )
 {
-	meta_t * new = NULL;
+	char * local_meta = NULL;
+	meta_t * t = NULL;
 
-	new = (meta_t*)l_mem_alloc( page, sizeof(meta_t) );
-	if( !new ) {
+	if( page == NULL )
+	{
+		err("page NULL\n");
 		return ERROR;
 	}
-	memset( new, 0, sizeof(meta_t) );
-	new->data = NULL;
-	new->next = NULL;
-
-	new->data = (char*)l_mem_alloc( page, size*sizeof(char) );
-	if( !new->data ) {
+	if( size <= 0 )
+	{	
+		err("size <= 0\n");
 		return ERROR;
 	}
-	memset( new->data, 0, size*sizeof(char) );
-	new->start = new->pos = new->last = new->data;
-	new->end = new->start + (size*sizeof(char));
 
-	*out = new;
+	local_meta = (char*)l_mem_alloc( page, sizeof(meta_t)+size );
+	if( !local_meta ) 
+	{
+		return ERROR;
+	}
+	memset( local_meta, 0, sizeof(meta_t)+size );
+
+	t = (meta_t*)local_meta;
+	t->start 	= t->pos = t->last = t->data;
+	t->end 		= t->start + size;
+
+	*out = (meta_t*)local_meta;
 	return OK;
 }
-// meta_page_get_all ---------
+
 status meta_page_get_all( l_mem_page_t * page, meta_t * in, meta_t ** out )
 {
 	uint32 len = 0, part_len = 0;
-	meta_t * cl, *new;
+	meta_t *all = NULL, * cl = in;
 	char * p = NULL;
 
-	cl = in;
-	while( cl ) {
+	if( page == NULL )
+	{
+		err("page NULL\n");
+		return ERROR;
+	}
+	if( in == NULL || out == NULL )
+	{
+		err("in or out NULL\n");
+		return ERROR;
+	}
+
+	while( cl ) 
+	{
 		len += meta_len( cl->pos, cl->last );
 		cl = cl->next;
 	}
-	if( OK != meta_page_alloc( page, len, &new ) ) {
+	if( OK != meta_page_alloc( page, len, &all ) ) 
+	{
 		err(" alloc meta mem\n" );
 		return ERROR;
 	}
-	p = new->data;
+	p = all->data;
 	cl = in;
-	while( cl ) {
+	while( cl ) 
+	{
 		part_len = meta_len( cl->pos, cl->last );
 		memcpy( p, cl->pos, part_len );
 		p += part_len;
 		cl = cl->next;
 	}
-	new->last += len;
-	*out = new;
+	all->last += len;
+	*out = all;
 	return OK;
 }
-// meta_alloc --------------
+
 status meta_alloc( meta_t ** meta, uint32 size )
 {
-	meta_t * new = NULL;
+	char * local_meta = NULL;
+	meta_t * t = NULL;
 
 	if( size < 0 )
 	{
-		err("meta alloc size error [%d]\n", size );
+		err("size <= 0\n" );
 		return ERROR;
 	}
-	new = (meta_t*)l_safe_malloc( sizeof(meta_t) );
-	if( !new ) {
-		return ERROR;
-	}
-	memset( new, 0, sizeof(meta_t) );
-	new->data = NULL;
-	new->next = NULL;
-
-	if( size > 0 )
+	if( meta == NULL )
 	{
-		new->data = (char*)l_safe_malloc( size*sizeof(char) );
-		if( !new->data ) {
-			l_safe_free( new );
-			return ERROR;
-		}
-		memset( new->data, 0, size*sizeof(char) );
-		new->start = new->pos = new->last = new->data;
-		new->end = new->start + size*sizeof(char);
+		err("meta NULL\n");
+		return ERROR;
 	}
-	*meta = new;
+	
+	local_meta = (char*)l_safe_malloc( sizeof(meta_t)+size );
+	if( !local_meta ) 
+	{
+		return ERROR;
+	}
+	memset( local_meta, 0, sizeof(meta_t) );
+
+	t = (meta_t*)local_meta;
+	t->start 	= t->pos = t->last = t->data;
+	t->end 		= t->start + size;
+
+	*meta = (meta_t*)local_meta;
 	return OK;
 }
-// meta_free ---------------
+
 status meta_free( meta_t * meta )
 {
-	if( !meta->file_flag ) {
-		if( meta->data ) {
-			l_safe_free( meta->data );
-		}
+	if( meta )
+	{
+		l_safe_free(meta);
 	}
-	l_safe_free( meta );
-	meta = NULL;
 	return OK;
 }

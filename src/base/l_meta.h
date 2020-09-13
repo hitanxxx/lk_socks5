@@ -5,21 +5,21 @@
 typedef struct l_meta_t meta_t;
 typedef struct l_meta_t {
 
+	meta_t* 			next;
 	// flag
 	uint32				file_flag;
 
 	// memory meta
-	char * data;
 	char * start;
 	char * pos;
 	char * last;
 	char * end;
+	
 	// file meta
 	uint32				file_pos;
 	uint32				file_last;
 
-	meta_t* 			next;
-
+	char 	data[0];
 } l_meta_t;
 
 status meta_file_alloc( meta_t ** meta, uint32 length );

@@ -19,8 +19,8 @@ status timer_free( l_timer_t * timer );
 
 status timer_expire( int32 * timer );
 
-void timer_set_data( l_timer_t * timer, void * data );
-void timer_set_pt( l_timer_t * timer, timer_pt pt );
+inline void timer_set_data( l_timer_t * timer, void * data );
+inline void timer_set_pt( l_timer_t * timer, timer_pt pt );
 
 status timer_init( void );
 status timer_end( void );

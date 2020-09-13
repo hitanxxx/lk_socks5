@@ -92,7 +92,7 @@ static status net_free_right_now( event_t * ev )
 		while( cur )
 		{
 			next = cur->next;
-			l_safe_free(cur);
+			meta_free(cur);
 			cur = next;
 		}
 		c->meta = NULL;

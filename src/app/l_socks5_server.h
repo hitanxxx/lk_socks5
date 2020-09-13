@@ -91,8 +91,8 @@ typedef struct socks5_cycle_t
 status socks5_server_init( void );
 status socks5_server_end( void );
 
-void socks5_timeout_cycle( void * data );
-void socks5_timeout_con( void * data );
+inline void socks5_timeout_cycle( void * data );
+inline void socks5_timeout_con( void * data );
 
 status socks5_cycle_free( socks5_cycle_t * cycle );
 status socks5_pipe( event_t * ev );

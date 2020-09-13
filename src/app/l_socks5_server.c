@@ -61,20 +61,14 @@ status socks5_cycle_free( socks5_cycle_t * cycle )
 	return OK;
 }
 
-void socks5_timeout_cycle( void * data )
+inline void socks5_timeout_cycle( void * data )
 {
-	socks5_cycle_t * cycle;
-
-	cycle = data;
-	socks5_cycle_free( cycle );
+	socks5_cycle_free( (socks5_cycle_t *)data );
 }
 
-void socks5_timeout_con( void * data )
+inline void socks5_timeout_con( void * data )
 {
-	connection_t * c;
-	c = data;
-
-	net_free( c );
+	net_free( (connection_t *)data );
 }
 
 
