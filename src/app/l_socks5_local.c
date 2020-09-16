@@ -103,7 +103,7 @@ static status socks5_local_authorization_req_build( event_t * ev )
 	socks5_cycle_t * cycle = up->data;
 	socks5_auth_t * auth = NULL;
 
-	if( !up->meta ) 
+	if( up->meta == NULL ) 
 	{
 		if( OK != meta_alloc( &up->meta, SOCKS5_META_LENGTH ) ) 
 		{
@@ -224,7 +224,7 @@ static status socks5_local_cycle_init( event_t * ev )
 	down->data = (void*)cycle;
 	cycle->down = down;
 
-	if( OK != net_alloc( &cycle->up ) ) 
+	if( OK != net_alloc( &cycle->up ) )
 	{
 		err(" up con alloc\n" );
 		goto failed;

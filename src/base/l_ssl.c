@@ -112,18 +112,15 @@ ssize_t ssl_read( connection_t * c, char * start, uint32 len )
 	rc = SSL_read( c->ssl->con, start, (int)len );
 	if( rc > 0 )
 	{
-		err("ssl read [%d]\n", rc );
 		return rc;
 	}
 	sslerr = SSL_get_error( c->ssl->con, rc );
 	if( sslerr == SSL_ERROR_WANT_READ ) 
 	{
-		err("ssl error want read\n");
 		return AGAIN;
 	}
 	else if( sslerr == SSL_ERROR_WANT_WRITE ) 
 	{
-		err("ssl error want write\n");
 		return AGAIN;
 	}
 	else if( sslerr == SSL_ERROR_SYSCALL ) 
@@ -159,12 +156,10 @@ ssize_t ssl_write( connection_t * c, char * start, uint32 len )
 	sslerr = SSL_get_error( c->ssl->con, rc );
 	if( sslerr == SSL_ERROR_WANT_WRITE ) 
 	{
-		err("ssl error want write\n");
 		return AGAIN;
 	}
 	else if( sslerr == SSL_ERROR_WANT_READ )
 	{
-		err("ssl error want read\n");
 		return AGAIN;
 	}
 	else if( sslerr == SSL_ERROR_SYSCALL ) 
@@ -225,8 +220,9 @@ status ssl_write_chain( connection_t * c, meta_t * meta )
 
 status ssl_client_ctx( SSL_CTX ** s )
 {
-	if( !ctx_client ) 
+	if( ctx_client == NULL ) 
 	{
+		err("================================================ ssl ctx new client\n");
 		ctx_client = SSL_CTX_new( SSLv23_client_method() );
 	}
 	*s = ctx_client;

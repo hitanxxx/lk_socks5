@@ -29,12 +29,12 @@ status socks5_cycle_free( socks5_cycle_t * cycle )
 		cycle->down->event.write_pt = NULL;
 	}
 
-	if( cycle->up) 
+	if( cycle->up ) 
 	{
 		net_free( cycle->up );
 		cycle->up = NULL;
 	}
-	if( cycle->down) 
+	if( cycle->down ) 
 	{
 		net_free( cycle->down );
 		cycle->down = NULL;
@@ -175,34 +175,32 @@ static status lks5_down_recv( event_t * ev )
 	timer_set_data( &ev->timer, (void*)cycle );
 	timer_set_pt( &ev->timer, socks5_timeout_cycle );
 	timer_add( &ev->timer, SOCKS5_TIME_OUT );
-	
-	while( meta_len( meta->last, meta->end ) > 0 )
-	{
-		rc = down->recv( down, meta->last, meta_len( meta->last, meta->end ) );
-		if( rc == ERROR )
-		{
-			err("[%p] - down recv failed\n", cycle );
-			cycle->down_recv_error = 1;
-			break;
-		}
-		else if ( rc == AGAIN )
-		{
-			break;
-		}
-		meta->last += rc;
-	}
 
+	if( cycle->down_recv_error != 1 )
+	{
+		while( meta_len( meta->last, meta->end ) > 0 )
+		{
+			rc = down->recv( down, meta->last, meta_len( meta->last, meta->end ) );
+			if( rc == ERROR )
+			{
+				err("[%p] - down recv failed\n", cycle );
+				cycle->down_recv_error = 1;
+				break;
+			}
+			else if ( rc == AGAIN )
+			{
+				break;
+			}
+			meta->last += rc;
+		}
+	}
+	
 	if( meta_len( meta->pos, meta->last ) > 0 )
 	{
 		down->event.read_pt = NULL;
 		cycle->up->event.write_pt = lks5_up_send;
 
 		return cycle->up->event.write_pt( &cycle->up->event );
-	}
-
-	if( rc == ERROR )
-	{
-		socks5_cycle_free( cycle );
 	}
 	return rc;
 }
@@ -264,33 +262,31 @@ static status lks5_up_recv( event_t * ev )
 	timer_set_pt( &ev->timer, socks5_timeout_cycle );
 	timer_add( &ev->timer, SOCKS5_TIME_OUT );
 
-	while( meta_len( meta->last, meta->end ) > 0 )
+	if( cycle->up_recv_error != 1 )
 	{
-		rc = up->recv( up, meta->last, meta_len( meta->last, meta->end ) );
-		if( rc == ERROR )
+		while( meta_len( meta->last, meta->end ) > 0 )
 		{
-			err("[%p] - up recv failed\n", cycle );
-			cycle->up_recv_error = 1;
-			break;
+			rc = up->recv( up, meta->last, meta_len( meta->last, meta->end ) );
+			if( rc == ERROR )
+			{
+				err("[%p] - up recv failed\n", cycle );
+				cycle->up_recv_error = 1;
+				break;
+			}
+			else if ( rc == AGAIN )
+			{
+				break;
+			}
+			meta->last += rc;
 		}
-		else if ( rc == AGAIN )
-		{
-			break;
-		}
-		meta->last += rc;
 	}
-
+	
 	if( meta_len( meta->pos, meta->last ) > 0 )
 	{
 		up->event.read_pt = NULL;
 		cycle->down->event.write_pt = lks5_down_send;
 
 		return cycle->down->event.write_pt( &cycle->down->event );
-	}
-
-	if( rc == ERROR )
-	{
-		socks5_cycle_free( cycle );
 	}
 	return rc;
 }
@@ -387,8 +383,9 @@ status socks5_pipe( event_t * ev )
 	event_opt( &cycle->down->event, cycle->down->fd, EV_R );
 
 	// local will use this function, need to alloc down and up meta buffer
-	if( !cycle->down->meta )
+	if( cycle->down->meta == NULL )
 	{
+		
 		if( OK != meta_alloc( &cycle->down->meta, SOCKS5_META_LENGTH ) )
 		{
 			err(" down meta alloc\n" );
@@ -399,7 +396,7 @@ status socks5_pipe( event_t * ev )
 	meta = cycle->down->meta;
 	meta->pos = meta->last = meta->start;
 
-	if( !cycle->up->meta )
+	if( cycle->up->meta == NULL )
 	{
 		if( OK != meta_alloc( &cycle->up->meta, SOCKS5_META_LENGTH ) )
 		{

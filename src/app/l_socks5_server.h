@@ -2,9 +2,8 @@
 #define _L_SOCKS5_H_INCLUDED_
 
 // socks5 private macro
-#define SOCKS5_META_LENGTH			(1024*16)
+#define SOCKS5_META_LENGTH			(1024*16)	// 16KB = openssl default ssl layer cache buffer size
 #define SOCKS5_TIME_OUT				3
-
 #define SOCKS5_AUTH_MAGIC_NUM		947085
 
 

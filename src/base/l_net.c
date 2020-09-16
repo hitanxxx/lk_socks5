@@ -88,7 +88,7 @@ static status net_free_right_now( event_t * ev )
 	c->data = NULL;
 	if( c->meta )
 	{
-		cur = c->meta->next;
+		cur = c->meta;
 		while( cur )
 		{
 			next = cur->next;
