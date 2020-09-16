@@ -124,10 +124,12 @@ status net_free( connection_t * c )
 		return ERROR;
 	}
 
-	if( c->ssl_flag && c->ssl ) {
+	if( c->ssl_flag && c->ssl ) 
+	{
 		rc = ssl_shutdown( c->ssl );
-		if( rc == AGAIN ) {
-			c->ssl->handler = net_free_right_now;
+		if( rc == AGAIN ) 
+		{
+			c->ssl->cb = net_free_right_now;
 			return AGAIN;
 		}
 	}

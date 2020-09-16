@@ -175,7 +175,7 @@ static status socks5_local_server_connect_check( event_t * ev )
 		{
 			if( rc == AGAIN ) 
 			{
-				up->ssl->handler = socks5_local_server_connect_handshake;
+				up->ssl->cb = socks5_local_server_connect_handshake;
 				timer_set_data( &ev->timer, (void*)cycle );
 				timer_set_pt( &ev->timer, socks5_timeout_cycle );
 				timer_add( &ev->timer, SOCKS5_TIME_OUT );

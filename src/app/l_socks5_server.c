@@ -172,6 +172,10 @@ static status lks5_down_recv( event_t * ev )
 	meta_t * meta = down->meta;
 	ssize_t rc = 0;
 
+	timer_set_data( &ev->timer, (void*)cycle );
+	timer_set_pt( &ev->timer, socks5_timeout_cycle );
+	timer_add( &ev->timer, SOCKS5_TIME_OUT );
+	
 	while( meta_len( meta->last, meta->end ) > 0 )
 	{
 		rc = down->recv( down, meta->last, meta_len( meta->last, meta->end ) );
@@ -200,12 +204,6 @@ static status lks5_down_recv( event_t * ev )
 	{
 		socks5_cycle_free( cycle );
 	}
-	else if ( rc == AGAIN )
-	{
-		timer_set_data( &ev->timer, (void*)cycle );
-		timer_set_pt( &ev->timer, socks5_timeout_cycle );
-		timer_add( &ev->timer, SOCKS5_TIME_OUT );
-	}
 	return rc;
 }
 
@@ -220,6 +218,10 @@ static status lks5_up_send( event_t * ev )
 	meta_t * meta = cycle->down->meta;
 	ssize_t rc = 0;
 
+	timer_set_data( &ev->timer, (void*)cycle );
+	timer_set_pt( &ev->timer, socks5_timeout_cycle );
+	timer_add( &ev->timer, SOCKS5_TIME_OUT );
+
 	while( meta_len( meta->pos, meta->last ) > 0 )
 	{
 		rc = up->send( up, meta->pos, meta_len( meta->pos, meta->last ) );
@@ -231,8 +233,6 @@ static status lks5_up_send( event_t * ev )
 		}
 		else if ( rc == AGAIN )
 		{
-			timer_set_data( &ev->timer, (void*)cycle );
-			timer_set_pt( &ev->timer, socks5_timeout_cycle );
 			timer_add( &ev->timer, SOCKS5_TIME_OUT );
 			return AGAIN;
 		}
@@ -259,6 +259,10 @@ static status lks5_up_recv( event_t * ev )
 	socks5_cycle_t * cycle = up->data;
 	meta_t * meta = up->meta;
 	ssize_t rc = 0;
+
+	timer_set_data( &ev->timer, (void*)cycle );
+	timer_set_pt( &ev->timer, socks5_timeout_cycle );
+	timer_add( &ev->timer, SOCKS5_TIME_OUT );
 
 	while( meta_len( meta->last, meta->end ) > 0 )
 	{
@@ -288,12 +292,6 @@ static status lks5_up_recv( event_t * ev )
 	{
 		socks5_cycle_free( cycle );
 	}
-	else if ( rc == AGAIN )
-	{
-		timer_set_data( &ev->timer, (void*)cycle );
-		timer_set_pt( &ev->timer, socks5_timeout_cycle );
-		timer_add( &ev->timer, SOCKS5_TIME_OUT );
-	}
 	return rc;
 }
 
@@ -303,6 +301,10 @@ static status lks5_down_send( event_t * ev )
 	socks5_cycle_t * cycle = down->data;
 	meta_t * meta = cycle->up->meta;
 	ssize_t rc = 0;
+
+	timer_set_data( &ev->timer, (void*)cycle );
+	timer_set_pt( &ev->timer, socks5_timeout_cycle );
+	timer_add( &ev->timer, SOCKS5_TIME_OUT );
 
 	while( meta_len( meta->pos, meta->last ) > 0 )
 	{
@@ -315,8 +317,6 @@ static status lks5_down_send( event_t * ev )
 		}
 		else if ( rc == AGAIN )
 		{
-			timer_set_data( &ev->timer, (void*)cycle );
-			timer_set_pt( &ev->timer, socks5_timeout_cycle );
 			timer_add( &ev->timer, SOCKS5_TIME_OUT );
 			return AGAIN;
 		}
@@ -993,7 +993,6 @@ static status socks5_server_cycle_init( event_t * ev )
 static status socks5_server_authorization_resp_send( event_t * ev )
 {
 	connection_t * down = ev->data;
-	socks5_cycle_t * cycle;
 	status rc;
 
 	rc = down->send_chain( down, down->meta );
@@ -1162,7 +1161,7 @@ static status socks5_server_accept_callback( event_t * ev )
 		{
 			if( rc == AGAIN )
 			{
-				down->ssl->handler = socks5_server_accept_callback_ssl;
+				down->ssl->cb = socks5_server_accept_callback_ssl;
 				timer_set_data( &down->event.timer, (void*)down );
 				timer_set_pt( &down->event.timer, socks5_timeout_con );
 				timer_add( &down->event.timer, SOCKS5_TIME_OUT );

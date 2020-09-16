@@ -785,7 +785,7 @@ static status webser_init_connection( event_t * ev )
 			timer_set_pt( &c->event.timer, webser_time_out_connection );
 			timer_add( &c->event.timer, WEBSER_TIMEOUT );
 
-			c->ssl->handler = webser_ssl_handshake_handler;
+			c->ssl->cb = webser_ssl_handshake_handler;
 			return AGAIN;
 		}
 		return webser_ssl_handshake_handler( ev );

@@ -8,18 +8,15 @@
 // ssl
 typedef struct l_ssl_connection_t ssl_connection_t;
 typedef status ( * ssl_handshake_pt )( event_t * ev );
-typedef struct l_ssl_connection_t {
+typedef struct l_ssl_connection_t 
+{
 	SSL_CTX	*			session_ctx;
 	SSL* 				con;
 
-	ssl_handshake_pt 	handler;
+	ssl_handshake_pt 	cb;
 	void * 				data;
 
 	uint32				handshaked;
-
-	event_pt			old_read_handler;
-	event_pt			old_write_handler;
-
 } l_ssl_connection_t;
 
 //
