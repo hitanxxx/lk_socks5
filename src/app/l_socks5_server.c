@@ -53,7 +53,6 @@ status socks5_cycle_free( socks5_cycle_t * cycle )
 #endif
 	if( cycle->dns_cycle )
 	{
-		err("dns cycle free [%p]\n", cycle->dns_cycle );
 		l_dns_free( cycle->dns_cycle );
 		cycle->dns_cycle = NULL;
 	}
