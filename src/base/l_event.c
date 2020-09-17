@@ -107,10 +107,6 @@ status l_net_accept( event_t * ev )
 
 		c->ssl_flag = (listen->type == L_SSL ) ? 1 : 0;
 
-		timer_set_data( &c->event.timer, (void*)c );
-		timer_set_pt( &c->event.timer, l_net_timeout );
-		timer_add( &c->event.timer, 3 );
-
 		c->event.read_pt 	= listen->handler;
 		c->event.write_pt 	= NULL;
 		event_opt( &c->event, c->fd, EV_R );
