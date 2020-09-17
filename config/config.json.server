@@ -5,8 +5,8 @@
 	"log_error":true,
 	"log_debug":false,
 
-	"sslcrt":"/usr/local/lks5/certificate/server.crt",
-	"sslkey":"/usr/local/lks5/certificate/server.key",
+	"sslcrt":"/usr/local/lks5/certificate/2048.crt",
+	"sslkey":"/usr/local/lks5/certificate/2048.key",
 
 	"socks5":
 	{

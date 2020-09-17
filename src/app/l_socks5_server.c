@@ -369,11 +369,11 @@ status socks5_pipe( event_t * ev )
 	cycle->down->event.read_pt = socks5_local2remote_recv;
 	cycle->down->event.write_pt = socks5_remote2local_send;
 #else
-	cycle->down->event.read_pt = lks5_down_recv;
-	cycle->down->event.write_pt = NULL;
+	cycle->down->event.read_pt 		= lks5_down_recv;
+	cycle->down->event.write_pt 	= NULL;
 
-	cycle->up->event.read_pt = lks5_up_recv;
-	cycle->up->event.write_pt = NULL;
+	cycle->up->event.read_pt 		= lks5_up_recv;
+	cycle->up->event.write_pt 		= NULL;
 
 	event_opt( &cycle->up->event, cycle->up->fd, EV_W );
 	event_opt( &cycle->up->event, cycle->up->fd, EV_R );
@@ -384,7 +384,6 @@ status socks5_pipe( event_t * ev )
 	// local will use this function, need to alloc down and up meta buffer
 	if( cycle->down->meta == NULL )
 	{
-		
 		if( OK != meta_alloc( &cycle->down->meta, SOCKS5_META_LENGTH ) )
 		{
 			err(" down meta alloc\n" );

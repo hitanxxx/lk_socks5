@@ -1,7 +1,7 @@
 #ifndef _L_NET_H_INCLUDED_
 #define _L_NET_H_INCLUDED_
 
-#define MAXCON	100
+#define MAXCON	50
 
 typedef status ( *net_send_chain ) ( connection_t * c, meta_t * meta );
 typedef status ( *net_recv_chain ) ( connection_t * c, meta_t * meta );
