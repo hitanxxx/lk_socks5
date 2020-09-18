@@ -80,7 +80,6 @@ static status webser_free( webser_t * webser )
 	webser->request_head = NULL;
 	webser->request_body = NULL;
 
-	webser->api_flag = 0;
 	webser->api_handler = NULL;
 
 	webser->filesize = 0;
@@ -91,16 +90,6 @@ static status webser_free( webser_t * webser )
 	webser->response_head = NULL;
 	webser->response_body = NULL;
 
-	return OK;
-}
-
-static status webser_free_connection( event_t * ev )
-{
-	connection_t * c;
-
-	c = ev->data;
-
-	net_free( c );
 	return OK;
 }
 
@@ -133,22 +122,14 @@ static status webser_close( webser_t * webser )
 	return OK;
 }
 
-static void webser_time_out_connection( void * data )
+static inline void webser_timeout_con( void * data )
 {
-	connection_t * c;
-
-	c = data;
-	net_free(c);
+	net_free( (connection_t*)data );
 }
 
-static void webser_time_out( void * data )
+static inline void webser_timeout_cycle( void * data )
 {
-	webser_t * webser;
-	connection_t * c;
-
-	webser = data;
-	c = webser->c;
-	webser_over(webser);
+	webser_over( (webser_t*)data );
 }
 
 static status webser_keepalive( webser_t * webser )
@@ -161,7 +142,7 @@ static status webser_keepalive( webser_t * webser )
 
 	c = webser->c;
 	read = &c->event;
-	if( webser->request_head->body_type == HTTP_ENTITYBODY_NULL )
+	if( webser->request_head->body_type == HTTP_BODY_TYPE_NULL )
 	{
 		busy_length = meta_len( c->meta->pos, c->meta->last );
 		if( busy_length ) 
@@ -191,7 +172,7 @@ static status webser_keepalive( webser_t * webser )
 	if( rc == AGAIN )
 	{
 		timer_set_data( &c->event.timer, (void*)new );
-		timer_set_pt( &c->event.timer, webser_time_out );
+		timer_set_pt( &c->event.timer, webser_timeout_cycle );
 		timer_add( &c->event.timer, WEBSER_TIMEOUT );
 	} 
 	else if ( rc == ERROR ) 
@@ -269,7 +250,7 @@ static status webser_send_response( event_t * ev )
 		}
 		
 		timer_set_data( &c->event.timer, (void*)webser );
-		timer_set_pt( &c->event.timer,  webser_time_out);
+		timer_set_pt( &c->event.timer,  webser_timeout_cycle);
 		timer_add( &c->event.timer, WEBSER_TIMEOUT );
 		return rc;
 	}
@@ -338,7 +319,7 @@ status webser_response( event_t * ev )
 	return c->event.write_pt( ev );
 }
 
-static status webser_entity_body( webser_t * webser )
+static status webser_response_body_build( webser_t * webser )
 {
 	uint32 meta_len = 0;
 	int32 rc = 0;
@@ -384,7 +365,7 @@ static status webser_entity_body( webser_t * webser )
 	return OK;
 }
 
-status webser_entity_head( webser_t * webser )
+status webser_response_head_build( webser_t * webser )
 {
 	string_t * mimetype = NULL;
 	char content_len_str[1024] = {0};
@@ -487,7 +468,7 @@ status webser_entity_head( webser_t * webser )
 	return OK;
 }
 
-static status webser_entity_start ( webser_t * webser )
+static status webser_process_static_check_file ( webser_t * webser )
 {
 	struct stat st;
 	char * ptr;
@@ -519,7 +500,7 @@ static status webser_entity_start ( webser_t * webser )
 
 	if( OK != stat( webser->filepath, &st ) ) 
 	{
-		err("stat request file [%s] errno [%d]\n", webser->filepath, errno );
+		err("webser stat check file [%s] failed, [%d]\n", webser->filepath, errno );
 		webser->re_status = 400;
 		return OK;
 	}
@@ -537,69 +518,62 @@ static status webser_entity_start ( webser_t * webser )
 
 status webser_process_request_body( event_t * ev )
 {
-	int32 status;
-	connection_t * c;
-	webser_t * webser;
+	status rc;
+	connection_t * c = ev->data;
+	webser_t * webser = c->data;
 
-	c = ev->data;
-	webser = c->data;
-	status = webser->request_body->handler.process( webser->request_body );
-	if( status == ERROR )
+	rc = webser->request_body->handler.process( webser->request_body );
+	if( rc < 0 )
 	{
-		err("get webser body\n");
-		webser_over( webser );
-		return ERROR;
-	} 
-	else if( status == DONE ) 
-	{
-		timer_del( &c->event.timer );
-		debug("process body success, body length [%d]\n", webser->request_body->content_length );
-		return webser->request_body->over_cb( ev );
+		if( rc == ERROR )
+		{
+			err("webser process body failed\n");
+			webser_over(webser);
+			return ERROR;
+		}
+		timer_set_data( &ev->timer, webser );
+		timer_set_pt( &ev->timer, webser_timeout_cycle );
+		timer_add( &ev->timer, WEBSER_TIMEOUT );
+		return AGAIN;
 	}
-	timer_set_data( &c->event.timer, (void*)webser );
-	timer_set_pt( &c->event.timer, webser_time_out );
-	timer_add( &c->event.timer, WEBSER_TIMEOUT );
-	return status;
+
+	timer_del( &ev->timer );
+	return webser->request_body->over_cb( ev );
 }
 
 
-static status webser_process_entity ( event_t * ev )
+static status webser_process_static ( event_t * ev )
 {
-	connection_t * c;
-	webser_t * webser;
+	connection_t * c = ev->data;
+	webser_t * webser = c->data;
 
-	c = ev->data;
-	webser = c->data;
-
-	/*
-	 * if not recv request body, goto recvd request body
-	 */
-	if( !webser->request_body || !(webser->request_body->status & HTTP_BODY_DONE) )
+	if( (NULL == webser->request_body) || !(webser->request_body->status & HTTP_BODY_STAT_OK) )
 	{
+		// static not support post
 		if( OK != http_entitybody_create( webser->c, &webser->request_body, 1 ) )
 		{
 			err( "http_entitybody_create error\n");
 			webser_over( webser );
 			return ERROR;
 		}
-		webser->request_body->body_type = webser->request_head->body_type;
-		webser->request_body->content_length = webser->request_head->content_length;
-		webser->request_body->over_cb = webser_process_entity;
+		webser->request_body->body_type 		= webser->request_head->body_type;
+		webser->request_body->content_length 	= webser->request_head->content_length;
+		webser->request_body->over_cb 			= webser_process_static;
 		
 		c->event.read_pt = webser_process_request_body;
 		return c->event.read_pt( ev );
 	}
 
-	if( OK != webser_entity_start( webser ) )
+	if( OK != webser_process_static_check_file( webser ) )
 	{
-		err( " entity start\n");
+		err("webser static check file failed\n");
 		webser_over( webser );
 		return ERROR;
 	}
 	
-	if( OK != webser_entity_head( webser ) ) 
+	if( OK != webser_response_head_build( webser ) ) 
 	{
-		err( "entity head\n");
+		err("webser resp head build failed\n");
 		webser_over( webser );
 		return ERROR;
 	}
@@ -610,9 +584,9 @@ static status webser_process_entity ( event_t * ev )
 		return c->event.read_pt( &c->event );
 	}
 	
-	if( OK != webser_entity_body( webser ) ) 
+	if( OK != webser_response_body_build( webser ) ) 
 	{
-		err( " entity body\n");
+		err("webser resp body build failed\n");
 		webser_over( webser );
 		return ERROR;
 	}
@@ -620,7 +594,7 @@ static status webser_process_entity ( event_t * ev )
 	return c->event.read_pt( ev );
 }
 
-static status webser_process_api( event_t * ev )
+static status webser_process_webapi( event_t * ev )
 {
 	int32 rc;
 	connection_t * c = ev->data;
@@ -632,17 +606,18 @@ static status webser_process_api( event_t * ev )
 		if( rc == OK )
 		{	
 			webser->re_status = 200;
-			debug("process api success\n");
+			debug("webser webapi process success\n");
 		}
 		else if ( rc == ERROR )
 		{
 			webser->re_status = 500;
-			err("process api failed\n");
+			err("webser webapi process failed\n");
 		}
-		if( OK != webser_entity_head( webser ) )
+		
+		if( OK != webser_response_head_build( webser ) )
 		{
-			err("head build failed\n");
-			webser_close(webser);
+			err("webser response head build failed\n");
+			webser_over(webser);
 			return ERROR;
 		}
 		c->event.read_pt = webser_response;
@@ -651,119 +626,142 @@ static status webser_process_api( event_t * ev )
 	return rc;
 }
 
-static status webser_process_router( event_t * ev )
+static status webser_process_routing( event_t * ev )
 {
 	connection_t * c = ev->data;
 	webser_t * webser = c->data;
-	int32 content_length;
-	int discard_body;
-
-	/*
-	 * if found api, do api handler
-	 */
+	
 	if( OK == serv_api_find( &webser->request_head->uri, &webser->api_handler ) ) 
 	{
-		webser->api_flag = 1;
-		c->event.read_pt = webser_process_api;
+		c->event.read_pt = webser_process_webapi;
 	} 
 	else 
 	{
-	    webser->api_flag = 0;
-		c->event.read_pt = webser_process_entity;
+		c->event.read_pt = webser_process_static;
 	}
 	return c->event.read_pt( ev );
 }
 
 static status webser_process_request_header( event_t * ev )
 {
-	connection_t * c;
-	webser_t * webser;
+	connection_t * c = ev->data;
+	webser_t * webser = c->data;
 	status rc;
 
-	c = ev->data;
-	webser = c->data;
 	rc = webser->request_head->handler.process( webser->request_head );
-	if( rc == ERROR ) 
+	if( rc < 0 )
 	{
-		err("request\n");
-		webser_over( webser );
-		return ERROR;
-	} 
-	else if ( rc == DONE ) 
-	{
-		timer_del( &c->event.timer );
-		c->event.read_pt = webser_process_router;
-		return c->event.read_pt( ev );
+		if( rc == ERROR )
+		{
+			err("webser process request header failed\n");
+			webser_over( webser );
+			return ERROR;
+		}
+		timer_set_data( &ev->timer, webser );
+		timer_set_pt(&ev->timer, webser_timeout_cycle );
+		timer_add( &ev->timer, WEBSER_TIMEOUT );
+		return AGAIN;
 	}
-	timer_set_data( &c->event.timer, (void*)webser );
-	timer_set_pt( &c->event.timer, webser_time_out );
-	timer_add( &c->event.timer, WEBSER_TIMEOUT );
-	return AGAIN;
+
+	timer_del( &ev->timer );
+
+	ev->read_pt	= webser_process_routing;
+	return ev->read_pt( ev );
 }
 
-static status webser_start_connection( event_t * ev )
+static status webser_cycle_init( event_t * ev )
 {
-	connection_t * c;
-	webser_t * local_web;
+	connection_t * c = ev->data;
+	webser_t * local_webser;
 
-	c = ev->data;
-	if( !c->meta ) 
+	if( NULL == c->meta ) 
 	{
-		if( OK != meta_alloc( &c->meta, 4096 ) ) 
+		if( OK != meta_alloc( &c->meta, WEBSER_REQ_META_LEN ) ) 
 		{
-			err( " c meta alloc\n");
+			err("webser con meta alloc failed\n");
 			net_free( c );
 			return ERROR;
 		}
 	}
-	if( OK != webser_alloc( &local_web ) ) 
+	if( OK != webser_alloc( &local_webser ) ) 
 	{
-		err( " webser_alloc\n");
+		err( "webser alloc webser failed\n");
 		net_free(c);
 		return ERROR;
 	}
-	local_web->c = c;
-	c->data = (void*)local_web;
-	if( OK != http_request_head_create( c, &local_web->request_head ) ) 
+	local_webser->c = c;
+	c->data = local_webser;
+	
+	if( OK != http_request_head_create( c, &local_webser->request_head ) ) 
 	{
-		err(" request create\n");
-		webser_over( local_web );
+		err("webser alloc request head failed\n");
+		webser_over( local_webser );
 		return ERROR;
 	}
-	c->event.write_pt = NULL;
-	c->event.read_pt  = webser_process_request_header;
+	c->event.write_pt 	= NULL;
+	c->event.read_pt  	= webser_process_request_header;
 	return c->event.read_pt( ev );
 }
 
-static status webser_ssl_handshake_handler( event_t * ev )
+static status webset_accept_callback_ssl( event_t * ev )
 {
-	connection_t * c;
-
-	c = ev->data;
+	connection_t * c = ev->data;
 
 	if( !c->ssl->handshaked ) 
 	{
-		err( " handshake error\n" );
+		err("webser handshake failed\n");
 		net_free( c );
 		return ERROR;
 	}
 	timer_del( &c->event.timer );
-	c->recv = ssl_read;
-	c->send = ssl_write;
-	c->recv_chain = NULL;
-	c->send_chain = ssl_write_chain;
+	c->recv 			= ssl_read;
+	c->send 			= ssl_write;
+	c->recv_chain 		= NULL;
+	c->send_chain 		= ssl_write_chain;
 
-	c->event.write_pt = NULL;
-	c->event.read_pt  = webser_start_connection;
+	c->event.write_pt 	= NULL;
+	c->event.read_pt  	= webser_cycle_init;
 	return c->event.read_pt( ev );
 }
 
-static status webser_init_connection( event_t * ev )
+static status webser_accept_callback( event_t * ev )
 {
-	connection_t * c;
+	connection_t * c = ev->data;
 	status rc;
 
-	c = ev->data;
+	do 
+	{
+		if( 1 == c->ssl_flag )
+		{
+			if( OK != ssl_create_connection( c, L_SSL_SERVER ) )
+			{
+				err("webser ssl con create failed\n");
+				break;
+			}
+			rc = ssl_handshake( c->ssl );
+			if( rc < 0 )
+			{
+				if( rc == ERROR )
+				{
+					err("webser ssl handshake failed\n");
+					break;
+				}
+				c->ssl->cb = webset_accept_callback_ssl;
+				timer_set_data( &ev->timer, c );
+				timer_set_pt( &ev->timer, webser_timeout_con );
+				timer_add( &ev->timer, WEBSER_TIMEOUT );
+				return AGAIN;
+			}
+			return webset_accept_callback_ssl( ev );
+		}
+		ev->read_pt = webser_cycle_init;
+		return ev->read_pt( ev );
+	
+	} while(0);
+
+	net_free( c );
+	return ERROR;
+
 	if( c->ssl_flag ) 
 	{
 		if( OK != ssl_create_connection( c, L_SSL_SERVER ) ) 
@@ -782,17 +780,17 @@ static status webser_init_connection( event_t * ev )
 		else if ( rc == AGAIN ) 
 		{
 			timer_set_data( &c->event.timer, (void*)c );
-			timer_set_pt( &c->event.timer, webser_time_out_connection );
+			timer_set_pt( &c->event.timer, webser_timeout_con );
 			timer_add( &c->event.timer, WEBSER_TIMEOUT );
 
-			c->ssl->cb = webser_ssl_handshake_handler;
+			c->ssl->cb = webset_accept_callback_ssl;
 			return AGAIN;
 		}
-		return webser_ssl_handshake_handler( ev );
+		return webset_accept_callback_ssl( ev );
 	}
-	c->event.read_pt = webser_start_connection;
+	c->event.read_pt = webser_cycle_init;
 	
-	return webser_start_connection( ev );
+	return webser_cycle_init( ev );
 }
 
 status webser_init( void )
@@ -801,11 +799,11 @@ status webser_init( void )
 
 	for( i = 0; i < conf.http.port_n; i ++ ) 
 	{
-		listen_add( conf.http.ports[i], webser_init_connection, L_NOSSL );
+		listen_add( conf.http.ports[i], webser_accept_callback, L_NOSSL );
 	}
 	for( i = 0; i < conf.http.ssl_portn; i ++ ) 
 	{
-		listen_add( conf.http.ssl_ports[i], webser_init_connection, L_SSL );
+		listen_add( conf.http.ssl_ports[i], webser_accept_callback, L_SSL );
 	}
 	
 	queue_init( &g_queue_use );

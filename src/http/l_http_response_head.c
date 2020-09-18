@@ -353,7 +353,7 @@ static status http_response_head_process_headers( http_response_head_t * respons
 			}
 			else if( OK == l_strncmp_cap( key->data, key->len, content_str_length.data, content_str_length.len ) ) 
 			{
-				response->body_type = HTTP_ENTITYBODY_CONTENT;
+				response->body_type = HTTP_BODY_TYPE_CONTENT;
 				if( OK != l_atoi( value->data, value->len, &length ) )
 				{
 					err( " l_atoi content length\n" );
@@ -363,7 +363,7 @@ static status http_response_head_process_headers( http_response_head_t * respons
 			} 
 			else if( OK == l_strncmp_cap( key->data, key->len, transfer_str_length.data, transfer_str_length.len ) ) 
 			{
-				response->body_type = HTTP_ENTITYBODY_CHUNK;
+				response->body_type = HTTP_BODY_TYPE_CHUNK;
 			}
 			continue;
 		}
@@ -472,7 +472,7 @@ status http_response_head_free( http_response_head_t * response )
 	response->http_string.len = 0;
 	response->http_status_code = 0;
 
-	response->body_type = HTTP_ENTITYBODY_NULL;
+	response->body_type = HTTP_BODY_TYPE_NULL;
 	response->content_length = 0;
 	response->keepalive = 0;
 

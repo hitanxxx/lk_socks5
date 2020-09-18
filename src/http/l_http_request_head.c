@@ -506,7 +506,7 @@ static status http_request_head_process_headers( http_request_head_t * request )
 
 			if( request->headers_in.content_length ) 
 			{
-				request->body_type = HTTP_ENTITYBODY_CONTENT;
+				request->body_type = HTTP_BODY_TYPE_CONTENT;
 				if( OK != l_atoi( request->headers_in.content_length->data, request->headers_in.content_length->len, &content_length ) )
 			 	{
 					err(" l_atoi content length\n");
@@ -516,11 +516,11 @@ static status http_request_head_process_headers( http_request_head_t * request )
 			} 
 			else if ( request->headers_in.transfer_encoding ) 
 			{
-				request->body_type = HTTP_ENTITYBODY_CHUNK;
+				request->body_type = HTTP_BODY_TYPE_CHUNK;
 			} 
 			else 
 			{
-				request->body_type = HTTP_ENTITYBODY_NULL;
+				request->body_type = HTTP_BODY_TYPE_NULL;
 			}
 			return DONE;
 		} 

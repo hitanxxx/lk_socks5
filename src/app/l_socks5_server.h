@@ -21,7 +21,10 @@ enum socks5_private_auth_message_status {
 	S5_AUTH_STAT_PASSWD_FAIL
 };
 
-typedef struct socks5_auth {
+#pragma pack(push,1)
+
+typedef struct socks5_auth 
+{
 	int 		magic; 				// magic num filed
 	int			message_type;  		// private auth message type. enum socks5_message_type
 	int			message_status;		// private auth message status, enum socks5_message_status
@@ -30,7 +33,8 @@ typedef struct socks5_auth {
 	char 		passwd[PASSWD_LENGTH];			// private auth passwd
 } socks5_auth_t;
 
-typedef struct socks5_message_invite {
+typedef struct socks5_message_invite 
+	{
 	int32 		state;
 	char 		ver;
 	char 		method_num;
@@ -38,12 +42,14 @@ typedef struct socks5_message_invite {
 	char 		method[256];
 } socks5_message_invite_t;
 
-typedef struct socsk5_message_invite_response {
+typedef struct socsk5_message_invite_response 
+{
 	char		ver;
 	char		method;
-}__attribute__((packed)) socsk5_message_invite_response_t;
+} socsk5_message_invite_response_t;
 
-typedef struct socks5_message_advcance {
+typedef struct socks5_message_advcance 
+{
 	int32				state;
 	unsigned char		ver;
 	unsigned char		cmd;
@@ -57,14 +63,17 @@ typedef struct socks5_message_advcance {
 	unsigned char		addr_port[2];
 } socks5_message_advance_t;
 
-typedef struct socks5_message_advance_response {
+typedef struct socks5_message_advance_response 
+{
 	unsigned char			ver;
 	unsigned char			rep;
 	unsigned char			rsv;
 	unsigned char			atyp;
 	unsigned int	bnd_addr;
 	unsigned short	bnd_port;
-}__attribute__((packed)) socks5_message_advance_response_t;
+} socks5_message_advance_response_t;
+
+#pragma pack(pop)
 
 typedef struct socks5_cycle_t 
 {

@@ -74,14 +74,18 @@ enum http_process_status
 
 enum http_body_type
 {
-	HTTP_ENTITYBODY_NULL   = 1,
-	HTTP_ENTITYBODY_CONTENT,
-	HTTP_ENTITYBODY_CHUNK
+	HTTP_BODY_TYPE_NULL   = 1,
+	HTTP_BODY_TYPE_CHUNK,
+	HTTP_BODY_TYPE_CONTENT,
 };
 
-#define HTTP_BODY_DONE 		0x01
-#define HTTP_BODY_EMPTY		0x03
-#define HTTP_BODY_RECVD		0x05
+enum http_body_stat
+{
+	HTTP_BODY_STAT_OK = 1,
+	HTTP_BODY_STAT_DONE_CACHE,
+	HTTP_BODY_STAT_DONE_CACHENO,
+};
+
 
 /* scoks5 module run model */
 enum socks5_module_run_model {

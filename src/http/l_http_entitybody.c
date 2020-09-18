@@ -210,7 +210,7 @@ static status http_entity_process_content( http_entitybody_t * bd )
 			if( !bd->content_need ) 
 			{
 				bd->all_length = bd->content_length;
-				bd->status = HTTP_BODY_RECVD;
+				bd->status = HTTP_BODY_STAT_DONE_CACHE;
 				return DONE;
 			}
 		}
@@ -274,7 +274,7 @@ static status http_entity_process_chunk( http_entitybody_t * bd )
 		rc = http_entity_parse_chunk( bd );
 		if( rc == DONE ) 
 		{
-			bd->status = HTTP_BODY_RECVD;
+			bd->status = HTTP_BODY_STAT_DONE_CACHE;
 			return DONE;
 		} 
 		else if ( rc == ERROR ) 
@@ -292,36 +292,36 @@ static status http_entitybody_start( http_entitybody_t * bd )
 	meta_t * new;
 
 	busy_head = meta_len( bd->c->meta->pos, bd->c->meta->last );
-	if( bd->body_type == HTTP_ENTITYBODY_NULL )
+	if( bd->body_type == HTTP_BODY_TYPE_NULL )
 	{
-		bd->status = HTTP_BODY_EMPTY;
+		bd->status = HTTP_BODY_STAT_DONE_CACHENO;
 		return DONE;
 	}
-	else if( bd->body_type == HTTP_ENTITYBODY_CONTENT ) 
+	else if( bd->body_type == HTTP_BODY_TYPE_CONTENT ) 
 	{
 		bd->content_need = bd->content_length;
 		if( busy_head == bd->content_need ) 
 		{
-			// if busy contain all body
+			// if REMAIN BUFFER contain all body
 			bd->content_need -= busy_head;
 			bd->all_length = bd->content_length;
 			if( !bd->cache ) 
 			{
-				bd->status = HTTP_BODY_EMPTY;
+				bd->status = HTTP_BODY_STAT_DONE_CACHENO;
 				return DONE;
 			} 
 			else 
 			{
 				if( OK != meta_alloc( &bd->body_head, busy_head ) )
 				{
-					err(" alloc body head\n" );
+					err("alloc body head\n" );
 					return ERROR;
 				}
 				bd->body_last = bd->body_head;
 				l_memcpy( bd->body_last->last, bd->c->meta->pos, busy_head );
 				bd->body_last->last += busy_head;
 				
-				bd->status = HTTP_BODY_RECVD;
+				bd->status = HTTP_BODY_STAT_DONE_CACHE;
 				return DONE;
 			}
 		} 
@@ -357,7 +357,7 @@ static status http_entitybody_start( http_entitybody_t * bd )
 			return ERROR;
 		}
 	} 
-	else if( bd->body_type == HTTP_ENTITYBODY_CHUNK ) 
+	else if( bd->body_type == HTTP_BODY_TYPE_CHUNK ) 
 	{
 		// make frist meta not full
 		if( busy_head ) 
@@ -418,7 +418,7 @@ static status http_entitybody_free( http_entitybody_t * bd )
 	bd->handler.exit = NULL;
 	bd->state = 0;
 
-	bd->body_type = HTTP_ENTITYBODY_NULL;
+	bd->body_type = HTTP_BODY_TYPE_NULL;
 	bd->cache = 0;
 
 	bd->content_length = 0;

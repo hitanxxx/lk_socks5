@@ -4,6 +4,7 @@
 #define WEBSER_TIMEOUT					5
 #define WEBSER_LENGTH_INDEX_STR			32
 #define WEBSER_LENGTH_HOME_STR			256
+#define WEBSER_REQ_META_LEN				4096
 #define WEBSER_LENGTH_PATH_STR \
 ( REQ_LENGTH_URI_STR + WEBSER_LENGTH_HOME_STR + WEBSER_LENGTH_INDEX_STR )
 #define WEBSER_BODY_META_LENGTH		32768
@@ -17,7 +18,6 @@ typedef struct webser_t
 	http_request_head_t *	request_head;
 	http_entitybody_t* 		request_body;
 
-	uint32				api_flag;
 	serv_api_handler	api_handler;
 
 	uint32 				filesize;
