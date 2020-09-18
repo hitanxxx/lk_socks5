@@ -64,7 +64,8 @@ status l_socket_check_status( int fd )
 	if (getsockopt( fd, SOL_SOCKET, SO_ERROR, (void *) &err, &len) == -1 ) {
 		err = errno;
 	}
-	if (err) {
+	if (err) 
+	{
 		err(" socket get a error, %d\n", errno );
 		return ERROR;
 	}

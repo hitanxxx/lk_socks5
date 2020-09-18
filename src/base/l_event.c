@@ -12,7 +12,7 @@ static void l_net_timeout( void * data )
 status l_net_connect( connection_t * c, struct sockaddr_in * addr, uint32 con_type )
 {
 	struct addrinfo * res = NULL;
-	status rc;
+	status rc = 0;
 	int fd = 0;
 
 	if( 0 != memcmp( &c->addr, addr, sizeof(struct sockaddr_in) ) )
@@ -27,11 +27,13 @@ status l_net_connect( connection_t * c, struct sockaddr_in * addr, uint32 con_ty
 		return ERROR;
 	}
 	fd = socket(AF_INET, (c->con_type == TYPE_TCP) ? SOCK_STREAM : SOCK_DGRAM, 0 );
-	if( ERROR == fd ) {
+	if( ERROR == fd ) 
+	{
 		err(" socket failed, [%d]\n", errno );
 		return ERROR;
 	}
-	if( OK != l_socket_reuseaddr( fd ) ) {
+	if( OK != l_socket_reuseaddr( fd ) ) 
+	{
 		err(" reuseaddr failed\n" );
 		close( fd );
 		return ERROR;
@@ -41,16 +43,27 @@ status l_net_connect( connection_t * c, struct sockaddr_in * addr, uint32 con_ty
 		close( fd );
 		return ERROR;
 	}
-	
-	rc = connect( fd, (struct sockaddr*)&c->addr, sizeof(struct sockaddr_in) );
-	if( rc == ERROR ) {
-		if( errno != EINPROGRESS ) {
-			err(" connect failed, [%d]\n", errno );
-			close( fd );
+
+	do
+	{
+		rc = connect( fd, (struct sockaddr*)&c->addr, sizeof(struct sockaddr_in) );	
+		if( 0 != rc )
+		{
+			if( (errno == EAGAIN) || (errno == EALREADY) || (errno == EINPROGRESS) )
+			{
+				rc = AGAIN;
+				break;
+			}
+			else if( errno == EINTR )
+			{
+				continue;
+			}
+			err("connect failed, [%d]\n", errno );
 			return ERROR;
 		}
-		rc = AGAIN;
-	}
+
+	} while(0);
+
 	c->fd = fd;
 
 	if( con_type == TYPE_TCP )

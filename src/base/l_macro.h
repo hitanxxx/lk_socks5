@@ -102,9 +102,8 @@ enum limit_value {
 enum status_value {
 	OK         = 0,
 	ERROR      = -1,
-	NOT_FOUND  = -2,
-	AGAIN      = -18,
-	DONE       = 2
+	AGAIN      = -11,
+	DONE       = 1
 };
 
 // macros

@@ -4,7 +4,6 @@ static SSL_CTX * ctx_client = NULL;
 static SSL_CTX * ctx_server = NULL;
 static status ssl_write_handler( event_t * event );
 static status ssl_read_handler( event_t * event );
-static int32  ssl_con_index;
 static char g_err_msg[1024] = {0};
 
 
@@ -125,11 +124,11 @@ ssize_t ssl_read( connection_t * c, char * start, uint32 len )
 	}
 	else if( sslerr == SSL_ERROR_SYSCALL ) 
 	{
-		err(" ssl error, syserror [%d]\n", errno );
+		err("ssl error, syserror [%d]\n", errno );
 	} 
 	else 
 	{
-		err(" ssl error, [%s]\n", ERR_error_string(ERR_get_error(),g_err_msg ));
+		err("ssl error, [%s]\n", ERR_error_string(ERR_get_error(),g_err_msg ));
 	}
 	if ( sslerr == SSL_ERROR_ZERO_RETURN || ERR_peek_error() == 0 ) 
 	{
@@ -164,11 +163,11 @@ ssize_t ssl_write( connection_t * c, char * start, uint32 len )
 	}
 	else if( sslerr == SSL_ERROR_SYSCALL ) 
 	{
-		err(" ssl error, syserror [%d]\n", errno );
+		err("ssl error, syserror [%d]\n", errno );
 	}
 	else
 	{
-		err(" ssl error, [%s]\n", ERR_error_string(ERR_get_error(),g_err_msg ));
+		err("ssl error, [%s]\n", ERR_error_string(ERR_get_error(),g_err_msg ));
 	}
 	if ( sslerr == SSL_ERROR_ZERO_RETURN || ERR_peek_error() == 0 ) 
 	{
@@ -222,7 +221,6 @@ status ssl_client_ctx( SSL_CTX ** s )
 {
 	if( ctx_client == NULL ) 
 	{
-		err("================================================ ssl ctx new client\n");
 		ctx_client = SSL_CTX_new( SSLv23_client_method() );
 	}
 	*s = ctx_client;
@@ -265,8 +263,7 @@ status ssl_server_ctx( SSL_CTX ** s )
 
 status ssl_create_connection( connection_t * c, uint32 flag )
 {
-	ssl_connection_t * sc = NULL;
-	SSL_CTX * ctx;
+	ssl_connection_t * sslcon = NULL;
 	int rc = 0;
 
 	if ( (flag != L_SSL_CLIENT) && (flag != L_SSL_SERVER) ) 
@@ -274,62 +271,58 @@ status ssl_create_connection( connection_t * c, uint32 flag )
 		err(" flag not support\n" );
 		return ERROR;
 	}
-	
-	sc = (ssl_connection_t*)l_safe_malloc( sizeof(ssl_connection_t) );
-	if( !sc ) 
-	{
-		err ( " malloc ssl connection\n" );
-		return ERROR;
-	}
-	memset( sc, 0, sizeof(ssl_connection_t) );
-	if( flag == L_SSL_CLIENT ) 
-	{
-		rc = ssl_client_ctx( &ctx );
-	}
-	else
-	{
-		rc = ssl_server_ctx( &ctx );
-	}
-	if( rc != OK )
-	{
-		err("ssl ctx create failed\n");
-		return ERROR;
-	}
-	
-	sc->session_ctx = ctx;
-	sc->con = SSL_new( sc->session_ctx );
-	if( !sc->con ) 
-	{
-		err ( " SSL_new failed\n" );
-		l_safe_free( sc );
-		return ERROR;
-	}
-	sc->data = (void*)c;
 
-	if( SSL_set_fd( sc->con, c->fd ) == 0 ) 
+	do 
 	{
-		err ( " SSL_set_fd failed\n" );
-		SSL_free( sc->con );
-		l_safe_free( sc );
-		return ERROR;
+		sslcon = l_safe_malloc( sizeof(ssl_connection_t) );
+		if( !sslcon )
+		{
+			err("alloc sslcon failed, [%d]\n", errno );
+			return ERROR;
+		}
+		memset( sslcon, 0, sizeof(ssl_connection_t) );
+		
+		rc = ( (flag == L_SSL_CLIENT) ? ssl_client_ctx( &sslcon->session_ctx ) : ssl_server_ctx( &sslcon->session_ctx ) );
+		if( OK != OK )
+		{
+			err("ssl con ctx init failed\n");
+			break;
+		}
+
+		sslcon->con = SSL_new( sslcon->session_ctx );
+		if( NULL == sslcon->con )
+		{
+			err("ssl5 ssl new failed\n");
+			break;
+		}
+
+		if( 0 == SSL_set_fd( sslcon->con, c->fd ) )
+		{
+			err("ssl set fd failed\n");
+			break;
+		}
+		( flag == L_SSL_CLIENT ) ? SSL_set_connect_state( sslcon->con ) : SSL_set_accept_state( sslcon->con );
+
+		if( 0 == SSL_set_ex_data( sslcon->con, 0, c ) )
+		{
+			err("ssl set ext data failed\n");
+			break;
+		}
+		
+		c->ssl = sslcon;
+		sslcon->data = c;
+		return OK;
+	} while(0);
+
+	if( sslcon )
+	{
+		if( sslcon->con )
+		{
+			SSL_free( sslcon->con );
+		}
+		l_safe_free( sslcon );
 	}
-	if( flag == L_SSL_CLIENT ) 
-	{
-		SSL_set_connect_state( sc->con );
-	} 
-	else
-	{
-		SSL_set_accept_state( sc->con );
-	}
-	if( SSL_set_ex_data( sc->con, ssl_con_index, c ) == 0 ) 
-	{
-		err ( " SSL_set_ex_data failed\n" );
-		SSL_free( sc->con );
-		l_safe_free( sc );
-		return ERROR;
-	}
-	c->ssl = sc;
-	return OK;
+	return ERROR;
 }
 
 status ssl_init( void )

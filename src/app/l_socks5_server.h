@@ -9,16 +9,16 @@
 
 /* socks5 message type */
 enum socks5_private_auth_message_type {
-	SOCKS5_AUTH_REQ,
-	SOCKS5_AUTH_RESP
+	S5_AUTH_TYPE_REQ,
+	S5_AUTH_TYPE_RESP
 };
 /* scoks5 message status */
 enum socks5_private_auth_message_status {
-	SOCKS5_AUTH_SUCCESS,
-	SOCKS5_AUTH_MAGIC_FAIL,
-	SOCKS5_AUTH_TYPE_FAIL,
-	SOCKS5_AUTH_NO_USER,
-	SOCKS5_AUTH_PASSWD_FAIL
+	S5_AUTH_STAT_SUCCESS,
+	S5_AUTH_STAT_MAGIC_FAIL,
+	S5_AUTH_STAT_TYPE_FAIL,
+	S5_AUTH_STAT_NO_USER,
+	S5_AUTH_STAT_PASSWD_FAIL
 };
 
 typedef struct socks5_auth {
