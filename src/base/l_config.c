@@ -283,20 +283,24 @@ failed:
 	}
 	return rc;
 }
+
 status config_init ( void )
 {
 	memset( &conf, 0, sizeof(gobal_conf_t) );
 	conf.log.debug = 1;
 	conf.log.error = 1;
 
-	if( OK != config_start(  ) ) {
+	if( OK != config_start(  ) ) 
+	{
 		return ERROR;
 	}
 	return OK;
 }
+
 status config_end ( void )
 {
-	if( conf.meta ) {
+	if( conf.meta )
+	{
 		meta_free( conf.meta );
 	}
 	return OK;

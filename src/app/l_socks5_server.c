@@ -36,6 +36,7 @@ status socks5_cycle_free( socks5_cycle_t * cycle )
 	}
 	if( cycle->down ) 
 	{
+		debug("free down [%p]\n", cycle->down );
 		net_free( cycle->down );
 		cycle->down = NULL;
 	}
@@ -171,6 +172,10 @@ static status lks5_down_recv( event_t * ev )
 	meta_t * meta = down->meta;
 	ssize_t rc = 0;
 
+	debug("down [%p]\n", down );
+	debug("cycle [%p]\n", cycle );
+	debug("meta [%p]\n", meta );
+
 	timer_set_data( &ev->timer, (void*)cycle );
 	timer_set_pt( &ev->timer, socks5_timeout_cycle );
 	timer_add( &ev->timer, SOCKS5_TIME_OUT );
@@ -191,6 +196,7 @@ static status lks5_down_recv( event_t * ev )
 				break;
 			}
 			meta->last += rc;
+			debug("recv data [%d]\n", rc );
 		}
 	}
 	
@@ -244,9 +250,9 @@ static status lks5_up_send( event_t * ev )
 	}
 
 	meta->pos = meta->last = meta->start;
-	up->event.write_pt = NULL;
-	cycle->down->event.read_pt = lks5_down_recv;
-
+	up->event.write_pt 			= NULL;
+	cycle->down->event.read_pt 	= lks5_down_recv;
+	
 	return cycle->down->event.read_pt( &cycle->down->event );
 }
 
@@ -326,8 +332,8 @@ static status lks5_down_send( event_t * ev )
 	}
 
 	meta->pos = meta->last = meta->start;
-	down->event.write_pt = NULL;
-	cycle->up->event.read_pt = lks5_up_recv;
+	down->event.write_pt 		= NULL;
+	cycle->up->event.read_pt 	= lks5_up_recv;
 
 	return cycle->up->event.read_pt( &cycle->up->event );
 }

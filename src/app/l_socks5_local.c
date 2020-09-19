@@ -57,6 +57,7 @@ static status socks5_local_authorization_resp_recv( event_t * ev )
 			socks5_cycle_free( cycle );
 			return ERROR;
 		}
+		debug("auth resp recvd [%d]\n", rc );
 		up->meta->last += rc;
 	}
 	timer_del( &ev->timer );
@@ -81,7 +82,8 @@ static status socks5_local_authorization_req_send( event_t * ev )
 	else if ( rc == DONE )
 	{
 		timer_del( &ev->timer );
-		
+		debug("send auth req success\n");
+		memset( up->meta->data, 0, meta_len(up->meta->start, up->meta->end) );
 		up->meta->last = up->meta->pos = up->meta->start;
 		
 		ev->write_pt = NULL;
@@ -207,6 +209,8 @@ static status socks5_local_cycle_init( event_t * ev )
 	connection_t * down = ev->data;
 	socks5_cycle_t * cycle = NULL;
 	status rc;
+
+	timer_del( &ev->timer );
 
 	down->event.read_pt = NULL;
 	down->event.write_pt = NULL;

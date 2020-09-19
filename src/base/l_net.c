@@ -23,11 +23,16 @@ status l_socket_reuseaddr( int32 fd )
 
 status l_socket_fastopen( int32 fd )
 {
+#if(0)
+	/*
+	some arm platforms do not support this feature
+    */
 	int  tcp_fastopen = 1;
 	if( ERROR == setsockopt( fd, IPPROTO_TCP, TCP_FASTOPEN, (const void *) &tcp_fastopen, sizeof(tcp_fastopen)) ) {
 		err(" fastopen failed, [%d]\n", errno );
 		return ERROR;
 	}
+#endif
 	return OK;
 }
 
@@ -82,6 +87,9 @@ static status net_free_right_now( event_t * ev )
 	{
 		close( c->fd );
 		c->fd = 0;
+	}
+	if( c->event.f_active == 1 )
+	{
 		c->event.f_active = 0;
 	}
 
@@ -163,12 +171,14 @@ status net_init( void )
 	queue_init( &use );
 	
 	pool = ( connection_t *) l_safe_malloc ( sizeof(connection_t) * MAXCON );
-	if( !pool ) {
+	if( !pool ) 
+	{
 		err(" l_safe_malloc pool\n" );
 		return ERROR;
 	}
 	memset( pool, 0, sizeof(connection_t) * MAXCON );
-	for( i = 0; i < MAXCON; i ++ ) {
+	for( i = 0; i < MAXCON; i ++ ) 
+	{
 		pool[i].event.data = (void*)&pool[i];
 		queue_insert_tail( &usable, &pool[i].queue );
 	}

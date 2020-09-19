@@ -127,7 +127,7 @@ status meta_alloc( meta_t ** meta, uint32 size )
 	{
 		return ERROR;
 	}
-	memset( local_meta, 0, sizeof(meta_t) );
+	memset( local_meta, 0, sizeof(meta_t)+size );
 
 	t = (meta_t*)local_meta;
 	t->start 	= t->pos = t->last = t->data;

@@ -43,13 +43,14 @@
 
 
 // file paths
-#define 	L_PATH_PIDFILE			   "/usr/local/lks5/logs/pid"
-#define 	L_PATH_CONFIG			   "/usr/local/lks5/config/config.json"
-#define 	L_PATH_PERFTEMP			   "/usr/local/lks5/logs/l_perf"
-#define 	L_PATH_LOG_MAIN			   "/usr/local/lks5/logs/l_log"
-#define 	L_PATH_LOG_ACCESS		   "/usr/local/lks5/logs/l_access"
-#define 	L_PATH_UOLOAD_FILE		   "/usr/local/lks5/logs/l_upload_temp"
-#define 	L_OPEN_PORT_MAX			   64
+#define 	L_PATH_PREFIX				"/usr/local/lks5/"
+#define 	L_PATH_PIDFILE				L_PATH_PREFIX"logs/pid"
+#define 	L_PATH_CONFIG				L_PATH_PREFIX"config/config.json"
+#define 	L_PATH_PERFTEMP				L_PATH_PREFIX"logs/l_perf"
+#define 	L_PATH_LOG_MAIN				L_PATH_PREFIX"logs/l_log"
+#define 	L_PATH_LOG_ACCESS			L_PATH_PREFIX"logs/l_access"
+#define 	L_PATH_UOLOAD_FILE			L_PATH_PREFIX"logs/l_upload_temp"
+#define 	L_OPEN_PORT_MAX				64
 
 enum connection_type 
 {
