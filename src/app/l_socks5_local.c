@@ -35,6 +35,9 @@ static status socks5_local_authorization_resp_check( event_t * ev )
 		ev->write_pt	= socks5_pipe;
 		return ev->write_pt( ev );
 	} while(0);
+
+	socks5_cycle_free( cycle );
+	return ERROR;
 }
 
 static status socks5_local_authorization_resp_recv( event_t * ev )
