@@ -22,7 +22,6 @@ enum socks5_private_auth_message_status {
 };
 
 #pragma pack(push,1)
-
 typedef struct socks5_auth 
 {
 	int 		magic; 				// magic num filed
@@ -89,6 +88,9 @@ typedef struct socks5_cycle_t
 	net_transport_t * local2remote;
 	net_transport_t * remote2local;
 #else
+
+	
+
 	char down_recv_error;
 	char up_recv_error;
 #endif
@@ -102,7 +104,7 @@ status socks5_server_end( void );
 void socks5_timeout_cycle( void * data );
 void socks5_timeout_con( void * data );
 
-status socks5_cycle_free( socks5_cycle_t * cycle );
+status socks5_cycle_over( socks5_cycle_t * cycle );
 status socks5_pipe( event_t * ev );
 
 #endif

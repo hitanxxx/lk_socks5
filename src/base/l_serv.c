@@ -61,7 +61,7 @@ status serv_init( void )
 		return ERROR;
 	}
 
-	if( OK != l_mem_page_create( &g_page, 4096 ) )
+	if( OK != l_mem_page_create( &g_page, L_PAGE_DEFAULT_SIZE ) )
 	{
 		err("mem page create failed\n");
 		return ERROR;

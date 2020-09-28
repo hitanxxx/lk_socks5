@@ -1,42 +1,7 @@
 #include "l_base.h"
 
-status meta_file_alloc( meta_t ** meta, uint32 length )
-{
-	char * local_meta = NULL;
-	meta_t * t = NULL;
-
-	if( length <= 0 )
-	{
-		err("length <= 0");
-		return ERROR;
-	}
-	if( meta == NULL )
-	{
-		err("meta NULL\n");
-		return ERROR;
-	}
-
-	local_meta = (char*)l_safe_malloc( sizeof(meta_t) );
-	if( !local_meta ) 
-	{
-		return ERROR;
-	}
-	memset( local_meta, 0, sizeof(meta_t) );
-
-	t = (meta_t*)local_meta;
-	t->next 		= NULL;
-
-	t->file_flag 	= 1;
-	t->file_pos 	= 0;
-	t->file_last 	= length;
-
-	*meta = (meta_t*)local_meta;
-	return OK;
-}
-
 status meta_page_alloc ( l_mem_page_t * page, uint32 size, meta_t ** out )
 {
-	char * local_meta = NULL;
 	meta_t * t = NULL;
 
 	if( page == NULL )
@@ -50,25 +15,25 @@ status meta_page_alloc ( l_mem_page_t * page, uint32 size, meta_t ** out )
 		return ERROR;
 	}
 
-	local_meta = (char*)l_mem_alloc( page, sizeof(meta_t)+size );
-	if( !local_meta ) 
+	t = l_mem_alloc( page, sizeof(meta_t)+size );
+	if( NULL == t ) 
 	{
+		err("meta alloc failed\n");
 		return ERROR;
 	}
-	memset( local_meta, 0, sizeof(meta_t)+size );
+	memset( t, 0, sizeof(meta_t)+size );
 
-	t = (meta_t*)local_meta;
 	t->start 	= t->pos = t->last = t->data;
 	t->end 		= t->start + size;
 
-	*out = (meta_t*)local_meta;
+	*out = t;
 	return OK;
 }
 
 status meta_page_get_all( l_mem_page_t * page, meta_t * in, meta_t ** out )
 {
 	uint32 len = 0, part_len = 0;
-	meta_t *all = NULL, * cl = in;
+	meta_t *cl = in, *all = NULL;
 	char * p = NULL;
 
 	if( page == NULL )
@@ -89,10 +54,10 @@ status meta_page_get_all( l_mem_page_t * page, meta_t * in, meta_t ** out )
 	}
 	if( OK != meta_page_alloc( page, len, &all ) ) 
 	{
-		err(" alloc meta mem\n" );
+		err("meta alloc all failed\n" );
 		return ERROR;
 	}
-	p = all->data;
+	p = all->pos;
 	cl = in;
 	while( cl ) 
 	{
@@ -108,7 +73,6 @@ status meta_page_get_all( l_mem_page_t * page, meta_t * in, meta_t ** out )
 
 status meta_alloc( meta_t ** meta, uint32 size )
 {
-	char * local_meta = NULL;
 	meta_t * t = NULL;
 
 	if( size < 0 )
@@ -122,18 +86,17 @@ status meta_alloc( meta_t ** meta, uint32 size )
 		return ERROR;
 	}
 	
-	local_meta = (char*)l_safe_malloc( sizeof(meta_t)+size );
-	if( !local_meta ) 
+	t = l_safe_malloc( sizeof(meta_t)+size );
+	if( NULL == t ) 
 	{
 		return ERROR;
 	}
-	memset( local_meta, 0, sizeof(meta_t)+size );
-
-	t = (meta_t*)local_meta;
+	memset( t, 0, sizeof(meta_t)+size );
+	
 	t->start 	= t->pos = t->last = t->data;
 	t->end 		= t->start + size;
 
-	*meta = (meta_t*)local_meta;
+	*meta = t;
 	return OK;
 }
 

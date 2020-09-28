@@ -3,7 +3,7 @@
 #include "l_dns.h"
 #include "l_socks5_server.h"
 #include "l_socks5_local.h"
-#include "l_http_entitybody.h"
+#include "l_http_body.h"
 #include "l_http_request_head.h"
 #include "l_http_response_head.h"
 #include "l_webserver.h"
@@ -22,10 +22,10 @@ modules_init_t init_modules[] = {
 	{socks5_server_init,      socks5_server_end,      "socks5_serv"},	
 	{socks5_local_init,       socks5_local_end,       "socks5_local"},
 
-	{http_response_head_init_module,            http_response_head_end_module,      	  "http_response"},
-	{http_request_head_init_module,             http_request_head_end_module,      	 	  "http_request_head"},
-	{http_entitybody_init_module,               http_entitybody_end_module,      	 	  "http_entity_body"},
-	{webser_init,             webser_end,      	 	  "http"},
+	{http_response_head_init_module,            http_response_head_end_module,      	  "http_response_head"},
+	{http_request_head_init_module,             http_request_head_end_module,      	 	  "http_req_head"},
+	{http_body_init_module,               		http_body_end_module,      	 	  		  "http_body"},
+	{webser_init,             	webser_end,      	 	  "http"},
 	{NULL,	NULL,  NULL}
 };
 

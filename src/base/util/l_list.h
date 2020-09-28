@@ -2,14 +2,15 @@
 #define _L_LIST_H_INCLUDED_
 
 typedef struct mem_list_part_t mem_list_part_t;
-struct mem_list_part_t {
-	void * data;
-	mem_list_part_t * next;
+struct mem_list_part_t 
+{
+	mem_list_part_t 	*next;
+	char	 			data[0];
 };
-
-typedef struct mem_list_t {
-	uint32			elem_size;
-	uint32			elem_num;
+typedef struct mem_list_t 
+{
+	uint32				elem_size;
+	uint32				elem_num;
 	mem_list_part_t		*head;
 	mem_list_part_t 	*last;
 } mem_list_t;

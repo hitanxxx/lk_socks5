@@ -1,8 +1,5 @@
 #include "l_base.h"
 #include "l_module.h"
-#include "l_dns.h"
-#include "l_socks5_server.h"
-#include "l_socks5_local.h"
 #include "l_test.h"
 
 static char * g_opt_str = NULL;

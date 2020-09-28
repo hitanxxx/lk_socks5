@@ -882,7 +882,7 @@ status json_ctx_create( ljson_ctx_t ** json_ctx )
 	}
 	memset( new, 0, sizeof(ljson_ctx_t) );
 	
-	if( OK != l_mem_page_create( &new->page, 4096 ) ) {
+	if( OK != l_mem_page_create( &new->page, L_PAGE_DEFAULT_SIZE ) ) {
 		err(" l_mem_page_alloc json ctx page\n" );
 		return ERROR;
 	}

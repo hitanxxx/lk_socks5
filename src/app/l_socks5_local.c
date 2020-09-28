@@ -36,7 +36,7 @@ static status socks5_local_authorization_resp_check( event_t * ev )
 		return ev->write_pt( ev );
 	} while(0);
 
-	socks5_cycle_free( cycle );
+	socks5_cycle_over( cycle );
 	return ERROR;
 }
 
@@ -55,7 +55,7 @@ static status socks5_local_authorization_resp_recv( event_t * ev )
 			if( rc == ERROR )
 			{
 				err("s5 local authorization recv failed\n");
-				socks5_cycle_free( cycle );
+				socks5_cycle_over( cycle );
 				return ERROR;
 			}
 			timer_set_data( &ev->timer, cycle );
@@ -83,7 +83,7 @@ static status socks5_local_authorization_req_send( event_t * ev )
 		if( rc == ERROR )
 		{
 			err("s5 local send authorization data failed\n");
-			socks5_cycle_free( cycle );
+			socks5_cycle_over( cycle );
 			return ERROR;
 		}
 		timer_set_data( &ev->timer, cycle );
@@ -114,7 +114,7 @@ static status socks5_local_authorization_req_build( event_t * ev )
 		if( OK != meta_alloc( &up->meta, SOCKS5_META_LENGTH ) ) 
 		{
 			err("socks5 local auth begin up conn meta alloc\n" );
-			socks5_cycle_free( cycle );
+			socks5_cycle_over( cycle );
 			return ERROR;
 		}
 	}
@@ -139,7 +139,7 @@ static status socks5_local_server_connect_handshake( event_t * ev )
 	
 	if( !up->ssl->handshaked ) {
 		err(" handshake error\n" );
-		socks5_cycle_free( cycle );
+		socks5_cycle_over( cycle );
 		return ERROR;
 	}
 	timer_del( &ev->timer );
@@ -197,7 +197,7 @@ static status socks5_local_server_connect_check( event_t * ev )
 		return ev->write_pt( ev );
 	} while(0);
 
-	socks5_cycle_free( cycle );
+	socks5_cycle_over( cycle );
 	return ERROR;
 }
 
@@ -260,7 +260,7 @@ static status socks5_local_cycle_init( event_t * ev )
 		return cycle->up->event.write_pt( &cycle->up->event );
 	} while(0);
 
-	socks5_cycle_free( cycle );
+	socks5_cycle_over( cycle );
 	return ERROR;
 }
 

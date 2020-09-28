@@ -125,7 +125,13 @@ static status config_parse_http( ljson_node_t * json )
 		{
 			err("http need home\n");
 		}
-		strncpy( conf.http.home, home->name.data, (home->name.len <= sizeof(conf.http.home) ) ? home->name.len: sizeof(conf.http.home) );
+		if( home->name.len > FILEPATH_LENGTH )
+		{
+			err("config http home too long\n");
+			return ERROR;
+		}
+		if( home->name.data[home->name.len-1] == '/' ) home->name.len -= 1;
+		strncpy( conf.http.home, home->name.data, l_min( sizeof(conf.http.home), home->name.len ) );
 		
 		rc = json_get_obj_str( http_obj, "index", l_strlen("index"), &index );
 		if( OK != rc )

@@ -11,24 +11,25 @@
 
 typedef struct webser_t
 {
-	queue_t 			queue;
-	connection_t 		*c;
-	void * 				data;
+	queue_t 				queue;
+	connection_t 			*c;
+	void 					*data;
+	int32					type;
 
-	http_request_head_t *	request_head;
-	http_entitybody_t* 		request_body;
+	http_req_head_t 		*http_req_head;
+	http_body_t				*http_resp_body;
+	uint32 					http_resp_code;
+	
+	// api data
+	serv_api_handler		webapi_handler;
 
-	serv_api_handler	api_handler;
-
-	uint32 				filesize;
-	uint32 				re_status;
-	char				filepath[WEBSER_LENGTH_PATH_STR];
-
-	int32				ffd;
-	meta_t				*response_head;
-	meta_t				*response_body;
-
-	//upstream_t * 		upstream;
+	// static file data
+	int32					filefd;
+	string_t*				file_mime;
+	int32 					filelen, filesend, filecur;
+	
+	meta_t					*response_head;
+	meta_t					*response_body;
 } webser_t;
 
 typedef struct mime_type_t
@@ -37,18 +38,9 @@ typedef struct mime_type_t
 	string_t		header;
 } mime_type_t;
 
-status webser_set_mimetype( webser_t * webserwebser, char * str, uint32 length );
-status webser_entity_head( webser_t * webser );
-status webser_response( event_t * ev );
-status webser_over( webser_t * webser );
+status webser_process_request_body( event_t * ev );
 
 status webser_init( void );
 status webser_end( void );
-
-status webser_process_request_body( event_t * ev );
-
-
-status webser_process_init( void );
-status webser_process_end( void );
 
 #endif

@@ -67,9 +67,6 @@ enum http_process_status
 	HTTP_METHOD_PUT,
 	HTTP_METHOD_DELETE,
 	HTTP_METHOD_CONNECT,
-
-	HTTP_PARSE_HEADER_DONE = 18,
-	HTTP_PARSE_INVALID_HEADER
 };
 
 enum http_body_type
@@ -86,9 +83,15 @@ enum http_body_stat
 	HTTP_BODY_STAT_DONE_CACHENO,
 };
 
+/* webser type */
+enum webser_type 
+{
+	WEBSER_API = 1,
+	WEBSER_STATIC,
+};
 
 /* scoks5 module run model */
-enum socks5_module_run_model {
+enum socks5_type {
 	SOCKS5_SERVER,
 	SOCKS5_CLIENT
 };
@@ -96,7 +99,7 @@ enum socks5_module_run_model {
 // limits
 enum limit_value {
 	IPV4_LENGTH       =	16,
-	FILEPATH_LENGTH   =	64,
+	FILEPATH_LENGTH   =	256,
 	PASSWD_LENGTH     = 32,
 	USERNAME_LENGTH   =	32,
 	DOMAIN_LENGTH     =	64
