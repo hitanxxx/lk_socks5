@@ -5,10 +5,13 @@
 #include "l_webserver.h"
 #include "l_webapi.h"
 
-// private data
-static queue_t 	g_queue_use;
-static queue_t 	g_queue_usable;
-static webser_t * g_pool = NULL;
+typedef struct private_webser
+{
+    queue_t     g_queue_use;
+    queue_t     g_queue_usable;
+    webser_t    g_pool[0];
+} private_webser_t;
+static private_webser_t * this = NULL;
 
 static mime_type_t mimetype_table[] =
 {
@@ -29,10 +32,9 @@ static mime_type_t mimetype_table[] =
 
 static status webser_cycle_init( event_t * ev );
 
-static string_t * webser_get_mimetype( char * str, int len )
+static string_t * webser_get_mimetype( unsigned char * str, int len )
 {
-	uint32 i;
-
+    uint32 i;
 	for( i =0; i < sizeof(mimetype_table)/sizeof(mime_type_t); i ++ ) 
 	{
 		if( NULL != l_find_str( str, len, mimetype_table[i].type.data, mimetype_table[i].type.len ) ) 
@@ -49,14 +51,14 @@ static status webser_alloc( webser_t ** webser )
 	webser_t * new;
 	queue_t * q;
 
-	if( 1 == queue_empty( &g_queue_usable ) ) 
+	if( 1 == queue_empty( &this->g_queue_usable ) )
 	{
 		err("webser have't usbale\n");
 		return ERROR;
 	}
-	q = queue_head( &g_queue_usable );
+	q = queue_head( &this->g_queue_usable );
 	queue_remove( q );
-	queue_insert_tail( &g_queue_use, q );
+	queue_insert_tail( &this->g_queue_use, q );
 	new = l_get_struct( q, webser_t, queue );
 	*webser = new;
 	return OK;
@@ -89,7 +91,6 @@ static status webser_free( webser_t * webser )
 	webser->file_mime  		= NULL;
 	webser->filelen			= 0;
 	webser->filesend		= 0;
-	webser->filecur			= 0;
 	
 	meta = webser->response_head;
 	while( meta )
@@ -107,10 +108,9 @@ static status webser_free( webser_t * webser )
 	}
 
 	queue_remove( &webser->queue );
-	queue_insert_tail( &g_queue_usable, &webser->queue );
+	queue_insert_tail( &this->g_queue_usable, &webser->queue );
 	return OK;
 }
-
 
 static status webser_over( webser_t * webser )
 {
@@ -119,36 +119,35 @@ static status webser_over( webser_t * webser )
 	return OK;
 }
 
-static inline void webser_timeout_con( void * data )
+inline static void webser_timeout_con( void * data )
 {
 	net_free( (connection_t*)data );
 }
 
-static inline void webser_timeout_cycle( void * data )
+inline static void webser_timeout_cycle( void * data )
 {
 	webser_over( (webser_t*)data );
 }
 
 static status webser_keepalive( event_t * ev )
 {
-	int32 rc;
-	int32 remain = 0;
 	connection_t* c = ev->data;
 	webser_t * webser = c->data;
-
-	if( webser->http_req_head->content_type == HTTP_BODY_TYPE_NULL )
-	{
-		remain = meta_len( c->meta->pos, c->meta->last );
-		if( remain ) 
-		{
-			memcpy( c->meta->start, c->meta->pos, remain );
-		}
-	}
-	c->meta->last = c->meta->pos = c->meta->start + remain;
+    uint32 remain = meta_len( c->meta->pos, c->meta->last );
+    
+    if( remain )
+    {
+        debug("keep alive remain [%.*s]\n", remain, c->meta->pos );
+        memcpy( c->meta->start, c->meta->pos, remain );
+        c->meta->pos    = c->meta->start;
+        c->meta->last   = c->meta->pos + remain;
+    }
+    
 	webser_free( webser );
 
 	ev->write_pt 	= NULL;
 	ev->read_pt 	= webser_cycle_init;
+	event_opt( ev, c->fd, EV_R );
 	return ev->read_pt( ev );
 }
 
@@ -158,7 +157,7 @@ static status webser_resp_send_body( event_t * ev )
 	connection_t * c = ev->data;
 	webser_t * webser = c->data;
 	status rc = 0;
-	int32 unfinish = 0, len = 0;
+	uint32 len = 0;
 
 	do
 	{
@@ -179,26 +178,23 @@ static status webser_resp_send_body( event_t * ev )
 
 		if( webser->type == WEBSER_STATIC )
 		{
-			webser->filesend += webser->filecur;
-			unfinish = webser->filelen - webser->filesend;
-			if( unfinish <= 0 )
-			{
-				break;
-			}
+			ssize_t size = 0, unfinish = webser->filelen - webser->filesend;
+			if( unfinish <= 0 )break;
 
 			timer_add( &ev->timer, WEBSER_TIMEOUT );
 			webser->response_body->pos = webser->response_body->last = webser->response_body->start;
-			len = l_min( unfinish, meta_len( webser->response_body->start, webser->response_body->end) );
+			len = (uint32)l_min( unfinish, meta_len( webser->response_body->last, webser->response_body->end) );
 			
-			rc = read( webser->filefd, webser->response_body->last, len );
-			if( rc <= 0 )
+			size = read( webser->filefd, webser->response_body->last, len );
+			if( size <= 0 )
 			{
 				err("webser read request file, errno [%d]\n", errno );
 				webser_over( webser );
 				return ERROR;
 			}
-			webser->response_body->last += rc;
-			webser->filecur = rc;
+			webser->response_body->last += size;
+            webser->filesend            += size;
+            continue;
 		}
 	}
 	while (0);
@@ -206,11 +202,9 @@ static status webser_resp_send_body( event_t * ev )
 	timer_del( &ev->timer );
 	if( webser->http_req_head->keepalive == 1 )
 	{
-		debug("webser http resp body send success, keepalive\n");
 		ev->write_pt = webser_keepalive;
 		return ev->write_pt( ev );
 	}
-	debug("webser http resp body send success, conn close\n");
 	return webser_over( webser );
 }
 
@@ -218,7 +212,7 @@ static status webser_resp_send_head( event_t * ev )
 {
 	connection_t * c = ev->data;
 	webser_t * webser = c->data;
-	status rc;
+	status rc = 0;
 
 	rc = c->send_chain( c, webser->response_head );
 	if( rc < 0 )
@@ -234,14 +228,11 @@ static status webser_resp_send_head( event_t * ev )
 		timer_add( &ev->timer, WEBSER_TIMEOUT );
 		return AGAIN;
 	}
-
 	timer_del( &ev->timer );
-	debug("webser http resp head send success\n");
 	
 	ev->write_pt	= webser_resp_send_body;
 	return ev->write_pt( ev );
 }
-
 
 static status webser_request_try_read( event_t * ev  )
 {
@@ -259,23 +250,20 @@ static status webser_request_try_read( event_t * ev  )
 
 status webser_response( event_t * ev )
 {
-	connection_t* c = ev->data;
-	webser_t * webser = c->data;
-	meta_t * cl;
-
-	c->event.read_pt   = webser_request_try_read;
-	c->event.write_pt  = webser_resp_send_head;
-	event_opt( ev, c->fd, EV_W );
+    connection_t * c = ev->data;
+    ev->read_pt   = webser_request_try_read;
+	ev->write_pt  = webser_resp_send_head;
+	event_opt( ev, c->fd, EV_R|EV_W );
 	return ev->write_pt( ev );
 }
 
 static status webser_process_resp_body_static_file_build( webser_t * webser )
 {
 	uint32 len = 0;
-	int32 rc = 0;
-	int32 unfinish = webser->filelen - webser->filesend;
+	ssize_t rc = 0;
+	ssize_t unfinish = webser->filelen - webser->filesend;
 
-	len = l_min( unfinish, WEBSER_BODY_META_LENGTH );
+	len = (uint32)l_min( unfinish, WEBSER_BODY_META_LENGTH );
 	if( OK != meta_alloc( &webser->response_body, len ) ) 
 	{
 		err("webser resp body meta alloc\n");
@@ -287,8 +275,8 @@ static status webser_process_resp_body_static_file_build( webser_t * webser )
 		err("webser read request file, errno [%d]\n", errno );
 		return ERROR;
 	}
-	webser->response_body->last += rc;
-	webser->filecur = rc;
+	webser->response_body->last     += rc;
+    webser->filesend                += rc;
 	return OK;
 }
 
@@ -296,7 +284,7 @@ status webser_process_resp_head_build( webser_t * webser )
 {
 	char content_len_str[1024] = {0};
 	uint32 head_len = 0, cur_len = 0;
-	char * ptr;
+	char * ptr = NULL;
 
 	switch( webser->http_resp_code )
 	{
@@ -322,7 +310,7 @@ status webser_process_resp_head_build( webser_t * webser )
 
 	if( webser->filelen > 0 )
 	{
-		head_len += snprintf( content_len_str, sizeof(content_len_str), "Content-Length: %d\r\n", webser->filelen );
+		head_len += snprintf( content_len_str, sizeof(content_len_str), "Content-Length: %d\r\n", (uint32)webser->filelen );
 		head_len += webser->file_mime->len;
 	}
 	head_len += l_strlen("Server: LKweb_V1.0\r\n");
@@ -339,13 +327,13 @@ status webser_process_resp_head_build( webser_t * webser )
 	head_len += l_strlen("\r\n");
 
 
-	if( OK != meta_alloc( &webser->response_head, head_len ) ) 
+	if( OK != meta_alloc( &webser->response_head, head_len+1 ) ) 
 	{
 		err("webser build resp head all meta failed\n");
 		return ERROR;
 	}
 	
-	ptr = webser->response_head->data;
+	ptr = (char*)webser->response_head->start;
 	switch( webser->http_resp_code )
 	{
 		case 200:
@@ -379,7 +367,7 @@ status webser_process_resp_head_build( webser_t * webser )
 		strcpy( ptr+cur_len, content_len_str );
 		cur_len += l_strlen(content_len_str);
 
-		strncpy( ptr+cur_len, webser->file_mime->data, webser->file_mime->len );
+		memcpy( ptr+cur_len, webser->file_mime->data, webser->file_mime->len );
 		cur_len += webser->file_mime->len;
 	}
 	strcpy( ptr+cur_len, "Server: LKweb_V1.0\r\n" );
@@ -442,7 +430,8 @@ static void webser_process_req_static_file_path( webser_t *webser, char * path, 
 
 	len += snprintf( ptr+len, str_len-len, "%s", conf.http.home );
 	len += snprintf( ptr+len, str_len-len, "%.*s", webser->http_req_head->uri.len, webser->http_req_head->uri.data );
-	if( webser->http_req_head->uri.data[webser->http_req_head->uri.len-1] == '/' )
+    // if url is a dir, need to add index path
+    if( webser->http_req_head->uri.data[webser->http_req_head->uri.len-1] == '/' )
 	{
 		len += snprintf( ptr+len, str_len-len, "%s", conf.http.index );
 	}
@@ -455,7 +444,7 @@ static void webser_process_req_static_file_check ( webser_t * webser )
 	char local_path[WEBSER_LENGTH_PATH_STR] = {0};
 
 	webser_process_req_static_file_path( webser, local_path, WEBSER_LENGTH_PATH_STR );
-	webser->file_mime = webser_get_mimetype( local_path, l_strlen(local_path) );
+	webser->file_mime = webser_get_mimetype( (unsigned char*)local_path, l_strlen(local_path) );
 	
 	do 
 	{
@@ -486,11 +475,10 @@ static void webser_process_req_static_file_check ( webser_t * webser )
 				break;
 			}
 		}
-		
-		webser->http_resp_code = code;
-		webser->filelen = ( code == 200 ) ? st.st_size : 0;
+		webser->http_resp_code  = code;
+		webser->filelen         = ( code == 200 ) ? st.st_size : 0;
+        webser->filesend        = 0;
 	} while(0);
-
 	return;
 }
 
@@ -512,12 +500,11 @@ static status webser_process_req_static_file ( event_t * ev )
 		webser->http_resp_body->content_length 	= webser->http_req_head->content_length;
 		webser->http_resp_body->callback 		= webser_process_req_static_file;
 		
-		c->event.read_pt = webser_process_req_body;
-		return c->event.read_pt( ev );
+		c->event->read_pt = webser_process_req_body;
+		return c->event->read_pt( ev );
 	}
 
 	webser_process_req_static_file_check( webser );
-	
 	if( OK != webser_process_resp_head_build( webser ) ) 
 	{
 		err("webser resp head build failed\n");
@@ -587,7 +574,7 @@ static status webser_process_http_req_header( event_t * ev )
 {
 	connection_t * c = ev->data;
 	webser_t * webser = c->data;
-	status rc;
+	status rc = 0;
 
 	rc = webser->http_req_head->handler.process( webser->http_req_head );
 	if( rc < 0 )
@@ -603,7 +590,6 @@ static status webser_process_http_req_header( event_t * ev )
 		timer_add( &ev->timer, WEBSER_TIMEOUT );
 		return AGAIN;
 	}
-
 	timer_del( &ev->timer );
 
 	ev->read_pt	= webser_process_req_routing;
@@ -613,35 +599,35 @@ static status webser_process_http_req_header( event_t * ev )
 static status webser_cycle_init( event_t * ev )
 {
 	connection_t * c = ev->data;
-	webser_t * local_webser;
+	webser_t * webser = NULL;
 
 	if( NULL == c->meta ) 
 	{
 		if( OK != meta_alloc( &c->meta, WEBSER_REQ_META_LEN ) ) 
 		{
-			err("webser con meta alloc failed\n");
+			err("webser alloc con meta failed\n");
 			net_free( c );
 			return ERROR;
 		}
 	}
-	if( OK != webser_alloc( &local_webser ) ) 
+	if( OK != webser_alloc( &webser ) )
 	{
 		err( "webser alloc webser failed\n");
 		net_free(c);
 		return ERROR;
 	}
-	local_webser->c = c;
-	c->data = local_webser;
+	webser->c   = c;
+	c->data     = webser;
 	
-	if( OK != http_request_head_create( c, &local_webser->http_req_head ) ) 
+	if( OK != http_request_head_create( c, &webser->http_req_head ) )
 	{
 		err("webser alloc request head failed\n");
-		webser_over( local_webser );
+		webser_over( webser );
 		return ERROR;
 	}
-	c->event.write_pt 	= NULL;
-	c->event.read_pt  	= webser_process_http_req_header;
-	return c->event.read_pt( ev );
+	ev->write_pt 	= NULL;
+	ev->read_pt  	= webser_process_http_req_header;
+	return ev->read_pt( ev );
 }
 
 static status webset_accept_callback_ssl( event_t * ev )
@@ -654,23 +640,22 @@ static status webset_accept_callback_ssl( event_t * ev )
 		net_free( c );
 		return ERROR;
 	}
-	timer_del( &c->event.timer );
+	timer_del( &c->event->timer );
 	c->recv 			= ssl_read;
 	c->send 			= ssl_write;
 	c->recv_chain 		= NULL;
 	c->send_chain 		= ssl_write_chain;
 
-	c->event.write_pt 	= NULL;
-	c->event.read_pt  	= webser_cycle_init;
-	return c->event.read_pt( ev );
+	ev->write_pt 	    = NULL;
+	ev->read_pt  	    = webser_cycle_init;
+	return ev->read_pt( ev );
 }
 
 static status webser_accept_callback( event_t * ev )
 {
 	connection_t * c = ev->data;
-	status rc;
+	status rc = 0;
 
-	debug("webser accept new client\n");
 	do 
 	{
 		if( 1 == c->ssl_flag )
@@ -698,7 +683,6 @@ static status webser_accept_callback( event_t * ev )
 		}
 		ev->read_pt = webser_cycle_init;
 		return ev->read_pt( ev );
-	
 	} while(0);
 
 	net_free( c );
@@ -718,30 +702,34 @@ status webser_init( void )
 		listen_add( conf.http.ssl_ports[i], webser_accept_callback, L_SSL );
 	}
 	
-	queue_init( &g_queue_use );
-	queue_init( &g_queue_usable );
-	g_pool = ( webser_t *) l_safe_malloc( sizeof(webser_t) * MAXCON );
-	if( !g_pool ) 
+    if( this )
+    {
+        err("webser init this not empty\n");
+        return ERROR;
+    }
+    this = l_safe_malloc(sizeof(private_webser_t)+MAX_NET_CON*sizeof(webser_t));
+    if( !this )
+    {
+        err("webser alloc this failed, [%d]\n", errno );
+        return ERROR;
+    }
+    memset(this, 0, sizeof(private_webser_t)+MAX_NET_CON*sizeof(webser_t));
+    
+	queue_init( &this->g_queue_use );
+	queue_init( &this->g_queue_usable );
+	for( i = 0; i < MAX_NET_CON; i ++ ) 
 	{
-		err("webser malloc pool failed, [%d]\n", errno );
-		return ERROR;
+		queue_insert_tail( &this->g_queue_usable, &this->g_pool[i].queue );
 	}
-	memset( g_pool, 0, sizeof(webser_t) * MAXCON );
-	for( i = 0; i < MAXCON; i ++ ) 
-	{
-		queue_insert_tail( &g_queue_usable, &g_pool[i].queue );
-	}
-
 	webapi_init();
 	return OK;
 }
 
 status webser_end( void )
 {
-	if( g_pool ) 
+	if( this )
 	{
-		l_safe_free( g_pool );
-		g_pool = NULL;
+		l_safe_free( this );
 	}
 	return OK;
 }
