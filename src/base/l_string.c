@@ -33,9 +33,9 @@ static uint32 l_pow( uint32 x, uint32 pow )
 	return rc;
 }
 // l_find_str -------------------
-char * l_find_str( char * str, uint32 str_length, char * find, uint32 find_length )
+unsigned char * l_find_str( unsigned char * str, uint32 str_length, unsigned char * find, uint32 find_length )
 {
-    char * p, * s;
+    unsigned char * p, * s;
     uint32 i, j;
 
 	if( str_length < 1 || find_length < 1 ) {
@@ -58,9 +58,9 @@ char * l_find_str( char * str, uint32 str_length, char * find, uint32 find_lengt
     return NULL;
 }
 // l_atoi --------------------
-status l_atoi( char * str, uint32 length, int32 * num )
+status l_atoi( unsigned char * str, uint32 length, int32 * num )
 {
-	char * p;
+	unsigned char * p;
 	uint32 minus = 0;
 	int32 rc = 0;
 
@@ -84,9 +84,9 @@ status l_atoi( char * str, uint32 length, int32 * num )
 	return OK;
 }
 // l_atof --------------------------
-status l_atof( char * str, uint32 length, float * num )
+status l_atof( unsigned char * str, uint32 length, float * num )
 {
-	char * p;
+	unsigned char * p;
 	uint32 minus = 0, pow = 1;
 	float interge_rc = 0;
 	float decimal_rc = 0;
@@ -131,7 +131,7 @@ status l_atof( char * str, uint32 length, float * num )
 		}
 		if( state == interge ) {
 			if( *p == '.' ) {
-				interge_str.len = (uint32)( p - interge_str.data );
+                interge_str.len = meta_len( interge_str.data, p );
 				state = point;
 				continue;
 			} else if ( '0' <= *p && *p <= '9' ) {
@@ -158,10 +158,10 @@ status l_atof( char * str, uint32 length, float * num )
 		}
 	}
 	if( decimal_str.data ) {
-		decimal_str.len = (uint32)(p - decimal_str.data);
+        decimal_str.len = meta_len( decimal_str.data, p );
 	} else {
 		if( interge_str.data ) {
-			interge_str.len = (uint32)(p - interge_str.data);
+            interge_str.len = meta_len( interge_str.data, p );
 		} else {
 			return ERROR;
 		}
@@ -186,9 +186,9 @@ status l_atof( char * str, uint32 length, float * num )
 }
 
 // l_hex2dec -------
-status l_hex2dec( char * str, uint32 length, int32 * num )
+status l_hex2dec( unsigned char * str, uint32 length, int32 * num )
 {
-	char * p;
+	unsigned char * p;
 	string_t num_string = string_null;
 	uint32 minus = 0;
 	int32  rc = 0;
@@ -278,7 +278,7 @@ status l_hex2dec( char * str, uint32 length, int32 * num )
 		}
 	}
 	if( num_string.data ) {
-		num_string.len = (uint32)( p - num_string.data );
+        num_string.len = meta_len( num_string.data, p );
 	} else {
 		return ERROR;
 	}
@@ -293,7 +293,7 @@ status l_hex2dec( char * str, uint32 length, int32 * num )
 	return OK;
 }
 // l_strncmp_cap ---------
-status l_strncmp_cap( char * src, uint32 src_length, char * dst, uint32 dst_length )
+status l_strncmp_cap( unsigned char * src, uint32 src_length, unsigned char * dst, uint32 dst_length )
 {
 	uint32 i = 0;
 

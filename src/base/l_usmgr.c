@@ -13,7 +13,7 @@ status user_find( string_t * name, user_t ** user )
 	for( q = queue_head( &g_users ); q != queue_tail( &g_users ); q = queue_next(q) )
 	{
 		t = l_get_struct( q, user_t, queue );
-		if( t && strncmp( t->name, name->data, name->len ) == 0 && l_strlen(t->name) == name->len )
+		if( t && memcmp( t->name, name->data, name->len ) == 0 && l_strlen(t->name) == name->len )
 		{
 			if( user )
 			{
@@ -37,8 +37,8 @@ status user_add( string_t * name, string_t * passwd )
 	}
 	memset( user, 0, sizeof(user_t) );
 
-	strncpy( user->name, name->data, name->len );
-	strncpy( user->passwd, passwd->data, passwd->len );
+	memcpy( user->name, name->data, name->len );
+	memcpy( user->passwd, passwd->data, passwd->len );
 	queue_insert_tail( &g_users, &user->queue );
 
 #if(1)
@@ -52,7 +52,6 @@ status user_add( string_t * name, string_t * passwd )
 		debug("queue show [%s] --- [%s]\n", t->name, t->passwd );
 	}
 #endif
-
 	return OK;
 }
 

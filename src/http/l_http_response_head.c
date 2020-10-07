@@ -17,7 +17,8 @@ static status http_response_head_recv( http_response_head_t * response  )
 	rc = response->c->recv( response->c, response->c->meta->last, meta_len( response->c->meta->last, response->c->meta->end ) );
 	if( rc < 0 )
 	{
-		return rc;
+        if( ERROR == rc ) return ERROR;
+        return AGAIN;
 	}
 	response->c->meta->last += rc;
 	return OK;
@@ -25,7 +26,7 @@ static status http_response_head_recv( http_response_head_t * response  )
 
 static status http_response_head_parse_header_line( http_response_head_t * response, meta_t * meta )
 {
-	char *p = NULL;
+	unsigned char *p = NULL;
 
 	enum {
 		s_start = 0,
@@ -37,7 +38,7 @@ static status http_response_head_parse_header_line( http_response_head_t * respo
 	} state;
 
 	state = response->state;
-	for( p = (char*)meta->pos; p < (char*)meta->last; p ++ ) 
+	for( p = meta->pos; p < meta->last; p ++ )
 	{
 		switch( state ) 
 		{
@@ -122,7 +123,7 @@ header_done:
 
 static int32 http_response_head_parse_response_line( http_response_head_t * response, meta_t * meta )
 {
-	char * p = NULL;
+	unsigned char * p = NULL;
 
 	enum {
 		start,
@@ -142,7 +143,7 @@ static int32 http_response_head_parse_response_line( http_response_head_t * resp
 	//  http_version http_status_code http_string
 	
 	state = response->state;
-	for( p=(char*)meta->pos; p < (char*)meta->last; p++ ) 
+	for( p= meta->pos; p < meta->last; p++ )
 	{
 		switch( state ) 
 		{
@@ -277,11 +278,11 @@ static int32 http_response_head_parse_response_line( http_response_head_t * resp
 				break;
 		}
 	}
-	meta->pos = p+1;
+	meta->pos = (unsigned char*)(p+1);
 	response->state = state;
 	return AGAIN;
 done:
-	meta->pos = p+1;
+	meta->pos = (unsigned char*)(p+1);
 	return DONE;
 }
 
@@ -486,14 +487,14 @@ status http_response_head_init_module ( void )
 	queue_init( &in_use );
 	queue_init( &usable );
 
-	pool = (http_response_head_t*)l_safe_malloc( sizeof(http_response_head_t)* MAXCON );
+	pool = (http_response_head_t*)l_safe_malloc( sizeof(http_response_head_t)* MAX_NET_CON );
 	if( !pool ) 
 	{
 		err( " l_safe_malloc pool\n" );
 		return ERROR;
 	}
-	memset( pool, 0, sizeof(http_response_head_t)*MAXCON );
-	for( i = 0; i < MAXCON; i ++ )
+	memset( pool, 0, sizeof(http_response_head_t)*MAX_NET_CON );
+	for( i = 0; i < MAX_NET_CON; i ++ )
 	{
 		queue_insert_tail( &usable, &pool[i].queue );
 	}

@@ -1,43 +1,44 @@
 #ifndef _L_MACRO_H_INCLUDED_
 #define _L_MACRO_H_INCLUDED_
 
+//#define EVENT_EPOLL
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/wait.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <netinet/in.h>
-#include <limits.h>
-#include <signal.h>
-#include <semaphore.h>
-#include <fcntl.h>
-#include <sys/select.h>
-#include <malloc.h>
-#include <errno.h>
-#include <sys/un.h>
-#include <pthread.h>
-#include <sys/stat.h>
-#include <dirent.h>
-#include <sys/epoll.h>
-#include <sys/timerfd.h>
-#include <sys/mman.h>
-#include <sys/uio.h>
+#include <math.h>
+#include <ctype.h>
 #include <assert.h>
 #include <stdint.h>
 #include <stdarg.h>
 #include <stdlib.h>
-#include <netinet/in.h>
-#include <netdb.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <limits.h>
+#include <signal.h>
+#include <sys/malloc.h>
+#include <errno.h>
+#include <semaphore.h>
+#include <pthread.h>
+#include <dirent.h>
+#include <sys/wait.h>
+#include <sys/types.h>
+#include <sys/un.h>
+#include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <sys/time.h>
-#include <arpa/inet.h>
-#include <math.h>
-#include <ctype.h>
+#if defined(EVENT_EPOLL)
+#include <sys/epoll.h>
+#else
+#include <sys/select.h>
+#endif
+#include <sys/mman.h>
+#include <netinet/in.h>
+#include <netinet/in.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
-#include <sys/sendfile.h>
+#include <netdb.h>
+#include <arpa/inet.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
@@ -113,29 +114,29 @@ enum status_value {
 	DONE       = 1
 };
 
+// types
+typedef char                    byte;
+typedef int32_t                 int32;
+typedef int32_t                 status;
+typedef uint32_t                uint32;
+typedef volatile uint32         l_atomic_t;
+typedef struct l_connection_t   connection_t;
+
 // macros
-#define l_abs(x)                          (((x)>=0)?(x):(-(x)))
-#define l_unused( x )                     ((void)x)
-#define l_safe_free( x )                  (free(x))
-#define l_safe_malloc( len )              (malloc((size_t)(len)))
-#define l_strlen( str )                   ((uint32)strlen( str ))
-#define l_min( x, y )                     ( (x<y) ? x : y )
-#define l_max( x, y )                     ( (x>y) ? x : y )
-#define l_memcpy( dst, src, len )         ( memcpy((char*)dst, (char*)src, (size_t)len) );
+#define l_abs(x)                            (((x)>=0)?(x):(-(x)))
+#define l_unused(x)                         ((void)x)
+#define l_safe_free(x)                      (free(x))
+#define l_safe_malloc(len)                  (malloc((uint32)(len)))
+#define l_strlen(str)                       ((uint32)strlen(str))
+#define l_min(x,y)                          ((x<y)?x:y)
+#define l_max(x,y)                          ((x>y)?x:y)
+#define meta_len(start,end)                 ((uint32)l_max(0,((unsigned char*)end-(unsigned char*)start)))
 
 #define l_get_struct( ptr, struct_type, struct_member ) \
 (\
     (struct_type *)\
-    ( ((char*)ptr) - offsetof( struct_type, struct_member ) )\
+    (((unsigned char*)ptr)-offsetof(struct_type,struct_member))\
 )
 
-// types
-typedef char                  byte;
-typedef int32_t               int32;
-typedef uint32_t              uint32;
-typedef int32_t               status;
-typedef volatile uint32       l_atomic_t;
-
-typedef struct l_connection_t connection_t;
 
 #endif

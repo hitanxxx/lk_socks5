@@ -1,6 +1,6 @@
 #include "l_base.h"
 
-ssize_t udp_recvs( connection_t * c, char * start, uint32 len )
+ssize_t udp_recvs( connection_t * c, unsigned char * start, uint32 len )
 {
 	ssize_t rc;
 	socklen_t socklen = sizeof(c->addr);
@@ -23,14 +23,15 @@ ssize_t udp_recvs( connection_t * c, char * start, uint32 len )
 		}
 		else if ( rc == 0 )
 		{
-			err("peer closed\n");
+			err("udp recv, peer closed\n");
 			return ERROR;
 		}
 		return rc;
 	}while(0);
+	return ERROR;
 }
 
-ssize_t recvs( connection_t * c, char * start, uint32 len )
+ssize_t recvs( connection_t * c, unsigned char * start, uint32 len )
 {
 	ssize_t rc;
 
@@ -52,14 +53,15 @@ ssize_t recvs( connection_t * c, char * start, uint32 len )
 		}
 		else if ( rc == 0 )
 		{
-			err("peer closed\n");
+			err("recv, peer closed\n");
 			return ERROR;
 		}
 		return rc;
 	} while(0);
+	return ERROR;
 }
 
-ssize_t udp_sends( connection_t * c, char * start, uint32 len )
+ssize_t udp_sends( connection_t * c, unsigned char * start, uint32 len )
 {
 	ssize_t rc;
 	socklen_t socklen = sizeof(struct sockaddr);
@@ -82,9 +84,10 @@ ssize_t udp_sends( connection_t * c, char * start, uint32 len )
 		}
 		return rc;
 	} while(0);
+	return ERROR;
 }
 
-ssize_t sends( connection_t * c, char * start, uint32 len )
+ssize_t sends( connection_t * c, unsigned char * start, uint32 len )
 {
 	ssize_t rc;
 
@@ -112,6 +115,7 @@ ssize_t sends( connection_t * c, char * start, uint32 len )
 		}
 		return rc;
 	} while(0);
+	return ERROR;
 }
 
 inline static status send_chains_meta_need_send( meta_t * meta )
@@ -122,7 +126,7 @@ inline static status send_chains_meta_need_send( meta_t * meta )
 status send_chains( connection_t * c, meta_t * head )
 {
 	meta_t * cur = NULL;
-	status rc = 0;
+	ssize_t size = 0;
 
 	while(1)
 	{
@@ -138,12 +142,12 @@ status send_chains( connection_t * c, meta_t * head )
 			return DONE;
 		}
 		
-		rc = sends( c, cur->pos, meta_len( cur->pos, cur->last ) );
-		if( rc < 0 )
+		size = sends( c, cur->pos, meta_len( cur->pos, cur->last ) );
+		if( size < 0 )
 		{
-			return rc;
+			return ERROR;
 		}
-		cur->pos += rc;
+		cur->pos += size;
 	}
 }
 

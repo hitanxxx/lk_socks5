@@ -150,7 +150,7 @@ static void json_test_false ( void  )
 		json_get_child( &ctx->root, 1, &false );
 		t_assert( false->node_type == JSON_FALSE );
 
-		rc == json_ctx_free( ctx );
+		rc = json_ctx_free( ctx );
 		t_assert( rc == OK );
 	}
 }
@@ -364,7 +364,7 @@ static void json_test_encode ( void  )
 
 	rc = meta_alloc( &meta_cache, meta_len(meta->pos, meta->last) );
 	t_assert(rc == OK);
-	strncpy( meta_cache->pos, meta->pos, meta_len(meta->pos, meta->last ) );
+	memcpy( meta_cache->pos, meta->pos, meta_len(meta->pos, meta->last ) );
 	meta_cache->last += meta_len(meta->pos, meta->last);
 
 	if( rc == OK ) {
@@ -410,7 +410,6 @@ static void json_test_encode1( void )
 	meta_t * meta;
 	status rc;
 	string_t key[] = { string("1"), string("2"), string("3") };
-	string_t val[] = { string("123"), string("234"), string("345") };
 
 	rc = json_ctx_create( &ctx );
 	t_assert( rc == OK );

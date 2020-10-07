@@ -41,14 +41,14 @@ status serv_api_register( const char * api_key, serv_api_handler handler )
 		err("mem list push failed\n");
 		return ERROR;
 	}
-	p->name.len = strlen(api_key);
-	p->name.data = l_mem_alloc( g_page, p->name.len );
+	p->name.len     = l_strlen(api_key);
+	p->name.data    = l_mem_alloc( g_page, p->name.len+1 );
 	if( p->name.data == NULL )
 	{
 		err("page mem alloc failed\n");
 		return ERROR;
 	}
-	strncpy( p->name.data, api_key, p->name.len );
+	memcpy( p->name.data, api_key, p->name.len );
 	p->handler = handler;
 	return OK;
 }

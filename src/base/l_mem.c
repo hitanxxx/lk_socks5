@@ -50,7 +50,6 @@ void * l_mem_alloc( l_mem_page_t * page, uint32 size )
 {
     l_mem_page_t *last = NULL, *prev = NULL;
     l_mem_page_t *new = NULL;
-    uint32 length = 0;
     char * p;
 
 	if( NULL == page )

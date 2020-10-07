@@ -17,25 +17,6 @@ static status json_node_alloc( ljson_ctx_t * ctx, ljson_node_t ** json )
 	return OK;
 }
 
-static status json_node_del( ljson_node_t * node )
-{
-	ljson_node_t * parent;
-
-	if( node == NULL )
-	{
-		return ERROR;
-	}
-	parent = node->parent;
-
-	if( parent->child == node ) {
-		parent->child = node->next;
-		node->next->prev = NULL;
-	} else {
-		node->prev->next = node->next;
-		node->next->prev = node->prev;
-	}
-	return OK;
-}
 static status json_node_add( ljson_ctx_t* ctx, ljson_node_t * parent, ljson_node_t ** node )
 {
 	ljson_node_t * new = NULL;
@@ -87,8 +68,6 @@ status json_get_child( ljson_node_t * parent, uint32 index, ljson_node_t ** chil
 status json_get_obj_child_by_name( ljson_node_t * parent, char * str, uint32 length, ljson_node_t ** child )
 {
 	ljson_node_t *obj, *obj_frist_child;
-	uint32 i;
-	queue_t * q;
 
 	if( parent == NULL )
 	{	
@@ -99,7 +78,7 @@ status json_get_obj_child_by_name( ljson_node_t * parent, char * str, uint32 len
 	obj = parent->child;
 	while( obj )
 	{
-		if( OK == l_strncmp_cap(obj->name.data, obj->name.len, str, length ) )
+		if( OK == l_strncmp_cap(obj->name.data, obj->name.len, (unsigned char*)str, length ) )
 		{
 			if( OK != json_get_child( obj, 1, &obj_frist_child ) )
 			{
@@ -186,7 +165,7 @@ status json_get_obj_obj( ljson_node_t * obj, char * str, uint32 length, ljson_no
 #if(1)
 static status json_parse_true( ljson_ctx_t * ctx )
 {
-	char * p;
+	unsigned char * p;
 
 	enum {
 		t = 0,
@@ -225,7 +204,7 @@ static status json_parse_true( ljson_ctx_t * ctx )
 
 static status json_parse_false( ljson_ctx_t * ctx )
 {
-	char * p;
+	unsigned char * p = NULL;
 
 	enum {
 		f = 0,
@@ -271,7 +250,7 @@ static status json_parse_false( ljson_ctx_t * ctx )
 
 static status json_parse_null( ljson_ctx_t * ctx )
 {
-	char * p;
+	unsigned char * p = NULL;
 
 	enum {
 		n = 0,
@@ -310,7 +289,7 @@ static status json_parse_null( ljson_ctx_t * ctx )
 
 static status json_parse_string( ljson_node_t * json, ljson_ctx_t * ctx )
 {
-	char * p = NULL;
+	unsigned char * p = NULL;
 
 	enum {
 		l_quotes = 0,
@@ -444,7 +423,7 @@ static status json_parse_obj_find_repeat( ljson_node_t * parent, ljson_node_t * 
 static status json_parse_obj( ljson_node_t * parent, ljson_ctx_t * ctx )
 {
 	ljson_node_t * child = NULL;
-	char * p;
+	unsigned char * p = NULL;
 
 	enum {
 		obj_start = 0,
@@ -538,7 +517,7 @@ static status json_parse_obj( ljson_node_t * parent, ljson_ctx_t * ctx )
 
 static status json_parse_array ( ljson_node_t * arr, ljson_ctx_t * ctx )
 {
-	char * p;
+	unsigned char * p = NULL;
 
 	enum {
 		arr_start = 0,
@@ -603,12 +582,8 @@ static status json_parse_array ( ljson_node_t * arr, ljson_ctx_t * ctx )
 
 static status json_parse_num ( ljson_node_t * json, ljson_ctx_t * ctx )
 {
-	char * p = NULL;
-	string_t num_string;
-	char * end;
-
-	num_string.data = NULL;
-	num_string.len = 0;
+	unsigned char * p = NULL, * end = NULL;
+	string_t num_string = string_null;
 
 	enum {
 		num_start = 0,
@@ -702,7 +677,7 @@ static status json_parse_num ( ljson_node_t * json, ljson_ctx_t * ctx )
 			num_string.len = meta_len( num_string.data, p );
 			end = num_string.data + num_string.len;
 			
-			json->num_d = strtod( num_string.data, &end );
+			json->num_d = strtod( (char*)num_string.data, (char**)&end );
 			json->num_f = (float)json->num_d;
 			json->num_i = (int)json->num_f;
 			
@@ -724,7 +699,7 @@ static status json_parse_num ( ljson_node_t * json, ljson_ctx_t * ctx )
 		num_string.len = meta_len( num_string.data, p );
 		end = num_string.data + num_string.len;
 	
-		json->num_d = strtod( num_string.data, &end );
+		json->num_d = strtod( (char*)num_string.data, (char**)&end );
 		json->num_f = (float)json->num_d;
 		json->num_i = (int)json->num_f;
 		
@@ -744,7 +719,7 @@ static status json_parse_num ( ljson_node_t * json, ljson_ctx_t * ctx )
 static status json_parse_token( ljson_node_t * parent, ljson_ctx_t * ctx )
 {
 	ljson_node_t * cur_node = NULL;
-	char * p;
+	unsigned char * p = NULL;
 
 	for( ; ctx->p < ctx->end; ctx->p ++ ) {
 		
@@ -838,7 +813,7 @@ failed:
 #endif
 static status json_decode_check( ljson_ctx_t * ctx )
 {
-	char * p;
+	unsigned char * p = NULL;
 
 	ctx->p++;
 	for( ; ctx->p < ctx->end; ctx->p++ ) {
@@ -856,10 +831,10 @@ static status json_decode_check( ljson_ctx_t * ctx )
 	return OK;
 }
 
-status json_decode( ljson_ctx_t * ctx, char * p, char * end )
+status json_decode( ljson_ctx_t * ctx, unsigned char * p, unsigned char * end )
 {
-	ctx->p = p;
-	ctx->end = end;
+	ctx->p      = p;
+	ctx->end    = end;
 
 	if( OK != json_parse_token( &ctx->root, ctx ) ) {
 		return ERROR;
@@ -969,16 +944,16 @@ ljson_node_t * json_add_null( ljson_ctx_t * ctx, ljson_node_t * parent )
 	return child;
 }
 
-ljson_node_t * json_add_str( ljson_ctx_t * ctx, ljson_node_t * parent, char * str, uint32 length )
+ljson_node_t * json_add_str( ljson_ctx_t * ctx, ljson_node_t * parent, unsigned char * str, uint32 length )
 {
 	ljson_node_t * child;
 	if( OK != json_node_add( ctx, parent, &child ) ) {
 		err(" json node insert\n" );
 		return NULL;
 	}
-	child->node_type = JSON_STR;
-	child->name.data = str;
-	child->name.len = length;
+	child->node_type    = JSON_STR;
+	child->name.data    = str;
+	child->name.len     = length;
 	return child;
 }
 
@@ -996,7 +971,7 @@ ljson_node_t * json_add_int ( ljson_ctx_t * ctx, ljson_node_t * parent, int32 nu
 	return child;
 }
 
-ljson_node_t * json_obj_add_child( ljson_ctx_t * ctx, ljson_node_t * parent, char * str, uint32 length )
+ljson_node_t * json_obj_add_child( ljson_ctx_t * ctx, ljson_node_t * parent, unsigned char * str, uint32 length )
 {
 	ljson_node_t * child;
 	if( OK != json_node_add( ctx, parent, &child ) ) {
@@ -1004,9 +979,9 @@ ljson_node_t * json_obj_add_child( ljson_ctx_t * ctx, ljson_node_t * parent, cha
 		return NULL;
 	}
 	//child->node_type = JSON_STR;
-	child->node_type = 0;
-	child->name.data = str;
-	child->name.len = length;
+	child->node_type    = 0;
+	child->name.data    = str;
+	child->name.len     = length;
 	return child;
 }
 #endif
@@ -1015,7 +990,6 @@ ljson_node_t * json_obj_add_child( ljson_ctx_t * ctx, ljson_node_t * parent, cha
 static uint32 json_stringify_token_len( ljson_node_t * json )
 {
 	uint32 len = 0;
-	uint32 i;
 	ljson_node_t * temp, * temp1;
 	char str[100];
 
@@ -1093,10 +1067,8 @@ static uint32 json_stringify_token_len( ljson_node_t * json )
 
 static char* json_stringify_token( ljson_node_t * json, char * p )
 {
-	uint32 i;
 	ljson_node_t * temp, *temp1;
 	char str[100];
-	queue_t * q;
 
 	if( json == NULL ){
 		return p;
@@ -1224,7 +1196,7 @@ status json_encode( ljson_ctx_t * ctx, meta_t ** string )
 	if( OK != meta_page_alloc( ctx->page, len, &meta ) ) {
 		return ERROR;
 	}
-	meta->last = json_stringify_token( root, meta->pos );
+	meta->last = (unsigned char *)json_stringify_token( root, (char*)meta->pos );
 	if( !meta->last ) 
 	{
 		return ERROR;

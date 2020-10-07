@@ -1,279 +1,493 @@
 #include "l_base.h"
 
-static int32		event_fd = 0;
-static struct epoll_event * events = NULL;
-
-static void l_net_timeout( void * data )
+typedef struct private_event
 {
-	connection_t * c = data;
-	net_free( c );
+#if defined(EVENT_EPOLL)
+    int32           event_fd;
+    struct epoll_event * events;
+#else
+    fd_set          rfds;
+    fd_set          wfds;
+    fd_set          refds;
+    fd_set          wefds;
+    int32           g_maxfd;
+    event_t*        ev_arr[MAX_NET_CON];
+#endif
+    event_handler_t g_event_handler;
+    queue_t         usable;
+    queue_t         use;
+    event_t         pool[0];
+} private_event_t;
+static private_event_t * this = NULL;
+
+
+#if defined(EVENT_EPOLL)
+static status event_epoll_init(     )
+{
+	this->events = (struct epoll_event*) l_safe_malloc ( sizeof(struct epoll_event)*MAX_NET_CON );
+	if( NULL == this->events )
+	{
+		err("ev epoll malloc events pool failed\n" );
+		return ERROR;
+	}
+	this->event_fd = epoll_create1(0);
+	if( this->event_fd == ERROR )
+	{
+		err("ev epoll open event fd faield, [%d]\n", errno );
+		return ERROR;
+	}
+	return OK;
 }
 
-status l_net_connect( connection_t * c, struct sockaddr_in * addr, uint32 con_type )
+static status event_epoll_end( )
 {
-	struct addrinfo * res = NULL;
-	status rc = 0;
-	int fd = 0;
+	if( this->event_fd )
+	{
+		close( this->event_fd );
+	}
+	if( this->events )
+	{
+		l_safe_free( this->events );
+	}
+	return OK;
+}
 
-	if( 0 != memcmp( &c->addr, addr, sizeof(struct sockaddr_in) ) )
-	{
-		memcpy( &c->addr, addr, sizeof(struct sockaddr_in) );
-	}
+static status event_epoll_opt( event_t * ev, int32 fd, net_event_type trigger_type )
+{
+	struct epoll_event opt_ev, *p_opt_ev = NULL;
+	int32	opt_type = 0;
 
-	c->con_type = con_type;
-	if( c->con_type != TYPE_TCP && c->con_type != TYPE_UDP )
+	memset( &opt_ev, 0, sizeof(struct epoll_event) );
+	ev->type = trigger_type;
+	do 
 	{
-		err("not support con type [%x]\n", con_type );
-		return ERROR;
-	}
-	fd = socket(AF_INET, (c->con_type == TYPE_TCP) ? SOCK_STREAM : SOCK_DGRAM, 0 );
-	if( ERROR == fd ) 
-	{
-		err(" socket failed, [%d]\n", errno );
-		return ERROR;
-	}
-	if( OK != l_socket_reuseaddr( fd ) ) 
-	{
-		err(" reuseaddr failed\n" );
-		close( fd );
-		return ERROR;
-	}
-	if( OK != l_socket_nonblocking( fd ) ) {
-		err(" nonblock failed\n" );
-		close( fd );
-		return ERROR;
-	}
-
-	do
-	{
-		rc = connect( fd, (struct sockaddr*)&c->addr, sizeof(struct sockaddr_in) );	
-		if( 0 != rc )
+		if( (trigger_type & EV_R) && (trigger_type & EV_W) )
 		{
-			if( (errno == EAGAIN) || (errno == EALREADY) || (errno == EINPROGRESS) )
+			if( ev->f_read && ev->f_write ) break;
+			opt_type = ( !ev->f_read && !ev->f_write ) ? EPOLL_CTL_ADD : EPOLL_CTL_MOD;
+		}
+		else if( trigger_type & EV_R )
+		{ 
+			if( !ev->f_write && ev->f_read ) break;
+			else if( ev->f_write )
 			{
-				rc = AGAIN;
-				break;
+				opt_type = EPOLL_CTL_MOD;
+				ev->f_write = 0;
 			}
-			else if( errno == EINTR )
+			else if ( !ev->f_write && !ev->f_read ) opt_type = EPOLL_CTL_ADD;
+		}
+		else if( trigger_type & EV_W )
+		{
+			if( !ev->f_read && ev->f_write ) break;
+			else if ( ev->f_read ) 
 			{
-				continue;
+				opt_type = EPOLL_CTL_MOD;
+				ev->f_read = 0;	
 			}
-			err("connect failed, [%d]\n", errno );
+			else if ( !ev->f_read && !ev->f_write ) opt_type = EPOLL_CTL_ADD;
+		}
+		else if ( trigger_type == EV_NONE )
+		{
+			opt_type = EPOLL_CTL_DEL;
+			trigger_type = EV_NONE;
+			ev->f_read = ev->f_write = 0;
+		}
+		
+		if( trigger_type & EV_R ) ev->f_read 	= 1;
+		if( trigger_type & EV_W ) ev->f_write 	= 1;
+
+		if( trigger_type == EV_NONE )
+		{
+			p_opt_ev = NULL;
+		}
+		else
+		{
+			opt_ev.data.ptr	= (void*)ev;
+			opt_ev.events 	= EPOLLET|trigger_type;
+			p_opt_ev = &opt_ev;
+		}
+		if( OK != epoll_ctl( this->event_fd, opt_type, fd, p_opt_ev ) )
+		{
+			err("event epoll ctrl [%d] failed, [%d]\n", fd, errno );
 			return ERROR;
 		}
-
+		ev->f_active 			= 1;
+		if( !ev->fd ) ev->fd 	= fd;
+		return OK;
 	} while(0);
-
-	c->fd = fd;
-
-	if( con_type == TYPE_TCP )
-	{
-		c->send 		= sends;
-		c->recv 		= recvs;
-		c->send_chain 	= send_chains;
-		c->recv_chain 	= NULL;
-	}
-	return rc;	
-}
-
-status l_net_accept( event_t * ev )
-{
-	listen_t * listen = ev->data;
-	int32 c_fd;
-	connection_t * c;
-	
-	struct sockaddr_in client_addr;
-	socklen_t len = sizeof( struct sockaddr_in );
-	
-	while( 1 ) 
-	{
-		memset( &client_addr, 0, len );
-		
-		c_fd = accept( listen->fd, (struct sockaddr *)&client_addr, &len );
-		if( ERROR == c_fd ) 
-		{
-			if( errno == EWOULDBLOCK || errno == EAGAIN ) {
-				return AGAIN;
-			}
-			err(" accept failed, [%d]\n", errno );
-			return ERROR;
-		}
-		if( ERROR == net_alloc( &c ) ) {
-			err(" client_con alloc\n" );
-			close( c_fd );
-			return ERROR;
-		}
-		memcpy( &c->addr, &client_addr, len );
-		if( OK != l_socket_nonblocking( c_fd ) ) 
-		{
-			err(" socket nonblock failed\n" );
-			net_free( c );
-			return ERROR;
-		}
-		c->fd = c_fd;
-
-		c->con_type 	= TYPE_TCP;
-		c->recv 		= recvs;
-		c->send 		= sends;
-		c->recv_chain 	= NULL;
-		c->send_chain 	= send_chains;
-
-		c->ssl_flag = (listen->type == L_SSL ) ? 1 : 0;
-
-		c->event.read_pt 	= listen->handler;
-		c->event.write_pt 	= NULL;
-		event_opt( &c->event, c->fd, EV_R );
-
-		c->event.read_pt( &c->event );
-	}
 	return OK;
 }
 
-status event_opt( event_t * event, int32 fd, net_events events )
+status event_epoll_run( time_t msec )
 {
-	struct epoll_event ev;
-	int32	op;
-	uint32 pre_flag;
-	net_events pre_events, cache;
-	
-	cache = events;
-	
-	if( events == EV_R ) 
-	{
-		if( event->f_read == 1) 
-		{
-			return OK;
-		}
-		pre_flag 	= event->f_write;
-		pre_events 	= EV_W;
-	} else if ( events == EV_W ) 
-	{
-		if( event->f_write == 1) 
-		{
-			return OK;
-		}
-		pre_flag 	= event->f_read;
-		pre_events 	= EV_R;
-	} else {
-		err(" not support events\n" );
-		return ERROR;
-	}
-	
-	if( pre_flag == 1) 
-	{
-		events |= pre_events;
-		op = EPOLL_CTL_MOD;
-	} 
-	else 
-	{
-		op = EPOLL_CTL_ADD;
-	}
-	
-	ev.data.ptr = (void*)event;
-	ev.events 	= (uint32) (EPOLLET | events);
-	
-	if( OK != epoll_ctl( event_fd, op, fd, &ev ) ) {
-		err(" epoll_ctl failed, [%d]\n", errno );
-		return ERROR;
-	}
-	
-	event->f_active = 1;
-	if( cache == EV_R ) 
-	{
-		event->f_read = 1;
-	}
-	if( cache == EV_W ) 
-	{
-		event->f_write = 1;
-	}
-	return OK;
-}
+	int32 i = 0, num = 0;
+    event_t * ev = NULL;
+	uint32 ev_type = 0;
 
-status event_run( time_t time_out )
-{
-	event_t * event;
-	int32 i, action_num;
-	uint32 ev;
-
-	action_num = epoll_wait( event_fd, events, EV_MAXEVENTS, (int)time_out );
+	num = epoll_wait( this->event_fd, this->events, MAX_NET_CON, (int)msec );
 	l_time_update( );
-	if( action_num == ERROR ) 
+	if( num <= 0 )
 	{
-		if( errno == EINTR ) 
+		if( num < 0 )
 		{
-			debug(" epoll_wait interrupted by signal\n" );
+			if( errno == EINTR )
+			{
+				err("ev epoll_wait stop by signal\n");
+				return OK;
+			}
+			err("ev epoll wait failed, [%d]", errno );
+			return ERROR;
+		}
+		if( msec != -1 )
+		{
 			return OK;
 		}
-		err(" epoll_wait failed, [%d]\n", errno );
-		return ERROR;
-	} 
-	else if( action_num == 0 ) 
-	{
-		if( time_out != -1 ) 
-		{
-			return OK;
-		}
-		err(" epoll_wait return 0\n" );
+		err("ev epoll return 0\n");
 		return ERROR;
 	}
 
-	for( i = 0; i < action_num; i ++ ) 
+	for( i = 0; i < num; i ++ ) 
 	{
-		event = (event_t*)events[i].data.ptr;
-		if( !event->f_active ) continue;
+		ev 		    = this->events[i].data.ptr;
+		ev_type 	= this->events[i].events;
+        if( ev->f_active )
+        {
+            if( (ev_type & EV_R) && ev->f_read && ev->read_pt )
+            {
+                ev->read_pt( ev );
+            }
+            if( (ev_type & EV_W) && ev->f_write && ev->write_pt )
+            {
+                ev->write_pt( ev );
+            }
+        }
+	}
+	return OK;
+}
+#else
+static uint32 event_select_position_get()
+{
+    int i = 0;
+	for( i = 0; i < MAX_NET_CON; i ++ )
+	{
+		if( NULL == this->ev_arr[i] )
+        {
+            return i;
+        }
+	}
+	return ERROR;
+}
 
-		ev = events[i].events;
+static status event_select_position_free( uint32 index )
+{
+	if( NULL == this->ev_arr[index] )
+	{
+		err("ev select arr idx [%d] already clear\n", index );
+		return ERROR;
+	}
+	this->ev_arr[index]   = NULL;
+	return OK;
+}
+
+static status event_select_init( void )
+{
+	FD_ZERO( &this->rfds );
+	FD_ZERO( &this->wfds );
+	FD_ZERO( &this->refds );
+	FD_ZERO( &this->wefds );
+	this->g_maxfd = 0;
+	return OK;
+}
+
+static status event_select_end( void )
+{
+    FD_ZERO( &this->rfds );
+    FD_ZERO( &this->wfds );
+    FD_ZERO( &this->refds );
+    FD_ZERO( &this->wefds );
+    this->g_maxfd = 0;
+	return OK;
+}
+
+static status event_select_opt( event_t * ev, int32 fd, net_event_type trigger_type )
+{
+	ev->type =	trigger_type;
+	do 
+	{
+		if( (trigger_type & EV_R) && (trigger_type & EV_W) )
+		{
+			if( ev->f_read && ev->f_write ) break;
+			if( !ev->f_read )
+			{
+				FD_SET( fd, &this->rfds );
+			}
+			if( !ev->f_write )
+			{
+				FD_SET( fd, &this->wfds );
+			}
+		}
+		else if ( trigger_type & EV_R )
+		{
+			if( ev->f_write )
+			{
+				FD_CLR( fd, &this->wfds );
+				ev->f_write = 0;
+			}
+			if( ev->f_read ) break;
+			FD_SET( fd, &this->rfds );
+		}
+		else if ( trigger_type & EV_W )
+		{
+			if( ev->f_read )
+			{
+				FD_CLR( fd, &this->rfds );
+				ev->f_read = 0;
+			}
+			if( ev->f_write ) break;
+			FD_SET( fd, &this->wfds );
+		}
+		else if ( trigger_type == EV_NONE )
+		{
+			if( ev->f_read )
+			{
+				FD_CLR( fd, &this->rfds );
+				ev->f_read = 0;
+			}
+			if( ev->f_write )
+			{
+				FD_CLR( fd, &this->wfds );
+				ev->f_write = 0;
+			}
+		}
+	} while(0);
+	
+	if( trigger_type & EV_R ) ev->f_read 	= 1;
+	if( trigger_type & EV_W ) ev->f_write 	= 1;
+	
+	if( !ev->f_active )
+	{
+		ev->idx = event_select_position_get();
+		if( ERROR == ev->idx )
+		{
+			err("ev select arr no position\n");
+			return ERROR;
+		}
+		this->ev_arr[ev->idx] 	= ev;
+        ev->f_position          = 1;
 		
-		if( (ev & EV_R) && event->f_active ) 
-		{
-			if( event->read_pt ) event->read_pt( event );
+		if( !ev->fd ) ev->fd 	= fd;
+		ev->f_active  = 1;
+	}
+	return OK;
+}
+
+status event_select_run( time_t msec )
+{
+	struct timeval s_tv, * tv;
+	status num = 0;
+	int32 i = 0;
+
+	memset( &s_tv, 0, sizeof(struct timeval) );
+	if( msec != -1 )
+	{
+		s_tv.tv_sec 	= msec/1000;
+		s_tv.tv_usec	= (msec%1000)*1000;
+		tv = &s_tv;
+	}
+	else
+	{
+		tv = NULL;
+	}
+	
+	this->g_maxfd = -1;
+	for( i = 0; i < MAX_NET_CON; i ++ )
+	{
+ 		if( this->ev_arr[i] )
+ 		{
+			if( this->ev_arr[i]->fd > this->g_maxfd )
+			{
+				this->g_maxfd = this->ev_arr[i]->fd;
+			}
 		}
-		if( (ev & EV_W) && event->f_active ) 
+	}
+	this->refds	= this->rfds;
+	this->wefds	= this->wfds;
+	num = select( this->g_maxfd+1, &this->refds, &this->wefds, NULL, tv );
+	l_time_update( );
+	if( num <= 0 )
+	{
+		if( num < 0 )
 		{
-			if( event->write_pt ) event->write_pt( event );
+			if( errno == EINTR )
+			{
+				err("ev select stop by signal\n");
+				return OK;
+			}
+			err("ev select wait failed, [%d]\n", errno );
+			return ERROR;
 		}
+		if( msec != -1 )
+		{
+			return OK;
+		}
+		err("ev select return 0\n");
+		return ERROR;
+	}
+
+	for( i = 0; i < MAX_NET_CON; i ++ )
+	{
+        event_t * ev = this->ev_arr[i];
+		if( ev && ev->f_active )
+		{
+            if( FD_ISSET( ev->fd, &this->refds ) && ev->f_read && ev->read_pt )
+            {
+                ev->read_pt(ev);
+            }
+            
+            if( FD_ISSET( ev->fd, &this->wefds ) && ev->f_write && ev->write_pt )
+            {
+                ev->write_pt(ev);
+            }
+		}
+	}
+	return OK;
+}
+#endif
+
+status event_opt( event_t * event, int32 fd, net_event_type trigger_type )
+{
+	if( this->g_event_handler.opt ) return this->g_event_handler.opt( event, fd, trigger_type );
+	return OK;
+}
+
+status event_run( time_t msec )
+{
+	if( this->g_event_handler.run ) return this->g_event_handler.run( msec );
+	return OK;
+}
+
+status event_alloc( event_t ** ev )
+{
+	queue_t * q = NULL;
+	event_t * local_ev = NULL;
+	if( 1 == queue_empty( &this->usable ) )
+	{
+		err("event usable empty\n");
+		return ERROR;
+	}
+	q = queue_head( &this->usable );
+	queue_remove( q );
+	queue_insert_tail( &this->use, q );
+	local_ev = l_get_struct( q, event_t, queue);
+	
+	*ev = local_ev;
+	return OK;
+}
+
+status event_free( event_t * ev )
+{
+	if( ev )
+	{
+		if( ev->f_active && ev->type != EV_NONE ) 
+		{
+			event_opt( ev, ev->fd, EV_NONE );
+		}
+#if !defined(EVENT_EPOLL)
+        // select need to free event's position info
+        if( ev->f_position )
+        {
+            event_select_position_free( ev->idx );
+            ev->f_position = 0;
+        }
+#endif
+		ev->idx			= 0;
+		ev->fd			= 0;
+		
+		ev->read_pt		= NULL;
+		ev->write_pt	= NULL;
+		ev->data		= NULL;
+		
+		timer_del( &ev->timer );
+		ev->f_active	= 0;
+		ev->f_read		= 0;
+		ev->f_write		= 0;	
+
+		queue_remove( &ev->queue );
+		queue_insert_tail( &this->usable, &ev->queue );
 	}
 	return OK;
 }
 
 status event_init( void )
 {
-	uint32 i;
+	uint32 i = 0;
+	listen_t * listen = NULL;
 	
-	events = (struct epoll_event*) l_safe_malloc ( sizeof(struct epoll_event)*EV_MAXEVENTS );
-	if( !events ) {
-		err(" l_safe_malloc events\n" );
-		return ERROR;
-	}
-	event_fd = epoll_create1(0);
-	debug(" event fd [%d]\n", event_fd );
-	if( event_fd == ERROR ) {
-		err(" epoll create1\n" );
-		return ERROR;
-	}
+	do 
+	{	
+		if( this )
+		{
+			err("event this not empty\n");
+			return ERROR;
+		}
+		this = l_safe_malloc( sizeof(private_event_t) + (sizeof(event_t)*MAX_NET_CON) );
+		if( !this )
+		{
+			err("event alloc this failed, [%d]\n", errno );
+			return ERROR;
+		}
+		memset( this, 0, sizeof(private_event_t) + (sizeof(event_t)*MAX_NET_CON) );
+        
+        memset( &this->g_event_handler, 0, sizeof(event_handler_t) );
+#if defined(EVENT_EPOLL)
+        this->g_event_handler.init      = event_epoll_init;
+        this->g_event_handler.end       = event_epoll_end;
+        this->g_event_handler.opt       = event_epoll_opt;
+        this->g_event_handler.run       = event_epoll_run;
+#else
+        this->g_event_handler.init      = event_select_init;
+        this->g_event_handler.end       = event_select_end;
+        this->g_event_handler.opt       = event_select_opt;
+        this->g_event_handler.run       = event_select_run;
+#endif
+		queue_init( &this->use );
+		queue_init( &this->usable );
+		for( i = 0; i < MAX_NET_CON; i ++ )
+		{
+			queue_insert_tail( &this->usable, &this->pool[i].queue );
+		}
+		
+		if( this->g_event_handler.init )
+		{
+			this->g_event_handler.init();
+		}
+		
+		for( i = 0; i < listens->elem_num; i ++ ) 
+		{
+			listen = mem_list_get( listens, i+1 );
+			listen->event.data 		= listen;
+			listen->event.read_pt 	= l_net_accept;
+			event_opt( &listen->event, listen->fd, EV_R );
+		}
+		return OK;
+	} while(0);
 
-	// init listen events
-	uint32 j;
-	listen_t * listen;
-
-	for( i = 0; i < listens->elem_num; i ++ ) {
-		listen = mem_list_get( listens, i+1 );
-
-		listen->event.data 		= listen;
-		listen->event.read_pt 	= l_net_accept;
-	
-		event_opt( &listen->event, listen->fd, EV_R );
+	if( this )
+	{
+		l_safe_free( this );
 	}
-	return OK;
+	return ERROR;	
 }
 
 status event_end( void )
 {
-	if( event_fd ) {
-		close( event_fd );
+	if( this->g_event_handler.end )
+	{
+		return this->g_event_handler.end();
 	}
-	if( events ) {
-		l_safe_free( events );
+	if( this )
+	{
+		l_safe_free( this );
 	}
 	return OK;
 }

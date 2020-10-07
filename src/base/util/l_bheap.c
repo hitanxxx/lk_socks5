@@ -59,7 +59,7 @@ status heap_add( heap_t * heap, heap_node_t * node )
 status heap_del( heap_t * heap, uint32 del_index )
 {
 	uint32  i;
-	heap_node_t *tail_node, *parent_node;
+	heap_node_t *tail_node;
 	uint32 	child_min;
 	
 	if( OK == heap_empty( heap ) )
@@ -120,4 +120,9 @@ heap_node_t * heap_min( heap_t * heap )
 		return NULL;
 	}
 	return heap->array[1];
+}
+
+int32 heap_num( heap_t * heap )
+{
+	return heap->index;
 }

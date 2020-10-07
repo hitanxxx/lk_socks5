@@ -34,7 +34,7 @@ status process_self_pid( pid_t * pid )
 		close( fd );
 		return ERROR;
 	}
-	if( OK != l_atoi( str, l_strlen(str), &localpid ) ) {
+	if( OK != l_atoi( (unsigned char*)str, l_strlen(str), &localpid ) ) {
 		err(" atoi pid file value [%s]\n", str );
 		return ERROR;
 	}
@@ -163,10 +163,8 @@ status process_worker_start( )
 
 void process_master_run( void )
 {
-	uint32 i = 0;
 	int32 live = 1;
-	process_t * process;
-	sigset_t set;
+    sigset_t set;
 
 	// block some signal
     sigemptyset( &set );

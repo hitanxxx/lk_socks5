@@ -3,7 +3,7 @@
 // -------------
 static void ts_find_str( void )
 {
-	char * p;
+	unsigned char * p = NULL;
 
 	string_t string = string("12345");
 	string_t find = string("34");
@@ -122,7 +122,7 @@ static void ts_strncmp_cap ( void )
 {
 	status rc;
 
-	rc = l_strncmp_cap( "ABCD1", l_strlen("ABCD1") ,"abcd1", l_strlen("abcd1") );
+	rc = l_strncmp_cap( (unsigned char*)"ABCD1", l_strlen("ABCD1") , (unsigned char*)"abcd1", l_strlen("abcd1") );
 	t_assert( rc == OK );
 }
 // --------------

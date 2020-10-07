@@ -34,7 +34,6 @@ static status log_format_text( log_content_t * log_content )
 {
 	int32 length = 0;
 
-	length += snprintf( log_content->p + length, LOG_TEXT_LENGTH - (size_t)length, "[%s]:", log_content->filename );
 	length += snprintf( log_content->p + length, LOG_TEXT_LENGTH - (size_t)length, "[%d]-", log_content->line );
 	length += snprintf( log_content->p + length, LOG_TEXT_LENGTH - (size_t)length, "[%s]- ", log_content->func );
 	length += vsnprintf( log_content->p + length, LOG_TEXT_LENGTH - (size_t)length, log_content->args, log_content->args_list );
@@ -82,7 +81,7 @@ static status log_write_file_access( char * str, int32 length )
 	return OK;
 }
 // l_log   ---------------
-status l_log( uint32 id, uint32 level,  const char * func, const char * filename, int line, const char * str, ... )
+status l_log( uint32 id, uint32 level,  const char * func, int line, const char * str, ... )
 {
 	log_content_t log_content;
 	char 	stream[LOG_LENGTH];
@@ -102,7 +101,6 @@ status l_log( uint32 id, uint32 level,  const char * func, const char * filename
 	log_content.p = stream;
 	log_content.last = stream + LOG_LENGTH;
 	log_content.args = str;
-	strncpy( log_content.filename, filename,  sizeof(log_content.filename) );
 	strncpy( log_content.func, func,  sizeof(log_content.func) );
 	log_content.line = line;
 	

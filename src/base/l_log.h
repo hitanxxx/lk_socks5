@@ -18,32 +18,32 @@
 #if(1)
 #define err( ... ) \
 {\
-  		(l_log( LOG_ID_MAIN, LOG_LEVEL_ERROR, __func__, __FILE__, __LINE__, ##__VA_ARGS__ )); \
+  		(l_log( LOG_ID_MAIN, LOG_LEVEL_ERROR, __func__, __LINE__, ##__VA_ARGS__ )); \
 }
 #define debug( ... ) \
 {\
-		(l_log( LOG_ID_MAIN, LOG_LEVEL_DEBUG, __func__, __FILE__, __LINE__, ##__VA_ARGS__ )); \
+		(l_log( LOG_ID_MAIN, LOG_LEVEL_DEBUG, __func__, __LINE__, ##__VA_ARGS__ )); \
 }
 #define access_log( ... ) \
 {\
-		(l_log( LOG_ID_ACCESS, LOG_LEVEL_INFO, __func__, __FILE__, __LINE__, ##__VA_ARGS__ ));\
+		(l_log( LOG_ID_ACCESS, LOG_LEVEL_INFO, __func__, __LINE__, ##__VA_ARGS__ ));\
 }
 #endif
 
 #if(0)
 #define err( ... ) \
 {\
-  	printf("[%s]-[%s]-[%s]-[%d]-<ERROR> ", __DATE__, __FILE__, __func__, __LINE__ );\
+  	printf("[%s]-[%s]-[%s]-[%d]-<ERROR> ", __DATE__, __func__, __LINE__ );\
 	printf(__VA_ARGS__);\
 }
 #define debug( ... ) \
 {\
-	printf("[%s]-[%s]-[%s]-[%d]-<DEBUG> ", __DATE__, __FILE__, __func__, __LINE__ );\
+	printf("[%s]-[%s]-[%s]-[%d]-<DEBUG> ", __DATE__, __func__, __LINE__ );\
 	printf(__VA_ARGS__);\
 }
 #define access_log( ... ) \
 {\
-	printf("[%s]-[%s]-[%s]-[%d]-<ACCESS> ", __DATE__, __FILE__, __func__, __LINE__ );\
+	printf("[%s]-[%s]-[%s]-[%d]-<ACCESS> ", __DATE__, __func__, __LINE__ );\
 	printf(__VA_ARGS__);\
 }
 #endif
@@ -54,7 +54,6 @@ typedef struct log_content_t {
 
 	char 		func[64];
 	int			line;
-	char 		filename[64];
 
 	char * 		p;
 	char * 		last;
@@ -62,7 +61,7 @@ typedef struct log_content_t {
 	const char* args;
 } log_content_t;
 
-status l_log( uint32 id, uint32 level,  const char * func, const char * filename, int line, const char * str, ... );
+status l_log( uint32 id, uint32 level,  const char * func, int line, const char * str, ... );
 status log_init( void );
 status log_end( void );
 

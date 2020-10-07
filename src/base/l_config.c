@@ -60,7 +60,7 @@ static status config_parse_global( ljson_node_t * json )
 	}
 	if( OK == json_get_obj_str(root_obj, "sslcrt", l_strlen("sslcrt"), &v ) ) 
 	{
-		strncpy( conf.base.sslcrt, v->name.data, v->name.len );
+		memcpy( conf.base.sslcrt, v->name.data, l_min( sizeof(conf.base.sslcrt)-1, v->name.len )  );
 		if( OK != access( conf.base.sslcrt, F_OK ) ) 
 		{
 			err(" sslcrt file [%s] not found\n", conf.base.sslcrt );
@@ -69,7 +69,7 @@ static status config_parse_global( ljson_node_t * json )
 	}
 	if( OK == json_get_obj_str(root_obj, "sslkey", l_strlen("sslkey"), &v ) ) 
 	{
-		strncpy( conf.base.sslkey, v->name.data, v->name.len );
+		memcpy( conf.base.sslkey, v->name.data, l_min( sizeof(conf.base.sslkey)-1, v->name.len ) );
 		if( OK != access( conf.base.sslkey, F_OK ) ) 
 		{
 			err(" sslkey file [%s] not found\n", conf.base.sslkey );
@@ -93,7 +93,6 @@ static status config_parse_http( ljson_node_t * json )
 	ljson_node_t * port, *ssl_port;
 	ljson_node_t * home, *index;
 	ljson_node_t * v;
-	queue_t * q;
 	int32 rc;
 	int i;
 
@@ -131,14 +130,14 @@ static status config_parse_http( ljson_node_t * json )
 			return ERROR;
 		}
 		if( home->name.data[home->name.len-1] == '/' ) home->name.len -= 1;
-		strncpy( conf.http.home, home->name.data, l_min( sizeof(conf.http.home), home->name.len ) );
+		memcpy( conf.http.home, home->name.data, l_min( sizeof(conf.http.home)-1, home->name.len ) );
 		
 		rc = json_get_obj_str( http_obj, "index", l_strlen("index"), &index );
 		if( OK != rc )
 		{
 			err("http need index\n");
 		}
-		strncpy( conf.http.index, index->name.data, (index->name.len <= sizeof(conf.http.index) ) ? index->name.len: sizeof(conf.http.index) );
+		memcpy( conf.http.index, index->name.data, l_min( sizeof(conf.http.index)-1, index->name.len ) );
 	}
 	return OK;
 }
@@ -158,7 +157,7 @@ static status config_parse_socks5( ljson_node_t * json )
 			return ERROR;
 		}
 		
-		if ( OK == l_strncmp_cap( v->name.data, v->name.len, "server", l_strlen("server") ) ) 
+		if ( OK == l_strncmp_cap( v->name.data, v->name.len, (unsigned char*)"server", l_strlen("server") ) )
 		{
 			// server mode
 			conf.socks5_mode = SOCKS5_SERVER;
@@ -175,9 +174,9 @@ static status config_parse_socks5( ljson_node_t * json )
 				err("socks5 server auth file not specific\n");
 				return ERROR;
 			}
-			strncpy( conf.socks5.server.authfile, v->name.data, v->name.len );
+			memcpy( conf.socks5.server.authfile, v->name.data, l_min( sizeof(conf.socks5.server.authfile)-1, v->name.len ) );
 		} 
-		else if ( OK == l_strncmp_cap( v->name.data, v->name.len, "client", l_strlen("client") ) ) 
+		else if ( OK == l_strncmp_cap( v->name.data, v->name.len, (unsigned char*)"client", l_strlen("client") ) )
 		{
 			// client mode
 			conf.socks5_mode = SOCKS5_CLIENT;
@@ -187,7 +186,7 @@ static status config_parse_socks5( ljson_node_t * json )
 				err("socks5 client need specify a valid 'serverip'\n" );
 				return ERROR;
 			}
-			strncpy( conf.socks5.client.server_ip, v->name.data, v->name.len );
+			memcpy( conf.socks5.client.server_ip, v->name.data, l_min( sizeof(conf.socks5.client.server_ip)-1, v->name.len ) );
 
 			rc = json_get_obj_num( socks5_obj, "serverport", l_strlen("serverport"), &v );
 			if( rc == ERROR )
@@ -210,7 +209,7 @@ static status config_parse_socks5( ljson_node_t * json )
 				err("socks5 client need specify a valid 'serverip'\n" );
 				return ERROR;
 			}
-			strncpy( conf.socks5.client.user, v->name.data, (v->name.len <= sizeof(conf.socks5.client.user)) ? v->name.len : sizeof(conf.socks5.client.user));
+            memcpy( conf.socks5.client.user, v->name.data, l_min(sizeof(conf.socks5.client.user)-1, v->name.len) );
 		
 			rc = json_get_obj_str(socks5_obj, "client_user_passwd", l_strlen("client_user_passwd"), &v );
 			if( rc == ERROR ) 
@@ -218,7 +217,7 @@ static status config_parse_socks5( ljson_node_t * json )
 				err("socks5 client need specify a valid 'serverip'\n" );
 				return ERROR;
 			}
-			strncpy( conf.socks5.client.passwd, v->name.data, (v->name.len <= sizeof(conf.socks5.client.passwd)) ? v->name.len : sizeof(conf.socks5.client.passwd) );
+			memcpy( conf.socks5.client.passwd, v->name.data, l_min(sizeof(conf.socks5.client.passwd)-1, v->name.len) );
 		} 
 		else 
 		{
@@ -267,7 +266,7 @@ static status config_start( void )
 		rc = ERROR;
 		goto failed;
 	}
-	if( OK != json_decode( ctx, conf.meta->pos, conf.meta->last ) ) 
+	if( OK != json_decode( ctx, conf.meta->pos, conf.meta->last ) )
 	{
 		err(" configuration file json decode failed\n" );
 		rc = ERROR;

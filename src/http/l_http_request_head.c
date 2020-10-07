@@ -61,7 +61,8 @@ static status http_request_head_recv( connection_t * c, meta_t * meta )
 	rc = c->recv( c, meta->last,meta_len( meta->last, meta->end ) );
 	if( rc < 0 )
 	{
-		return rc;
+        if( rc == ERROR ) return ERROR;
+        return AGAIN;
 	}
 	meta->last += rc;
 	return OK;
@@ -69,7 +70,7 @@ static status http_request_head_recv( connection_t * c, meta_t * meta )
 
 static status http_request_head_parse_request_line( http_req_head_t * request, meta_t * meta )
 {
-	char *p = NULL;
+	unsigned char *p = NULL;
 
 	enum {
 		s_start = 0,
@@ -271,7 +272,7 @@ static status http_request_head_parse_request_line( http_req_head_t * request, m
 				}
 				break;
 			case	s_version:
-				if( p - request->http_version.data > 8 )
+				if( meta_len( request->http_version.data, p ) > 8 )  
 				{
 					err("http req version more than 8\n" );
 					return ERROR;
@@ -318,7 +319,7 @@ done:
 
 static status http_request_head_parse_header_line( http_req_head_t * request, meta_t * meta )
 {
-	char *p = NULL;
+	unsigned char *p = NULL;
 
 	enum {
 		s_start = 0,
@@ -445,6 +446,7 @@ static status http_request_head_process_headers( http_req_head_t * request )
 		rc = http_request_head_parse_header_line( request, c->meta );
 		if( rc == OK ) 
 		{
+            //debug("[%.*s] [%.*s]\n", request->header_key.len, request->header_key.data, request->header_value.len, request->header_value.data );
 			str_name 				= &request->header_key;
 			if( OK == http_request_head_find_header( str_name, &headers ) )
 			{
@@ -626,14 +628,14 @@ status http_request_head_init_module( void )
 
 	queue_init( &g_queue_use );
 	queue_init( &g_queue_usable );
-	g_pool = (http_req_head_t*)l_safe_malloc( sizeof(http_req_head_t)*MAXCON );
+	g_pool = (http_req_head_t*)l_safe_malloc( sizeof(http_req_head_t)*MAX_NET_CON );
 	if( !g_pool ) 
 	{
 		err("http req header malloc g_pool failed\n");
 		return ERROR;
 	}
-	memset( g_pool, 0, sizeof(http_req_head_t)*MAXCON );
-	for( i = 0; i < MAXCON; i++ ) 
+	memset( g_pool, 0, sizeof(http_req_head_t)*MAX_NET_CON );
+	for( i = 0; i < MAX_NET_CON; i++ ) 
 	{
 		queue_insert_tail( &g_queue_usable, &g_pool[i].queue );
 	}

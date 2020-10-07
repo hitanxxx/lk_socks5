@@ -1,20 +1,17 @@
 #ifndef _L_META_H_INCLUDED_
 #define _L_META_H_INCLUDED_
 
-#define meta_len( start, end )	( (uint32)( (char*)end - (char*)start ) )
 typedef struct l_meta_t meta_t;
 typedef struct l_meta_t 
 {
-	meta_t* next;	
-	// memory pointer
-	char * 	start;
-	char * 	pos;
-	char * 	last;
-	char * 	end;	
-
-	char 	data[0];
+    meta_t* next;
+    // memory pointer
+    unsigned char *     start;
+    unsigned char *     pos;
+    unsigned char *     last;
+    unsigned char *     end;
+    unsigned char       data[0];
 } l_meta_t;
-
 
 status meta_page_alloc( l_mem_page_t * page, uint32 size, meta_t ** out );
 status meta_page_get_all( l_mem_page_t * page, meta_t * in, meta_t ** out );

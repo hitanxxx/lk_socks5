@@ -1,5 +1,5 @@
 #ifndef _L_USMGR_H_INCLUDE_
-#define _L_UGMGR_H_INCLUDE_ 
+#define _L_USMGR_H_INCLUDE_ 
 
 #define USER_NAME_MAX		16
 #define USER_PASSWD_MAX		16

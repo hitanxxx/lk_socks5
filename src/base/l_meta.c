@@ -34,7 +34,7 @@ status meta_page_get_all( l_mem_page_t * page, meta_t * in, meta_t ** out )
 {
 	uint32 len = 0, part_len = 0;
 	meta_t *cl = in, *all = NULL;
-	char * p = NULL;
+	unsigned char * p = NULL;
 
 	if( page == NULL )
 	{

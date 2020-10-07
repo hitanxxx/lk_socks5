@@ -24,6 +24,7 @@ status 	heap_free( heap_t * heap );
 status 	heap_add( heap_t * heap, heap_node_t * node );
 status 	heap_del( heap_t * heap, uint32 position );
 status  heap_empty( heap_t * heap );
+int32 heap_num( heap_t * heap );
 heap_node_t * heap_min( heap_t * heap );
 
 #endif

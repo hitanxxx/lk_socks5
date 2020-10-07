@@ -42,7 +42,7 @@ static l_timer_t * timer_min( void )
 	min = heap_min( g_heap );
 	if( !min ) 
 	{
-		err(" heap min\n" );
+		err("heap min\n" );
 		return NULL;
 	}
 	min_timer = l_get_struct( min, l_timer_t, node );
@@ -89,7 +89,7 @@ inline void timer_set_pt( l_timer_t * timer, timer_pt pt )
 
 status timer_init( void )
 {
-	heap_create( &g_heap, MAXCON*2 );
+	heap_create( &g_heap, MAX_NET_CON*2 );
 	return OK;
 }
 

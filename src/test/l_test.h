@@ -3,13 +3,13 @@
 
 #define t_echo(...) \
 { \
-	printf("[%s]-[%s]-[%s]-[%d]-<info> ", __DATE__, __FILE__, __func__, __LINE__ );\
+	printf("[%s]-[%s]-[%d]-<info> ", __DATE__, __func__, __LINE__ );\
 	printf(__VA_ARGS__); \
 }
 
 #define t_err(...) \
 { \
-	printf("[%s]-[%s]-[%s]-[%d]-<error> ", __DATE__, __FILE__, __func__, __LINE__ );\
+	printf("[%s]-[%s]-[%d]-<error> ", __DATE__, __func__, __LINE__ );\
 	printf(__VA_ARGS__); \
 }
 

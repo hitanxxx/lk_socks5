@@ -8,9 +8,7 @@ static http_body_t * g_pool = NULL;
 static status http_body_parse_chunk( http_body_t * bd )
 {
 	status rc = AGAIN;
-	char * p;
-	uint32 recvd;
-	int32  length;
+	unsigned char * p = NULL;
 
 	enum {
 		chunk_start = 0,
@@ -82,18 +80,19 @@ static status http_body_parse_chunk( http_body_t * bd )
 		}
 		if ( state == chunk_hex_rn ) 
 		{
+            int32  length = 0;
 			if( *p != '\n' ) 
 			{
 				err("http body chunk_hex_rn illegal, [%d]\n", *p );
 				return ERROR;
 			}
-			if( OK != l_hex2dec( bd->hex_str, bd->hex_length, &length ) ) 
+			if( OK != l_hex2dec( bd->hex_str, bd->hex_length, &length ) )
 			{
 				err("http body chunk partnum hex2dec failed, [%.*s]\n", bd->hex_length, bd->hex_str );
 				return ERROR;
 			}
 			bd->hex_length 	= 0;
-			bd->chunk_all_length += length;
+			bd->body_length += length;
 
 			if( length > 0 )
 			{
@@ -109,7 +108,7 @@ static status http_body_parse_chunk( http_body_t * bd )
 		}
 		if ( state == chunk_part )
 		{
-			recvd = meta_len( p, bd->body_last->last );
+			uint32 recvd = meta_len( p, bd->body_last->last );
 			if( recvd >= bd->chunk_part_len ) 
 			{
 				p 		+= bd->chunk_part_len;
@@ -179,11 +178,11 @@ static status http_body_process_chunk( http_body_t * bd )
 	meta_t * new = NULL;
 	while( 1 ) 
 	{
-		if( bd->body_last->last == bd->body_last->end ) 
+		if( meta_len( bd->body_last->last, bd->body_last->end ) <= 0 ) 
 		{
 			if( OK != meta_alloc( &new, ENTITY_BODY_BUFFER_SIZE ) ) 
 			{
-				err(" alloc meta new\n");
+				err("http body chunk alloc append meta failed\n");
 				return ERROR;
 			}
 			bd->body_last->next 	= new;
@@ -200,7 +199,7 @@ static status http_body_process_chunk( http_body_t * bd )
 				{
 					err("http body recv failed\n");
 				}
-				return rc;
+				return (status)rc;
 			}
 			else 
 			{
@@ -225,15 +224,15 @@ static status http_body_process_chunk( http_body_t * bd )
 static status http_body_process_content( http_body_t * bd )
 {
 	meta_t * new = NULL;
-	ssize_t rc;
+	ssize_t rc = 0;
 	
 	while ( 1 ) 
 	{
-		if( bd->body_last->last == bd->body_last->end ) 
+        if( meta_len( bd->body_last->last, bd->body_last->end ) <= 0 )
 		{
 			if( OK != meta_alloc( &new, ENTITY_BODY_BUFFER_SIZE ) )
 			{
-				err(" alloc meta new\n");
+				err("http body content alloc append meta failed\n");
 				return ERROR;
 			}
 			bd->body_last->next 	= new;
@@ -246,8 +245,9 @@ static status http_body_process_content( http_body_t * bd )
 			if( rc == ERROR )
 			{
 				err("http body recv failed\n");
+                return ERROR;
 			}
-			return rc;
+			return AGAIN;
 		}
 		if( bd->body_cache )
 		{
@@ -266,62 +266,53 @@ static status http_body_process_content( http_body_t * bd )
 static status http_body_process( http_body_t * bd )
 {
 	uint32 remain_len = meta_len( bd->c->meta->pos, bd->c->meta->last );;
-	meta_t * new;
 
 	if( bd->body_type == HTTP_BODY_TYPE_NULL )
 	{
 		bd->callback_status |= HTTP_BODY_STAT_DONE_CACHENO;
 		return DONE;
 	}
-	else if( bd->body_type == HTTP_BODY_TYPE_CONTENT ) 
-	{
-		bd->content_need = bd->content_length;
-		if( OK != meta_alloc( &bd->body_head, ENTITY_BODY_BUFFER_SIZE ) )
-		{
-			err("http body content alloc head failed\n");
-			return ERROR;
-		}
-		bd->body_last = bd->body_head;
-
-		if( bd->body_cache && (remain_len > 0) )
-		{
-			l_memcpy( bd->body_last->last, bd->c->meta->pos, remain_len );
-			bd->body_last->last += remain_len;
-		}
-		
-		bd->content_need -= remain_len;
-		if( bd->content_need <= 0 )
-		{
-			bd->callback_status |= (( bd->body_cache ) ? HTTP_BODY_STAT_DONE_CACHE : HTTP_BODY_STAT_DONE_CACHENO);
-			return DONE;
-		}
-
-		bd->handler.process 	= http_body_process_content;
-		return bd->handler.process( bd );
-	} 
-	else if( bd->body_type == HTTP_BODY_TYPE_CHUNK ) 
-	{
-		if( OK != meta_alloc( &bd->body_head,  (remain_len>ENTITY_BODY_BUFFER_SIZE)?remain_len:ENTITY_BODY_BUFFER_SIZE  ) )
-		{
-			err("http body chunk body meta alloc failed\n");
-			return ERROR;
-		}
-		bd->body_head = bd->body_last;
-		if( remain_len > 0 )
-		{
-			l_memcpy( bd->body_last->last, bd->c->meta->pos, remain_len );
-			bd->body_last += remain_len;
-		}
-		
-		bd->chunk_pos 			= bd->body_last->pos = bd->body_last->last;
-		bd->chunk_all_length	= 0;
-		bd->handler.process 	= http_body_process_chunk;
-		return bd->handler.process( bd );
-	}
-	else
-	{
-		err("http body not support this type [%d]\n", bd->body_type );
-	}
+    else if ( bd->body_type == HTTP_BODY_TYPE_CONTENT || bd->body_type == HTTP_BODY_TYPE_CHUNK )
+    {
+        if( OK != meta_alloc( &bd->body_head, remain_len + ENTITY_BODY_BUFFER_SIZE ) )
+        {
+            err("http body content alloc head failed\n");
+            return ERROR;
+        }
+        bd->body_last = bd->body_head;
+        
+        if( bd->body_type == HTTP_BODY_TYPE_CONTENT )
+        {
+            if( bd->body_cache && (remain_len > 0) )
+            {
+                memcpy( bd->body_last->last, bd->c->meta->pos, remain_len );
+                bd->body_last->last += remain_len;
+            }
+            bd->content_need = bd->content_length - remain_len;
+            if( bd->content_need <= 0 )
+            {
+                bd->callback_status |= (( bd->body_cache ) ? HTTP_BODY_STAT_DONE_CACHE : HTTP_BODY_STAT_DONE_CACHENO);
+                return DONE;
+            }
+            
+            bd->handler.process     = http_body_process_content;
+            return bd->handler.process( bd );
+        }
+        else
+        {
+            if( remain_len > 0 )
+            {
+                memcpy( bd->body_last->last, bd->c->meta->pos, remain_len );
+                bd->body_last->last += remain_len;
+            }
+            
+            bd->chunk_pos             = bd->body_last->pos = bd->body_last->last;
+            bd->body_length            = 0;
+            bd->handler.process     = http_body_process_chunk;
+            return bd->handler.process( bd );
+        }
+    }
+    err("http body not support this type [%d]\n", bd->body_type );
 	return ERROR;
 }
 
@@ -329,16 +320,6 @@ static status http_body_alloc( http_body_t ** body )
 {
 	http_body_t * new;
 	queue_t * q;
-#if(1)
-	queue_t * local_q;
-	int num = 0;
-
-	for( local_q = queue_head( &g_queue_usable ); local_q != queue_tail( &g_queue_usable ); local_q = queue_next(local_q) )
-	{
-		num++;
-	}
-	debug("http body alloc loop usable queue, num [%d]\n", num );
-#endif
 
 	if( queue_empty( &g_queue_usable ) == 1 ) 
 	{
@@ -389,7 +370,6 @@ static status http_body_free( http_body_t * bd )
 	bd->chunk_pos 			= NULL;
 	bd->chunk_part_cur 		= 0;
 	bd->chunk_part_len 		= 0;
-	bd->chunk_all_length 	= 0;
 
 	bd->hex_length 			= 0;
 	queue_remove( &bd->queue );
@@ -419,16 +399,22 @@ status http_body_init_module( void )
 {
 	uint32 i;
 
+    if( 4096 >= ENTITY_BODY_BUFFER_SIZE )
+    {
+        err("http body entity buffer size [%d] too small\n", ENTITY_BODY_BUFFER_SIZE );
+        return ERROR;
+    }
+    
 	queue_init( &g_queue_usable );
 	queue_init( &g_queue_use );
-	g_pool = (http_body_t*)l_safe_malloc( sizeof(http_body_t)*MAXCON );
+	g_pool = (http_body_t*)l_safe_malloc( sizeof(http_body_t)*MAX_NET_CON );
 	if( !g_pool ) 
 	{
 		err("http body malloc g_pool\n" );
 		return ERROR;
 	}
-	memset( g_pool, 0, sizeof(http_body_t)*MAXCON );
-	for( i = 0; i < MAXCON; i ++ ) 
+	memset( g_pool, 0, sizeof(http_body_t)*MAX_NET_CON );
+	for( i = 0; i < MAX_NET_CON; i ++ ) 
 	{
 		queue_insert_tail( &g_queue_usable, &g_pool[i].queue );
 	}

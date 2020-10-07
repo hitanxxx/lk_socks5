@@ -7,12 +7,12 @@ static status socks5_local_authorization_resp_check( event_t * ev )
 {
 	connection_t * up = ev->data;
 	socks5_cycle_t * cycle = up->data;
+    meta_t * meta = &cycle->up2down_meta;
 	socks5_auth_t * auth = NULL;
 
-	do 
+	do
 	{
-		auth = (socks5_auth_t*) up->meta->pos;
-
+		auth = (socks5_auth_t*) meta->pos;
 		if( SOCKS5_AUTH_MAGIC_NUM != auth->magic )
 		{
 			err("s5 local auth check magic failed, [%d]\n", auth->magic );
@@ -31,9 +31,9 @@ static status socks5_local_authorization_resp_check( event_t * ev )
 			break;
 		}
 
-		ev->read_pt		= NULL;
-		ev->write_pt	= socks5_pipe;
-		return ev->write_pt( ev );
+		ev->read_pt		= socks5_pipe;
+		ev->write_pt	= NULL;
+		return ev->read_pt( ev );
 	} while(0);
 
 	socks5_cycle_over( cycle );
@@ -44,12 +44,12 @@ static status socks5_local_authorization_resp_recv( event_t * ev )
 {
 	connection_t* up = ev->data;
 	socks5_cycle_t * cycle = up->data;
-	
-	ssize_t rc;
+    meta_t * meta = &cycle->up2down_meta;
+	ssize_t rc = 0;
 
-	while( meta_len( up->meta->pos, up->meta->last ) < sizeof(socks5_auth_t) )
+	while( meta_len( meta->pos, meta->last ) < sizeof(socks5_auth_t) )
 	{
-		rc = up->recv( up, up->meta->last, meta_len( up->meta->last, up->meta->end ) );
+        rc = up->recv( up, meta->last, meta_len( meta->last, meta->end ) );
 		if( rc < 0 )
 		{
 			if( rc == ERROR )
@@ -63,21 +63,22 @@ static status socks5_local_authorization_resp_recv( event_t * ev )
 			timer_add( &ev->timer, SOCKS5_TIME_OUT );
 			return AGAIN;
 		}
-		up->meta->last += rc;
+		meta->last += rc;
 	}
 	timer_del( &ev->timer );
 	
-	up->event.write_pt = socks5_local_authorization_resp_check;
-	return ev->write_pt( ev );
+	up->event->read_pt = socks5_local_authorization_resp_check;
+	return ev->read_pt( ev );
 }
 
 static status socks5_local_authorization_req_send( event_t * ev )
 {
 	connection_t* up = ev->data;
 	socks5_cycle_t * cycle = up->data;
-	status rc;
+    meta_t * meta = &cycle->up2down_meta;
+	status rc = 0;
 
-	rc = up->send_chain( up, up->meta );
+	rc = up->send_chain( up, meta );
 	if( rc < 0 )
 	{
 		if( rc == ERROR )
@@ -91,15 +92,12 @@ static status socks5_local_authorization_req_send( event_t * ev )
 		timer_add( &ev->timer, SOCKS5_TIME_OUT );
 		return AGAIN;
 	}
-
 	timer_del( &ev->timer );
-	debug("s5 local send authorization success\n");
-	up->meta->last = up->meta->pos = up->meta->start;
-
+ 
+    meta->pos = meta->last = meta->start;
 	ev->write_pt	= NULL;
 	ev->read_pt		= socks5_local_authorization_resp_recv;
 	event_opt( ev, up->fd, EV_R );
-
 	return ev->read_pt( ev );
 }
 
@@ -107,26 +105,19 @@ static status socks5_local_authorization_req_build( event_t * ev )
 {
 	connection_t* up = ev->data;
 	socks5_cycle_t * cycle = up->data;
-	socks5_auth_t * auth = NULL;
+    meta_t * meta = &cycle->up2down_meta;
+    socks5_auth_t * auth = NULL;
 
-	if( up->meta == NULL ) 
-	{
-		if( OK != meta_alloc( &up->meta, SOCKS5_META_LENGTH ) ) 
-		{
-			err("socks5 local auth begin up conn meta alloc\n" );
-			socks5_cycle_over( cycle );
-			return ERROR;
-		}
-	}
+    meta->pos = meta->last = meta->start = cycle->up2down_buffer;
+    meta->end = meta->start + SOCKS5_META_LENGTH;
 	
-	auth = (socks5_auth_t*)up->meta->last;
-
-	auth->magic = SOCKS5_AUTH_MAGIC_NUM;
-	strncpy( auth->name, 	conf.socks5.client.user, sizeof(auth->name) );
-	strncpy( auth->passwd, 	conf.socks5.client.passwd, 	sizeof(auth->passwd) );
-	auth->message_type	= S5_AUTH_TYPE_REQ;
-	auth->message_status = 0;
-	up->meta->last += sizeof(socks5_auth_t);
+	auth = (socks5_auth_t*)meta->last;
+	auth->magic             = SOCKS5_AUTH_MAGIC_NUM;
+    auth->message_type      = S5_AUTH_TYPE_REQ;
+    auth->message_status    = S5_AUTH_STAT_SUCCESS;
+	memcpy( auth->name, conf.socks5.client.user, sizeof(auth->name)-1 );
+	memcpy( auth->passwd, conf.socks5.client.passwd, sizeof(auth->passwd)-1 );
+	meta->last += sizeof(socks5_auth_t);
 	
 	ev->write_pt = socks5_local_authorization_req_send;
 	return ev->write_pt( ev );
@@ -163,12 +154,14 @@ static status socks5_local_server_connect_check( event_t * ev )
 	{
 		if( OK != l_socket_check_status( up->fd ) )
 		{
-			err("s5 local connect failed\n");
+			err("s5 local connect check status failed\n");
 			break;
 		}
 		timer_del( &ev->timer );
 		l_socket_nodelay( up->fd );
-
+        
+        // s5 local use ssl transport with s5 server
+        cycle->up->ssl_flag  = 1;
 		if( up->ssl_flag )
 		{
 			if( OK != ssl_create_connection( up, L_SSL_CLIENT ) )
@@ -192,7 +185,6 @@ static status socks5_local_server_connect_check( event_t * ev )
 			}
 			return socks5_local_server_connect_handshake( ev );
 		}
-
 		ev->write_pt	= socks5_local_authorization_req_build;
 		return ev->write_pt( ev );
 	} while(0);
@@ -214,20 +206,20 @@ static status socks5_local_cycle_init( event_t * ev )
 	connection_t * down = ev->data;
 	socks5_cycle_t * cycle = NULL;
 	status rc;
+    
+	down->event->read_pt 	= NULL;
+	down->event->write_pt 	= NULL;
+	// make down event invalidate, wait up connect server success
+	event_opt( down->event, down->fd, EV_NONE );
 
-	down->event.read_pt 	= NULL;
-	down->event.write_pt 	= NULL;	
 	do
 	{
-		cycle = l_safe_malloc( sizeof(socks5_cycle_t) );
-		if( !cycle )
-		{
-			err("malloc socks5 cycle failed, [%d]\n", errno );
-			net_free( down );
-			return ERROR;
-		}
-		memset( cycle, 0, sizeof(socks5_cycle_t) );
-
+		if( OK != socks5_cycle_alloc( &cycle ) )
+        {
+            err("s5 local alloc cycle failed\n");
+            net_free( down );
+            return ERROR;
+        }
 		down->data 	= cycle;
 		cycle->down = down;
 
@@ -237,27 +229,25 @@ static status socks5_local_cycle_init( event_t * ev )
 			break;
 		}
 		cycle->up->data		= cycle;
-		cycle->up->ssl_flag	= 1;
-
+        
 		socks5_local_server_addr_get( &cycle->up->addr );
-
 		rc = l_net_connect( cycle->up, &cycle->up->addr, TYPE_TCP );
 		if( rc == ERROR )
 		{
 			err("cycle up connect failed\n");
 			break;
 		}
-		cycle->up->event.read_pt	= NULL;
-		cycle->up->event.write_pt	= socks5_local_server_connect_check;
-		event_opt( &cycle->up->event, cycle->up->fd, EV_W );
+		cycle->up->event->read_pt	= NULL;
+		cycle->up->event->write_pt	= socks5_local_server_connect_check;
+		event_opt( cycle->up->event, cycle->up->fd, EV_W );
 		if( rc == AGAIN )
 		{
-			timer_set_data( &cycle->up->event.timer, cycle );
-			timer_set_pt( &cycle->up->event.timer, socks5_timeout_cycle );
-			timer_add( &cycle->up->event.timer, SOCKS5_TIME_OUT );
+			timer_set_data( &cycle->up->event->timer, cycle );
+			timer_set_pt( &cycle->up->event->timer, socks5_timeout_cycle );
+			timer_add( &cycle->up->event->timer, SOCKS5_TIME_OUT );
 			return AGAIN;
 		}
-		return cycle->up->event.write_pt( &cycle->up->event );
+		return cycle->up->event->write_pt( cycle->up->event );
 	} while(0);
 
 	socks5_cycle_over( cycle );
@@ -268,6 +258,7 @@ status socks5_local_init( void )
 {
 	if( conf.socks5_mode == SOCKS5_CLIENT )
 	{
+        // socks5 client connect s5 local use normal tcp connection
 		listen_add( conf.socks5.client.local_port, socks5_local_cycle_init, L_NOSSL );
 	}
 	return OK;
