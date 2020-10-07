@@ -911,7 +911,7 @@ static status socks5_server_authorization_req_recv( event_t * ev )
 			timer_add( &ev->timer, SOCKS5_TIME_OUT );
 			return AGAIN;
 		}
-		down->meta->last += rc;
+		meta->last += rc;
 	}
 	timer_del( &ev->timer );
 	
