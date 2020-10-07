@@ -796,15 +796,6 @@ static status socks5_server_cycle_init( event_t * ev )
         return ERROR;
     }
     
-    if( OK != socks5_cycle_alloc( &cycle ) )
-    {
-        err("s5 server alloc cycle new failed\n");
-        net_free(down);
-        return ERROR;
-    }
-    cycle->down 	= down;
-	down->data 		= (void*)cycle;
-    
 	meta->pos       = meta->last = meta->start;
 	ev->write_pt 	= NULL;
 	ev->read_pt  	= socks5_server_s5_msg_invate_req_recv;
@@ -825,7 +816,7 @@ static status socks5_server_authorization_resp_send( event_t * ev )
 		if( rc == ERROR )
 		{
 			err("s5 server auth resp send failed\n");
-			net_free( down );
+            socks5_cycle_over(cycle);
 			return ERROR;
 		}
 		timer_set_data( &ev->timer, down );
@@ -912,7 +903,7 @@ static status socks5_server_authorization_req_recv( event_t * ev )
 			if( ERROR == rc )
 			{
 				err("s5 server authorizaton recv failed\n");
-				net_free( down );
+                socks5_cycle_over(cycle);
 				return ERROR;
 			}
 			timer_set_data( &ev->timer, down );
@@ -931,9 +922,19 @@ static status socks5_server_authorization_req_recv( event_t * ev )
 static status socks5_server_authorization_start( event_t * ev )
 {
 	connection_t * down = ev->data;
-    socks5_cycle_t * cycle = down->data;
-    meta_t * meta = &cycle->down2up_meta;
+    socks5_cycle_t * cycle = NULL;
+    meta_t * meta = NULL;
     
+    if( OK != socks5_cycle_alloc(&cycle) )
+    {
+        err("s5 server alloc cycle failed\n");
+        net_free( down );
+        return ERROR;
+    }
+    cycle->down = down;
+    down->data  = cycle;
+    
+    meta = &cycle->down2up_meta;
     meta->pos = meta->last = meta->start = cycle->down2up_buffer;
     meta->end = meta->start + SOCKS5_META_LENGTH;
     
