@@ -100,14 +100,6 @@ status l_dns_response_process( dns_cycle_t * cycle )
 		STATE_DATA_START,
 		STATE_DATA
 	} state = STATE_NAME_START;
-
-#if(0)
-	debug("The dns response info\n");
-	debug("%d Questions\n", ntohs( header->question_count) );
-	debug("%d Answers\n", ntohs( header->answer_count )) ;
-	debug("%d Authoritative\n", ntohs( header->auth_count) );
-	debug("%d Additional records\n", ntohs( header->add_count ));
-#endif
     
 	/*
 	 find ipv4 answer
@@ -185,6 +177,35 @@ status l_dns_response_process( dns_cycle_t * cycle )
 	return ERROR;
 }
 
+static char* l_dns_resp_response_code2str( uint32 num )
+{
+    if( num == 0 )
+    {
+        return "no error";
+    }
+    else if ( num == 1 )
+    {
+        return "req format error";
+    }
+    else if ( num == 2 )
+    {
+        return "server failure";
+    }
+    else if ( num == 3 )
+    {
+        return "query name error";
+    }
+    else if ( num == 4 )
+    {
+        return "no implemented";
+    }
+    else if ( num == 5 )
+    {
+        return "refused";
+    }
+    return "unknow";
+}
+
 status l_dns_response_recv( event_t * ev )
 {
 	connection_t * c = ev->data;
@@ -218,7 +239,7 @@ status l_dns_response_recv( event_t * ev )
 	header = (dns_header_t*)c->meta->pos;
 	if( ntohs(header->flag) & 0xf )
 	{
-		err("dns response error, flag [%x] resp code %x\n", header->flag, header->flag & 0xf );
+		err("dns response error, flag's resp code %x, [%s]\n", ntohs(header->flag)&0xf, l_dns_resp_response_code2str(ntohs(header->flag)&0xf) );
 		l_dns_stop( cycle, ERROR );
 		return ERROR;
 	}
@@ -263,7 +284,7 @@ status l_dns_request_send( event_t * ev )
 	return ev->read_pt( ev );
 }
 
-static int l_dns_request_qname_conv( unsigned char * qname, unsigned char * query )
+static uint32_t l_dns_request_qname_conv( unsigned char * qname, unsigned char * query )
 {
 	unsigned char *q = qname, * s = NULL, * p = NULL;
 	int query_len = l_strlen((char*)query);	
@@ -288,7 +309,7 @@ static int l_dns_request_qname_conv( unsigned char * qname, unsigned char * quer
 		*q++ = *s;
 	}
 	*q++ = '\0';
-	return (int)(q - qname);
+	return meta_len( qname, q );
 }
 
 
@@ -307,15 +328,16 @@ status l_dns_request_prepare( event_t * ev )
 	header->answer_count 	= 0;
 	header->auth_count 		= 0;
 	header->add_count 		= 0;
+    c->meta->last += sizeof(dns_header_t);
 	
-	qname = (unsigned char*)( c->meta->last + sizeof(dns_header_t));
+    qname = c->meta->last;
 	cycle->qname_len = l_dns_request_qname_conv( qname, cycle->query );
+    c->meta->last += cycle->qname_len;
 	
-	qinfo = (dns_question_t*)(c->meta->last + sizeof(dns_header_t) + cycle->qname_len );
+	qinfo = (dns_question_t*)(c->meta->last );
 	qinfo->qtype 	= htons(1);
 	qinfo->qclass 	= htons(1);
-	
-	c->meta->last = c->meta->pos + sizeof(dns_header_t) + cycle->qname_len + sizeof(dns_question_t);
+    c->meta->last += sizeof(dns_question_t);
 
 	event_opt( c->event, c->fd, EV_W );
 	ev->write_pt = l_dns_request_send;
