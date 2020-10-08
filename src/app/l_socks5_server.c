@@ -46,6 +46,8 @@ status socks5_cycle_free( socks5_cycle_t * cycle )
 
 status socks5_cycle_over( socks5_cycle_t * cycle )
 {
+    memset( &cycle->invite, 0, sizeof(socks5_message_invite_t) );
+    memset( &cycle->advance, 0, sizeof(socks5_message_advance_t) );
 	if( cycle->up ) 
 	{
 		net_free( cycle->up );
