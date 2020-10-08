@@ -284,34 +284,79 @@ status l_dns_request_send( event_t * ev )
 	return ev->read_pt( ev );
 }
 
-static uint32_t l_dns_request_qname_conv( unsigned char * qname, unsigned char * query )
+uint32_t l_dns_request_qname_conv( unsigned char * qname, unsigned char * query )
 {
-	unsigned char *q = qname, * s = NULL, * p = NULL;
-	int query_len = l_strlen((char*)query);	
-
-	for( s = p = query; p < query+query_len; p ++ )
-	{
-		if( *p == '.' )
-		{
-			*q++ = p-s;
-			for( ; s < p; s++ )
-			{
-				*q++ = *s;
-			}
-			p++;
-			s = p;
-		}
-	}
-	
-	*q++ = p-s;
-	for( ; s < p; s++ )
-	{
-		*q++ = *s;
-	}
-	*q++ = '\0';
-	return meta_len( qname, q );
+#if(1)
+    unsigned char * host = query;
+    unsigned char * dns = qname;
+    unsigned char * s = host;
+    int32_t i = 0;
+    size_t len = 0;
+    
+    enum
+    {
+        s_str = 0,
+        s_point,
+        s_point_after,
+    } state = 0;
+    
+    strcat( (char*)query, "." );
+    err("dns conv qname [%s]\n", query );
+    while( host < query + l_strlen(query) )
+    {
+        if( state == s_str )
+        {
+            if( *host == '.' )
+            {
+                len = host-s;
+                err("[%d]\n", len );
+                *dns++ = len;
+                for( i = 0; i < len; i ++ )
+                {
+                    *(dns+i) = *(s+i);
+                }
+                err("[%.*s]\n", len, dns );
+                dns += len;
+                state = s_point;
+            }
+        }
+        else if ( state == s_point )
+        {
+            s = host;
+            state = s_str;
+        }
+        host++;
+    }
+    *dns++ = '\0';
+    err("s5 dns len [%d] [%.*s]\n", meta_len( qname, dns ), meta_len( qname, dns ), qname );
+    return meta_len( qname, dns );
+#else
+    unsigned char *q = qname, * s = NULL, * p = NULL;
+    int query_len = l_strlen((char*)query);
+    
+    for( s = p = query; p < query+query_len; p ++ )
+    {
+        if( *p == '.' )
+        {
+            *q++ = p-s;
+            for( ; s < p; s++ )
+            {
+                *q++ = *s;
+            }
+            p++;
+            s = p;
+        }
+    }
+    
+    *q++ = p-s;
+    for( ; s < p; s++ )
+    {
+        *q++ = *s;
+    }
+    *q++ = '\0';
+    return meta_len( qname, q );
+#endif
 }
-
 
 status l_dns_request_prepare( event_t * ev )
 {
@@ -321,13 +366,13 @@ status l_dns_request_prepare( event_t * ev )
 	unsigned char * qname   = NULL;
 	dns_question_t * qinfo  = NULL;
 
-	header = (dns_header_t*)c->meta->last;
-	header->id              = (unsigned short) htons( 0xffff );
-	header->flag            = htons(0x100);
-	header->question_count  = htons(1);
-	header->answer_count    = 0;
-	header->auth_count      = 0;
-	header->add_count       = 0;
+    header = (dns_header_t*)c->meta->last;
+    header->id              = (unsigned short) htons( 0xffff );
+    header->flag            = htons(0x100);
+    header->question_count  = htons(1);
+    header->answer_count    = 0;
+    header->auth_count      = 0;
+    header->add_count       = 0;
     c->meta->last += sizeof(dns_header_t);
 	
     qname = c->meta->last;

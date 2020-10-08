@@ -42,7 +42,7 @@ typedef void ( * dns_callback )( void * data );
 typedef struct dns_cycle
 {
     // in && out
-    unsigned char   query[64];
+    unsigned char   query[DOMAIN_LENGTH+1];
     connection_t *  c;
     dns_callback    cb;
     void *          cb_data;
@@ -56,5 +56,6 @@ typedef struct dns_cycle
 status l_dns_start( dns_cycle_t * cycle );
 status l_dns_create( dns_cycle_t ** dns_cycle );
 status l_dns_free( dns_cycle_t * cycle );
+uint32_t l_dns_request_qname_conv( unsigned char * qname, unsigned char * query );
 #endif
 

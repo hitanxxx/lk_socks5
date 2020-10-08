@@ -33,6 +33,24 @@ static void ts_dns_timer_pt( void * data )
 }
 #endif
 
+static void ts_dns_conv_qname( void )
+{
+    unsigned char host[255] = {0};
+    unsigned char dns[255] = {0};
+    uint32 len = 0;
+    
+    strcpy( (char*)host, "www.baidu.com" );
+    len = l_dns_request_qname_conv( dns, (unsigned char*)host );
+#if(1)
+    int j = 0;
+    for( j = 0; j < len; j ++ )
+    {
+        t_echo("[%d]\n", dns[j] );
+    }
+#endif
+    return ;
+}
+
 void ts_dns_init( )
 {
 #if(0)
@@ -51,5 +69,7 @@ void ts_dns_init( )
 	timer_set_pt( &g_ts_timer, ts_dns_timer_pt );
 	timer_add( &g_ts_timer, 1 );
 #endif
+    
+    test_add(ts_dns_conv_qname);
 }
 

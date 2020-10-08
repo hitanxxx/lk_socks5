@@ -103,7 +103,7 @@ enum limit_value {
 	FILEPATH_LENGTH   =	256,
 	PASSWD_LENGTH     = 32,
 	USERNAME_LENGTH   =	32,
-	DOMAIN_LENGTH     =	64
+	DOMAIN_LENGTH     =	255
 };
 
 // statu types
@@ -127,7 +127,7 @@ typedef struct l_connection_t   connection_t;
 #define l_unused(x)                         ((void)x)
 #define l_safe_free(x)                      (free(x))
 #define l_safe_malloc(len)                  (malloc((uint32)(len)))
-#define l_strlen(str)                       ((uint32)strlen(str))
+#define l_strlen(str)                       ((uint32)strlen((char*)str))
 #define l_min(x,y)                          ((x<y)?x:y)
 #define l_max(x,y)                          ((x>y)?x:y)
 #define meta_len(start,end)                 ((uint32)l_max(0,((unsigned char*)end-(unsigned char*)start)))

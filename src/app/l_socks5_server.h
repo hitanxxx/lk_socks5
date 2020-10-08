@@ -60,7 +60,7 @@ typedef struct socks5_message_advcance
     unsigned char       addr_len;
     unsigned char       addr_recv;
 
-    unsigned char       addr_str[256];
+    unsigned char       addr_str[DOMAIN_LENGTH];
     unsigned char       addr_port[2];
 } socks5_message_advance_t;
 

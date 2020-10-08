@@ -457,6 +457,12 @@ static status socks5_server_s5_msg_advance_req_addr( event_t * ev )
 	}
 	else if ( cycle->advance.atyp == 0x03 )
 	{
+        if( l_strlen( cycle->advance.addr_str ) > DOMAIN_LENGTH )
+        {
+            err("s5 server req domain too long\n");
+            socks5_cycle_over( cycle );
+            return ERROR;
+        }
 		// domain type address
 		rc = l_dns_create( &cycle->dns_cycle );
 		if( rc == ERROR )
