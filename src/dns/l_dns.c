@@ -317,17 +317,17 @@ status l_dns_request_prepare( event_t * ev )
 {
 	connection_t * c = ev->data;
 	dns_cycle_t * cycle = c->data;
-	dns_header_t * header 	= NULL;
-	unsigned char * qname 	= NULL;
-	dns_question_t * qinfo 	= NULL;
+	dns_header_t * header   = NULL;
+	unsigned char * qname   = NULL;
+	dns_question_t * qinfo  = NULL;
 
 	header = (dns_header_t*)c->meta->last;
-	header->id 				= (unsigned short) htons( 0x99 );
-	header->flag 			= htons(0x100);
-	header->question_count 	= htons(1);
-	header->answer_count 	= 0;
-	header->auth_count 		= 0;
-	header->add_count 		= 0;
+	header->id              = (unsigned short) htons( 0xffff );
+	header->flag            = htons(0x100);
+	header->question_count  = htons(1);
+	header->answer_count    = 0;
+	header->auth_count      = 0;
+	header->add_count       = 0;
     c->meta->last += sizeof(dns_header_t);
 	
     qname = c->meta->last;
@@ -335,8 +335,8 @@ status l_dns_request_prepare( event_t * ev )
     c->meta->last += cycle->qname_len;
 	
 	qinfo = (dns_question_t*)(c->meta->last );
-	qinfo->qtype 	= htons(1);
-	qinfo->qclass 	= htons(1);
+	qinfo->qtype    = htons(1);
+	qinfo->qclass   = htons(1);
     c->meta->last += sizeof(dns_question_t);
 
 	event_opt( c->event, c->fd, EV_W );
