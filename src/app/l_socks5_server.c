@@ -60,7 +60,7 @@ status socks5_cycle_over( socks5_cycle_t * cycle )
 	}
 	if( cycle->dns_cycle )
 	{
-		l_dns_free( cycle->dns_cycle );
+		l_dns_over( cycle->dns_cycle );
 		cycle->dns_cycle = NULL;
 	}
     cycle->up_recv_error    = 0;

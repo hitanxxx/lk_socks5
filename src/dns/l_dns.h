@@ -1,7 +1,8 @@
 #ifndef _L_DNS_H_INCLUDED_
 #define _L_DNS_H_INCLUDED_
 
-#define DNS_TIMEOUT 5
+#define DNS_TIMEOUT         5
+#define DNS_BUFFER_LEN      1500
 
 #pragma pack(push,1)
 typedef struct dns_header 
@@ -41,6 +42,7 @@ typedef struct dns_record
 typedef void ( * dns_callback )( void * data );
 typedef struct dns_cycle
 {
+    queue_t         queue;
     // in && out
     unsigned char   query[DOMAIN_LENGTH+1];
     connection_t *  c;
@@ -51,11 +53,17 @@ typedef struct dns_cycle
 	// private
     uint32          qname_len;
     dns_record_t    answer;
+    
+    meta_t          dns_meta;
+    unsigned char   dns_buffer[DNS_BUFFER_LEN];
 } dns_cycle_t;
 
 status l_dns_start( dns_cycle_t * cycle );
 status l_dns_create( dns_cycle_t ** dns_cycle );
-status l_dns_free( dns_cycle_t * cycle );
+status l_dns_over( dns_cycle_t * cycle );
 uint32_t l_dns_request_qname_conv( unsigned char * qname, unsigned char * query );
+
+status l_dns_init( void );
+status l_dns_end( void );
 #endif
 

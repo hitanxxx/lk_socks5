@@ -26,6 +26,7 @@ modules_init_t init_modules[] = {
 	{http_request_head_init_module,             http_request_head_end_module,      	 	  "http_req_head"},
 	{http_body_init_module,               		http_body_end_module,      	 	  		  "http_body"},
 	{webser_init,             	webser_end,      	 	  "http"},
+    {l_dns_init,                l_dns_end,                 "dns"},
 	{NULL,	NULL,  NULL}
 };
 

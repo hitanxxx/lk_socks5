@@ -1,4 +1,5 @@
 #include "l_macro.h"
+#include "l_base.h"
 #include "l_test.h"
 #include "l_dns.h"
 

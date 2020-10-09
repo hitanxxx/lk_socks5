@@ -3,7 +3,7 @@
 ssize_t udp_recvs( connection_t * c, unsigned char * start, uint32 len )
 {
 	ssize_t rc;
-	socklen_t socklen = sizeof(c->addr);
+    socklen_t socklen = sizeof(struct sockaddr);
 
 	do 
 	{
