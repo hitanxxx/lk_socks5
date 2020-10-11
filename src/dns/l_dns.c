@@ -331,7 +331,6 @@ uint32_t l_dns_request_qname_conv( unsigned char * qname, unsigned char * query 
     } state = 0;
     
     strcat( (char*)query, "." );
-    err("dns conv qname [%s]\n", query );
     while( host < query + l_strlen(query) )
     {
         if( state == s_str )
@@ -339,13 +338,11 @@ uint32_t l_dns_request_qname_conv( unsigned char * qname, unsigned char * query 
             if( *host == '.' )
             {
                 len = host-s;
-                err("[%d]\n", len );
                 *dns++ = len;
                 for( i = 0; i < len; i ++ )
                 {
                     *(dns+i) = *(s+i);
                 }
-                err("[%.*s]\n", len, dns );
                 dns += len;
                 state = s_point;
             }
@@ -358,7 +355,6 @@ uint32_t l_dns_request_qname_conv( unsigned char * qname, unsigned char * query 
         host++;
     }
     *dns++ = '\0';
-    err("s5 dns len [%d] [%.*s]\n", meta_len( qname, dns ), meta_len( qname, dns ), qname );
     return meta_len( qname, dns );
 }
 

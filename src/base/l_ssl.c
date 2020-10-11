@@ -319,13 +319,13 @@ status ssl_server_ctx( SSL_CTX ** s )
 	if( !this->ctx_server )
 	{
 		local_ctx = SSL_CTX_new( SSLv23_server_method() );
-		rc = SSL_CTX_use_certificate_chain_file (local_ctx, conf.base.sslcrt);
+		rc = SSL_CTX_use_certificate_chain_file (local_ctx, (char*)conf.base.sslcrt);
 		if( rc != 1 ) 
 		{
 			err("ssl serv use crt file [%s] failed. error [%s]\n", conf.base.sslcrt, ERR_error_string( ERR_get_error(), this->g_err_msg) );
 			return ERROR;
 		}
-		rc = SSL_CTX_use_PrivateKey_file( local_ctx, conf.base.sslkey, SSL_FILETYPE_PEM );
+		rc = SSL_CTX_use_PrivateKey_file( local_ctx, (char*)conf.base.sslkey, SSL_FILETYPE_PEM );
 		if( rc != 1 ) 
 		{
 			err("ssl serv use private key failed\n");

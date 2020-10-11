@@ -7,6 +7,7 @@
 
 	"sslcrt":"/usr/local/lks5/certificate/2048.crt",
 	"sslkey":"/usr/local/lks5/certificate/2048.key",
+    "authfile":"/usr/local/lks5/config/auth.json",
 
 	"socks5":
 	{

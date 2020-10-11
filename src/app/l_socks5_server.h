@@ -4,35 +4,39 @@
 // socks5 private macro
 #define SOCKS5_META_LENGTH			(1024*16)	// 16KB = openssl default ssl layer cache buffer size
 #define SOCKS5_TIME_OUT				3
-#define SOCKS5_AUTH_MAGIC_NUM		947085
-
 
 /* socks5 message type */
+#define S5_AUTH_MAGIC_NUM           0xffffeeee
 enum socks5_private_auth_message_type
 {
-    S5_AUTH_TYPE_REQ,
-    S5_AUTH_TYPE_RESP
+    S5_AUTH_TYPE_AUTH_REQ       = 0x1,
+    S5_AUTH_TYPE_AUTH_RESP      = 0x2,
 };
 /* scoks5 message status */
 enum socks5_private_auth_message_status
 {
-    S5_AUTH_STAT_SUCCESS,
-    S5_AUTH_STAT_MAGIC_FAIL,
-    S5_AUTH_STAT_TYPE_FAIL,
-    S5_AUTH_STAT_NO_USER,
-    S5_AUTH_STAT_PASSWD_FAIL
+    S5_AUTH_STAT_SUCCESS        = 0x1,
+    S5_AUTH_STAT_MAGIC_FAIL     = 0x2,
+    S5_AUTH_STAT_TYPE_FAIL      = 0x3,
+    S5_AUTH_STAT_NO_USER        = 0x4,
+    S5_AUTH_STAT_PASSWD_FAIL    = 0x5
 };
 
 #pragma pack(push,1)
-typedef struct socks5_auth 
+typedef struct socks5_auth_header
 {
-    int                 magic;                  // magic num filed
-    int                 message_type;           // private auth message type. enum socks5_message_type
-    int                 message_status;         // private auth message status, enum socks5_message_status
+    uint32_t            magic;                  // magic num filed
+    unsigned char       message_type;           // private auth message type. enum socks5_message_type
+    unsigned char       message_status;         // private auth message status, enum socks5_message_status
+    unsigned short      reserved;
+} socks5_auth_header_t;
 
-    unsigned char       name[USERNAME_LENGTH];  // private auth username
-    unsigned char       passwd[PASSWD_LENGTH];	// private auth passwd
-} socks5_auth_t;
+typedef struct socks5_auth_authinfo
+{
+    unsigned char           name[USERNAME_LENGTH+1];  // private auth username
+    unsigned char           passwd[PASSWD_LENGTH+1];	// private auth passwd
+} socks5_auth_authinfo_t;
+
 
 typedef struct socks5_message_invite 
 {
@@ -103,4 +107,5 @@ void socks5_timeout_con( void * data );
 status socks5_cycle_over( socks5_cycle_t * cycle );
 status socks5_pipe( event_t * ev );
 status socks5_cycle_alloc( socks5_cycle_t ** cycle );
+status socks5_server_secret_mode_start( event_t * ev );
 #endif

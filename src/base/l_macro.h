@@ -92,17 +92,20 @@ enum webser_type
 };
 
 /* scoks5 module run model */
-enum socks5_type {
-	SOCKS5_SERVER,
-	SOCKS5_CLIENT
+enum socks5_type
+{
+    SOCKS5_CLIENT               = 0x1,
+	SOCKS5_SERVER               = 0x2,
+    SOCKS5_SERVER_SECRET        = 0x3,
+	
 };
 
 // limits
 enum limit_value {
 	IPV4_LENGTH       =	16,
 	FILEPATH_LENGTH   =	256,
-	PASSWD_LENGTH     = 32,
-	USERNAME_LENGTH   =	32,
+    USERNAME_LENGTH   = 16,
+	PASSWD_LENGTH     = 16,
 	DOMAIN_LENGTH     =	255
 };
 

@@ -3,6 +3,7 @@
 
 #define USER_NAME_MAX		16
 #define USER_PASSWD_MAX		16
+#define USER_AUTH_FILE_LEN  4096
 
 typedef struct user_t {
 	char		name[USER_NAME_MAX];
