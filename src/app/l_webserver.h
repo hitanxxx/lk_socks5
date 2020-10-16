@@ -38,7 +38,10 @@ typedef struct mime_type_t
 	string_t		header;
 } mime_type_t;
 
-status webser_process_request_body( event_t * ev );
+status webser_process_req_body( event_t * ev );
+
+void webser_interface_set_body_len( webser_t * webser, uint32 body_len );
+void webser_interface_set_mimetype( webser_t * webser, char * mimetype );
 
 status webser_init( void );
 status webser_end( void );

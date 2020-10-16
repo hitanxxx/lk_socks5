@@ -34,6 +34,7 @@ static mime_type_t mimetype_table[] =
 
 static status webser_cycle_init( event_t * ev );
 
+
 static string_t * webser_get_mimetype( unsigned char * str, int len )
 {
     uint32 i;
@@ -748,6 +749,16 @@ static status webser_accept_callback( event_t * ev )
 
     net_free( c );
     return ERROR;
+}
+
+inline void webser_interface_set_body_len( webser_t * webser, uint32 body_len )
+{
+    webser->filelen = l_max( 0, body_len );
+}
+
+inline void webser_interface_set_mimetype( webser_t * webser, char * mimetype )
+{
+    webser->file_mime = webser_get_mimetype( (unsigned char*)mimetype, l_strlen(mimetype) );
 }
 
 status webser_init( void )
