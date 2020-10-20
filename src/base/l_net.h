@@ -12,6 +12,7 @@ typedef struct l_connection_t
 {
     queue_t             queue;
     
+    l_mem_page_t        *page;
     int32               fd;
     uint32              con_type;	// enum connection_type
     void*               data;

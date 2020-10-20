@@ -69,8 +69,6 @@ static status webser_alloc( webser_t ** webser )
 
 static status webser_free( webser_t * webser )
 {
-    meta_t * meta, *next;
-
     webser->type 			= 0;
     webser->data 			= NULL;
     webser->http_resp_code 	= 0;
@@ -94,21 +92,6 @@ static status webser_free( webser_t * webser )
     webser->file_mime  		= NULL;
     webser->filelen			= 0;
     webser->filesend		= 0;
-
-    meta = webser->response_head;
-    while( meta )
-    {
-        next = meta->next;
-        meta_free( meta );
-        meta = next;
-    }
-    meta = webser->response_body;
-    while( meta )
-    {
-        next = meta->next;
-        meta_free( meta );
-        meta = next;
-    }
 
     queue_remove( &webser->queue );
     queue_insert_tail( &this->g_queue_usable, &webser->queue );
@@ -267,7 +250,7 @@ static status webser_process_resp_body_static_file_build( webser_t * webser )
     ssize_t unfinish = webser->filelen - webser->filesend;
 
     len = (uint32)l_min( unfinish, WEBSER_BODY_META_LENGTH );
-    if( OK != meta_alloc( &webser->response_body, len ) )
+    if( OK != meta_page_alloc( webser->c->page, len, &webser->response_body ) )
     {
         err("webser resp body meta alloc\n");
         return ERROR;
@@ -330,7 +313,7 @@ status webser_process_resp_head_build( webser_t * webser )
     head_len += l_strlen("\r\n");
 
 
-    if( OK != meta_alloc( &webser->response_head, head_len+1 ) )
+    if( OK != meta_page_alloc( webser->c->page, head_len+1, &webser->response_head ) )
     {
         err("webser build resp head all meta failed\n");
         return ERROR;
@@ -604,9 +587,19 @@ static status webser_cycle_init( event_t * ev )
     connection_t * c = ev->data;
     webser_t * webser = NULL;
 
+    // page && meta init
+    if( NULL == c->page )
+    {
+        if( OK != l_mem_page_create(&c->page, L_PAGE_DEFAULT_SIZE) )
+        {
+            err("webser c page create failed\n");
+            net_free( c );
+            return ERROR;
+        }
+    }
     if( NULL == c->meta )
     {
-        if( OK != meta_alloc( &c->meta, WEBSER_REQ_META_LEN ) )
+        if( OK != meta_page_alloc( c->page, WEBSER_REQ_META_LEN, &c->meta ) )
         {
             err("webser alloc con meta failed\n");
             net_free( c );
@@ -641,9 +634,19 @@ static status webser_procotol_route( event_t * ev )
     meta_t * meta = NULL;
     ssize_t rc = 0;
     
+    // page && meta init
+    if( NULL == c->page )
+    {
+        if( OK != l_mem_page_create(&c->page, L_PAGE_DEFAULT_SIZE) )
+        {
+            err("webser c page create failed\n");
+            net_free( c );
+            return ERROR;
+        }
+    }
     if( NULL == c->meta )
     {
-        if( OK != meta_alloc( &c->meta, WEBSER_REQ_META_LEN ) )
+        if( OK != meta_page_alloc( c->page, WEBSER_REQ_META_LEN, &c->meta ) )
         {
             err("webser alloc con meta failed\n");
             net_free( c );

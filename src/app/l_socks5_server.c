@@ -1022,8 +1022,9 @@ status socks5_server_secret_mode_start( event_t * ev )
     memcpy( meta->pos, down->meta->pos, l_min( SOCKS5_META_LENGTH, meta_len( down->meta->pos, down->meta->last ) ) );
     meta->pos   += sizeof( socks5_auth_header_t );
     meta->last  += meta_len( down->meta->pos, down->meta->last );
-    meta_free( down->meta );
-    down->meta = NULL;
+    
+    l_mem_page_free( down->page );
+    down->page = NULL;
     
     ev->read_pt = socks5_server_authorization_req_check_payload;
     return ev->read_pt( ev );
@@ -1116,7 +1117,7 @@ status socks5_server_init( void )
         SOCKS5_META_LENGTH < sizeof(socks5_message_invite_t) ||
         SOCKS5_META_LENGTH < sizeof(socks5_message_advance_t) ||
         SOCKS5_META_LENGTH < 4096
-       )
+    )
     {
         err("s5 macro SOCKS5_META_LENGTH too small\n");
         return ERROR;

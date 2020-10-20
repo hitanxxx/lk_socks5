@@ -29,7 +29,7 @@ static status webapi_hello_world( event_t * ev )
     }
     
     // build response body
-    if( OK != meta_alloc( &webser->response_body, 4096 ) )
+    if( OK != meta_page_alloc( c->page, 64, &webser->response_body ) )
     {
         err("web api [hello world] meta alloc failed\n");
         return ERROR;

@@ -75,6 +75,7 @@ status l_dns_create( dns_cycle_t ** dns_cycle )
 			err("dns alloc conn failed\n");
 			break;
 		}
+        
         meta = &local_cycle->dns_meta;
         meta->start = meta->pos = meta->last = local_cycle->dns_buffer;
         meta->end = meta->start + DNS_BUFFER_LEN;

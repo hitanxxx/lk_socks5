@@ -18,8 +18,7 @@ status serv_api_find( string_t * key, serv_api_handler * handler )
 		if( s == NULL )
 		{
 			continue;
-		}
-        debug("api element [%.*s]\n", s->name.len, s->name.data );
+        }
 		if( OK == l_strncmp_cap( s->name.data, s->name.len, key->data, key->len ) ) 
 		{
 			if( handler ) 

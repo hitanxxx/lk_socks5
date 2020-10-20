@@ -180,7 +180,7 @@ static status http_body_process_chunk( http_body_t * bd )
 	{
 		if( meta_len( bd->body_last->last, bd->body_last->end ) <= 0 ) 
 		{
-			if( OK != meta_alloc( &new, ENTITY_BODY_BUFFER_SIZE ) ) 
+			if( OK != meta_page_alloc( bd->c->page, ENTITY_BODY_BUFFER_SIZE, &new ) ) 
 			{
 				err("http body chunk alloc append meta failed\n");
 				return ERROR;
@@ -230,7 +230,7 @@ static status http_body_process_content( http_body_t * bd )
 	{
         if( meta_len( bd->body_last->last, bd->body_last->end ) <= 0 )
 		{
-			if( OK != meta_alloc( &new, ENTITY_BODY_BUFFER_SIZE ) )
+			if( OK != meta_page_alloc( bd->c->page, ENTITY_BODY_BUFFER_SIZE, &new ) )
 			{
 				err("http body content alloc append meta failed\n");
 				return ERROR;
@@ -274,7 +274,7 @@ static status http_body_process( http_body_t * bd )
 	}
     else if ( bd->body_type == HTTP_BODY_TYPE_CONTENT || bd->body_type == HTTP_BODY_TYPE_CHUNK )
     {
-        if( OK != meta_alloc( &bd->body_head, remain_len + ENTITY_BODY_BUFFER_SIZE ) )
+        if( OK != meta_page_alloc( bd->c->page, remain_len + ENTITY_BODY_BUFFER_SIZE, &bd->body_head ) )
         {
             err("http body content alloc head failed\n");
             return ERROR;
@@ -336,8 +336,6 @@ static status http_body_alloc( http_body_t ** body )
 
 static status http_body_free( http_body_t * bd )
 {
-	meta_t *cur = NULL, *next = NULL;
-
 	bd->c 					= NULL;
 	bd->state 				= 0;
 	
@@ -347,16 +345,6 @@ static status http_body_free( http_body_t * bd )
 	bd->body_type 			= HTTP_BODY_TYPE_NULL;
 	bd->body_cache 			= 0;
 	bd->body_length			= 0;
-	if( bd->body_head ) 
-	{
-		cur = bd->body_head;
-		while( cur ) 
-		{
-			next = cur->next;
-			meta_free( cur );
-			cur = next;
-		}
-	}
 	
 	bd->body_head 			= NULL;
 	bd->body_last 			= NULL;

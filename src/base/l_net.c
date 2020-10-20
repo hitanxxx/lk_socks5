@@ -231,7 +231,6 @@ status l_net_accept( event_t * ev )
 static status net_free_simple( event_t * ev )
 {
 	connection_t * c = ev->data;
-	meta_t * cur = NULL, * next = NULL;
 
 	event_free( ev );
 	c->event = NULL;
@@ -241,17 +240,11 @@ static status net_free_simple( event_t * ev )
 		close( c->fd );
 		c->fd = 0;
 	}	
-	if( c->meta )
-	{
-		cur = c->meta;
-		while( cur )
-		{
-			next = cur->next;
-			meta_free(cur);
-			cur = next;
-		}
-		c->meta = NULL;
-	}
+	if( c->page )
+    {
+        l_mem_page_free( c->page );
+        c->page = NULL;
+    }
 
 	memset( &c->addr, 0, sizeof(struct sockaddr_in) );
 	c->data 		= NULL;
@@ -349,19 +342,13 @@ status net_init( void )
 status net_end( void )
 {
 	uint32 i;
-	meta_t *cur = NULL, *next = NULL;
 	
 	for( i = 0; i < MAX_NET_CON; i ++ ) 
 	{
-		if( this->pool[i].meta )
+		if( this->pool[i].page )
 		{
-			cur = this->pool[i].meta;
-			while( cur )
-			{
-				next = cur->next;
-				meta_free( cur );
-				cur = next;
-			}
+            l_mem_page_free(this->pool[i].page);
+            this->pool[i].page = NULL;
 		}
 	}
 	if( this )
