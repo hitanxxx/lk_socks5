@@ -8,6 +8,16 @@ typedef struct private_ssl
 } private_ssl_t;
 static private_ssl_t * this = NULL;
 
+static void ssl_clear_error( void )
+{
+    // ignoring stale global SSL error
+    while( ERR_peek_error() )
+    {
+        // ssl error storge in stack, need run loop to clean it 
+    }
+    ERR_clear_error();
+}
+
 status ssl_shutdown_handler( event_t * ev )
 {
 	connection_t * c = ev->data;
@@ -38,7 +48,7 @@ status ssl_shutdown( ssl_connection_t * ssl )
 		c->ssl_flag = 0;
 		return OK;
 	}
-	
+    ssl_clear_error();
 	n = SSL_shutdown( c->ssl->con );
 	if( n != 1 && ERR_peek_error() ) 
 	{
@@ -101,7 +111,8 @@ status ssl_handshake( ssl_connection_t * ssl )
 {
 	int n, ssler;
 	connection_t * c = ssl->data;
-	
+    
+	ssl_clear_error();
 	n = SSL_do_handshake( ssl->con );
 	if( n == 1 ) 
 	{
@@ -147,6 +158,7 @@ ssize_t ssl_read( connection_t * c, unsigned char * start, uint32 len )
 {
 	int rc = 0, sslerr = 0;
 
+    ssl_clear_error();
 	rc = SSL_read( c->ssl->con, start, (int)len );
 	if( rc > 0 )
 	{
@@ -211,6 +223,7 @@ ssize_t ssl_write( connection_t * c, unsigned char * start, uint32 len )
 {
 	int rc = 0, sslerr = 0;
 
+    ssl_clear_error();
 	rc = SSL_write( c->ssl->con, start, (int)len );
 	if( rc > 0 ) 
 	{
