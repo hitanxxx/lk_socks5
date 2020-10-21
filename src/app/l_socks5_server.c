@@ -1023,9 +1023,6 @@ status socks5_server_secret_mode_start( event_t * ev )
     meta->pos   += sizeof( socks5_auth_header_t );
     meta->last  += meta_len( down->meta->pos, down->meta->last );
     
-    l_mem_page_free( down->page );
-    down->page = NULL;
-    
     ev->read_pt = socks5_server_authorization_req_check_payload;
     return ev->read_pt( ev );
 }
