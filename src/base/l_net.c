@@ -244,6 +244,9 @@ static status net_free_simple( event_t * ev )
     {
         l_mem_page_free( c->page );
         c->page = NULL;
+        
+        // meta memory based on page
+        c->meta = NULL;
     }
 
 	memset( &c->addr, 0, sizeof(struct sockaddr_in) );
