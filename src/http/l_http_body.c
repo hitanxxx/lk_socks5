@@ -289,6 +289,10 @@ static status http_body_process( http_body_t * bd )
                 bd->body_last->last += remain_len;
             }
             bd->content_need = bd->content_length - remain_len;
+            
+            // change the connection meta pos whatever cache or discard
+            bd->c->meta->pos += remain_len;
+            
             if( bd->content_need <= 0 )
             {
                 bd->callback_status |= (( bd->body_cache ) ? HTTP_BODY_STAT_DONE_CACHE : HTTP_BODY_STAT_DONE_CACHENO);
@@ -305,6 +309,8 @@ static status http_body_process( http_body_t * bd )
                 memcpy( bd->body_last->last, bd->c->meta->pos, remain_len );
                 bd->body_last->last += remain_len;
             }
+            // change the connection meta pos whatever cache or discard
+            bd->c->meta->pos += remain_len;
             
             bd->chunk_pos             = bd->body_last->pos = bd->body_last->last;
             bd->body_length            = 0;
