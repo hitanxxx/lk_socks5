@@ -36,7 +36,6 @@ struct http_body_t
 	unsigned char *         chunk_pos;
     uint32                  chunk_part_cur;
     uint32                  chunk_part_len;
-    uint32                  chunk_all_length;
     
 	unsigned char           hex_str[ENTITY_BODY_CHUNKED_PART_HEX_STR_LENGTH];
 	uint32                  hex_length;

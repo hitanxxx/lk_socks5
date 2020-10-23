@@ -592,7 +592,7 @@ static status http_request_head_free( http_req_head_t * request )
 	if( request->headers_in.list ) 
 	{
 		mem_list_free( request->headers_in.list );
-		request->headers_in.list = NULL;
+        memset( &request->headers_in, 0, sizeof(http_req_headers_in_t) );
 	}
 	request->keepalive 			= 0;
 	request->content_length 	= 0;

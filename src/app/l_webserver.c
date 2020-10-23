@@ -92,6 +92,9 @@ static status webser_free( webser_t * webser )
     webser->file_mime  		= NULL;
     webser->filelen			= 0;
     webser->filesend		= 0;
+    
+    webser->response_head   = NULL;
+    webser->response_body   = NULL;
 
     queue_remove( &webser->queue );
     queue_insert_tail( &this->g_queue_usable, &webser->queue );
@@ -123,7 +126,6 @@ static status webser_keepalive( event_t * ev )
 
     if( remain )
     {
-        debug("keep alive remain [%.*s]\n", remain, c->meta->pos );
         memcpy( c->meta->start, c->meta->pos, remain );
     }
     c->meta->pos    = c->meta->start;
@@ -186,7 +188,7 @@ static status webser_resp_send_body( event_t * ev )
     while (0);
 
     timer_del( &ev->timer );
-    if( webser->http_req_head->keepalive == 1 )
+    if( webser->http_resp_code == 200 & webser->http_req_head->keepalive == 1 )
     {
         ev->write_pt = webser_keepalive;
         return ev->write_pt( ev );
@@ -681,7 +683,6 @@ static status webser_procotol_route( event_t * ev )
         // filter magic number
         if( S5_AUTH_MAGIC_NUM != head->magic )
         {
-            debug("webser procotol route, s5 auht header magic check failed, [%x]\n", head->magic );
             // magic number not match, goto http/https process
             break;
         }
@@ -694,7 +695,7 @@ static status webser_procotol_route( event_t * ev )
     return ev->read_pt( ev );
 }
 
-static status webset_accept_callback_ssl( event_t * ev )
+static status webser_accept_callback_ssl( event_t * ev )
 {
     connection_t * c = ev->data;
 
@@ -737,13 +738,13 @@ static status webser_accept_callback( event_t * ev )
                     err("webser ssl handshake failed\n");
                     break;
                 }
-                c->ssl->cb = webset_accept_callback_ssl;
+                c->ssl->cb = webser_accept_callback_ssl;
                 timer_set_data( &ev->timer, c );
                 timer_set_pt( &ev->timer, webser_timeout_con );
                 timer_add( &ev->timer, WEBSER_TIMEOUT );
                 return AGAIN;
             }
-            return webset_accept_callback_ssl( ev );
+            return webser_accept_callback_ssl( ev );
         }
         
         ev->read_pt = webser_cycle_init;

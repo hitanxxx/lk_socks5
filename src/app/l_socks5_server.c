@@ -46,6 +46,8 @@ status socks5_cycle_free( socks5_cycle_t * cycle )
 
 status socks5_cycle_over( socks5_cycle_t * cycle )
 {
+    meta_t * meta = NULL;
+    
     memset( &cycle->invite, 0, sizeof(socks5_message_invite_t) );
     memset( &cycle->advance, 0, sizeof(socks5_message_advance_t) );
     if( cycle->up )
@@ -65,6 +67,15 @@ status socks5_cycle_over( socks5_cycle_t * cycle )
     }
     cycle->up_recv_error    = 0;
     cycle->down_recv_error  = 0;
+    
+    meta = &cycle->down2up_meta;
+    meta->pos = meta->last = meta->start = cycle->down2up_buffer;
+    meta->last = meta->start + SOCKS5_META_LENGTH;
+    
+    meta = &cycle->up2down_meta;
+    meta->pos = meta->last = meta->start = cycle->up2down_buffer;
+    meta->end = meta->start + SOCKS5_META_LENGTH;
+    
     socks5_cycle_free(cycle);
     return OK;
 }
