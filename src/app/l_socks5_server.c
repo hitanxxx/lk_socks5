@@ -1068,6 +1068,20 @@ static status socks5_server_mode_accept_callback( event_t * ev )
     // s5 local connect s5 server must use tls connection
     do
     {
+        rc = l_net_check_ssl(down);
+        if( OK != rc )
+        {
+            if( AGAIN == rc )
+            {
+                timer_set_data( &ev->timer, down );
+                timer_set_pt( &ev->timer, socks5_timeout_con );
+                timer_add( &ev->timer, SOCKS5_TIME_OUT );
+                return AGAIN;
+            }
+            err("s5 server check net ssl failed\n");
+            break;
+        }
+        
         if( OK != ssl_create_connection( down, L_SSL_SERVER ) )
         {
             err("s5 server down ssl create connection failed\n");

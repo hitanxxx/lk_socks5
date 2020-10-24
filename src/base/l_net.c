@@ -94,7 +94,28 @@ status l_socket_check_status( int32 fd )
 	return OK;
 }
 
-
+status l_net_check_ssl( connection_t * c )
+{
+    ssize_t n = 0;
+    unsigned char buf = 0;
+    
+    n = recv( c->fd, (char*)&buf, 1, MSG_PEEK );
+    if( n <= 0 )
+    {
+        if( (n < 0) && ( (errno == AGAIN) || (errno == EWOULDBLOCK) ) )
+        {
+            return AGAIN;
+        }
+        err("net check ssl recv failed, [%d: %s]\n", errno, strerror(errno) );
+        return ERROR;
+    }
+    /* 0x80:SSLv2  0x16:SSLv3/TLSv1 */
+    if( !(buf&0x80) && (buf != 0x16) )
+    {
+        return ERROR;
+    }
+    return OK;
+}
 
 status l_net_connect( connection_t * c, struct sockaddr_in * addr, uint32 con_type )
 {

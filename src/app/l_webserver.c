@@ -725,6 +725,20 @@ static status webser_accept_callback( event_t * ev )
     {
         if( 1 == c->ssl_flag )
         {
+            rc = l_net_check_ssl(c);
+            if( OK != rc )
+            {
+                if( AGAIN == rc )
+                {
+                    timer_set_data( &ev->timer, c );
+                    timer_set_pt( &ev->timer, webser_timeout_con );
+                    timer_add( &ev->timer, WEBSER_TIMEOUT );
+                    return AGAIN;
+                }
+                err("webser check net ssl failed\n");
+                break;
+            }
+            
             if( OK != ssl_create_connection( c, L_SSL_SERVER ) )
             {
                 err("webser ssl con create failed\n");

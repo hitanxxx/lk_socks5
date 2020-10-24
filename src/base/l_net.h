@@ -40,6 +40,7 @@ status l_socket_nopush( int32 fd );
 status l_socket_send_lowat( int32 fd );
 status l_socket_check_status( int32 fd );
 
+status l_net_check_ssl( connection_t * c );
 status l_net_accept( event_t * event );
 status l_net_connect( connection_t * c, struct sockaddr_in * addr, uint32 con_type );
 
