@@ -75,11 +75,6 @@ status meta_alloc( meta_t ** meta, uint32 size )
 {
 	meta_t * t = NULL;
 
-	if( size < 0 )
-	{
-		err("size <= 0\n" );
-		return ERROR;
-	}
 	if( meta == NULL )
 	{
 		err("meta NULL\n");
