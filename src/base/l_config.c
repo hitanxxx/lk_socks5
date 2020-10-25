@@ -283,7 +283,7 @@ static status config_start( void )
             err("config configuration file data get\n");
             break;
         }
-        printf("configuration file:\n[%.*s]\n", meta_len( conf.meta->pos, conf.meta->last ), conf.meta->pos );
+        printf("Load s5 configuration file:\n%.*s\n", meta_len( conf.meta->pos, conf.meta->last ), conf.meta->pos );
         
         if( OK != json_ctx_create( &json_ctx ) )
         {
@@ -312,7 +312,6 @@ static status config_start( void )
     {
         json_ctx_free( json_ctx );
     }
-    printf("config start over.\n");
     return rc;
 }
 

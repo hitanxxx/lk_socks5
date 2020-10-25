@@ -165,7 +165,7 @@ status json_get_obj_obj( ljson_node_t * obj, char * str, uint32 length, ljson_no
 #if(1)
 static status json_parse_true( ljson_ctx_t * ctx )
 {
-	unsigned char * p;
+	unsigned char * p = NULL;
 
 	enum {
 		t = 0,
@@ -174,31 +174,43 @@ static status json_parse_true( ljson_ctx_t * ctx )
 		true
 	} state;
 	state = t;
-	for( ; ctx->p < ctx->end; ctx->p ++ ) {
+	for( ; ctx->p < ctx->end; ctx->p ++ )
+    {
 		p = ctx->p;
 
-		if( state == t ) {
+		if( state == t )
+        {
 			state = tr;
 			continue;
-		} else if ( state == tr ) {
-			if( *p != 'r' ) {
-				return ERROR;
+		}
+        else if ( state == tr )
+        {
+			if( *p != 'r' )
+            {
+                break;
 			}
 			state = tru;
 			continue;
-		} else if ( state == tru ) {
-			if( *p != 'u' ) {
-				return ERROR;
+		}
+        else if ( state == tru )
+        {
+			if( *p != 'u' )
+            {
+                break;
 			}
 			state = true;
 			continue;
-		} else if ( state == true ) {
-			if( *p != 'e' ) {
-				return ERROR;
+		}
+        else if ( state == true )
+        {
+			if( *p != 'e' )
+            {
+                break;
 			}
 			return OK;
 		}
 	}
+    err("lsjon true unexpect [%c]\n", *p );
 	return ERROR;
 }
 
@@ -214,37 +226,52 @@ static status json_parse_false( ljson_ctx_t * ctx )
 		false
 	} state;
 	state = f;
-	for( ; ctx->p < ctx->end; ctx->p ++ ) {
+	for( ; ctx->p < ctx->end; ctx->p ++ )
+    {
 		p = ctx->p;
 
-		if( state == f ) {
+		if( state == f )
+        {
 			state = fa;
 			continue;
-		} else if ( state == fa ) {
-			if( *p != 'a' ) {
-				return ERROR;
+		}
+        else if ( state == fa )
+        {
+			if( *p != 'a' )
+            {
+                break;
 			}
 			state = fal;
 			continue;
-		} else if ( state == fal ) {
-			if( *p != 'l' ) {
-				return ERROR;
+		}
+        else if ( state == fal )
+        {
+			if( *p != 'l' )
+            {
+                break;
 			}
 			state = fals;
 			continue;
-		} else if ( state == fals ) {
-			if( *p != 's' ) {
-				return ERROR;
+		}
+        else if ( state == fals )
+        {
+			if( *p != 's' )
+            {
+                break;
 			}
 			state = false;
 			continue;
-		} else if ( state == false ) {
-			if( *p != 'e' ) {
-				return ERROR;
+		}
+        else if ( state == false )
+        {
+			if( *p != 'e' )
+            {
+                break;
 			}
 			return OK;
 		}
 	}
+    err("ljson false unexpect [%c]\n", *p );
 	return ERROR;
 }
 
@@ -259,31 +286,43 @@ static status json_parse_null( ljson_ctx_t * ctx )
 		null
 	} state;
 	state = n;
-	for( ; ctx->p < ctx->end; ctx->p ++ ) {
+	for( ; ctx->p < ctx->end; ctx->p ++ )
+    {
 		p = ctx->p;
 
-		if( state == n ) {
+		if( state == n )
+        {
 			state = nu;
 			continue;
-		} else if ( state == nu ) {
-			if( *p != 'u' ) {
-				return ERROR;
+		}
+        else if ( state == nu )
+        {
+			if( *p != 'u' )
+            {
+                break;
 			}
 			state = nul;
 			continue;
-		} else if ( state == nul ) {
-			if( *p != 'l' ) {
-				return ERROR;
+		}
+        else if ( state == nul )
+        {
+			if( *p != 'l' )
+            {
+				break;
 			}
 			state = null;
 			continue;
-		} else if ( state == null ) {
-			if( *p != 'l' ) {
-				return ERROR;
+		}
+        else if ( state == null )
+        {
+			if( *p != 'l' )
+            {
+				break;
 			}
 			return OK;
 		}
 	}
+    err("ljson null unexpect [%c]\n", *p );
 	return ERROR;
 }
 
@@ -302,8 +341,8 @@ static status json_parse_string( ljson_node_t * json, ljson_ctx_t * ctx )
 		transfer_uxxxx
 	} state;
 	state = l_quotes;
-	for( ;ctx->p < ctx->end; ctx->p++ ) {
-		
+	for( ;ctx->p < ctx->end; ctx->p++ )
+    {
 		p = ctx->p;
 
 		if( state == l_quotes ) 
@@ -350,7 +389,8 @@ static status json_parse_string( ljson_node_t * json, ljson_ctx_t * ctx )
 			} else if( *p == 'u' ) {
 				state = transfer_ux;
 				continue;
-			} 
+			}
+            err("ljson string state transfer unexpect [%c]\n", *p );
 			return ERROR;
 		}
 		if( state == transfer_ux ) 
@@ -362,6 +402,7 @@ static status json_parse_string( ljson_node_t * json, ljson_ctx_t * ctx )
 				state = transfer_uxx;
 				continue;
 			}
+            err("ljson string state transfer ux unexpect [%c]\n", *p );
 			return ERROR;
 		}
 		if( state == transfer_uxx ) 
@@ -373,6 +414,7 @@ static status json_parse_string( ljson_node_t * json, ljson_ctx_t * ctx )
 				state = transfer_uxxx;
 				continue;
 			}
+            err("ljson string state transfer uxx unexpect [%c]\n", *p );
 			return ERROR;
 		}
 		if( state == transfer_uxxx ) 
@@ -384,6 +426,7 @@ static status json_parse_string( ljson_node_t * json, ljson_ctx_t * ctx )
 				state = transfer_uxxxx;
 				continue;
 			}
+            err("ljson string state transfer uxxx unexpect [%c]\n", *p );
 			return ERROR;
 		}
 		if( state == transfer_uxxxx ) 
@@ -394,10 +437,12 @@ static status json_parse_string( ljson_node_t * json, ljson_ctx_t * ctx )
 				( *p >= 'A' && *p <= 'F' ) ) {
 				state = string;
 				continue;
-			} 
+			}
+            err("ljson string state transfer uxxxx unexpect [%c]\n", *p );
 			return ERROR;
 		}
 	}
+    err("ljson string unexpect [%c]\n", *p );
 	return ERROR;
 }
 
@@ -428,18 +473,39 @@ static status json_parse_obj( ljson_node_t * parent, ljson_ctx_t * ctx )
 	enum {
 		obj_start = 0,
 		obj_name,
+        obj_comma,
 		obj_colon,
 		obj_value,
 		obj_part
 	} state;
 	state = obj_start;
-	for( ; ctx->p < ctx->end; ctx->p ++ ) {
+	for( ; ctx->p < ctx->end; ctx->p ++ )
+    {
 		p = ctx->p;
 
 		if( state == obj_start ) {
 			state = obj_name;
 			continue;
 		}
+        if( state == obj_comma )
+        {
+            if(
+               *p == ' '  ||
+               *p == '\r' ||
+               *p == '\n' ||
+               *p == '\t' ) {
+                continue;
+            }
+            else if( *p == '"' )
+            {
+                state = obj_name;
+            }
+            else
+            {
+                err("ljson obj comma unexpect [%c]\n", *p );
+                return ERROR;
+            }
+        }
 		if( state == obj_name ) {
 			if(
 				*p == ' '  ||
@@ -451,6 +517,7 @@ static status json_parse_obj( ljson_node_t * parent, ljson_ctx_t * ctx )
 			else if( *p == '"' ) 
 			{
 				if( OK != json_node_add( ctx, parent, &child ) ) {
+                    err("ljson obj create new node failed\n");
 					return ERROR;
 				}
 				if( OK != json_parse_string( child, ctx ) ) {
@@ -460,7 +527,7 @@ static status json_parse_obj( ljson_node_t * parent, ljson_ctx_t * ctx )
 				
 				// same level find repeat
 				if( OK == json_parse_obj_find_repeat( parent, child ) ) {
-					err(" repeat\n" );
+					err("ljson obj child repeat\n" );
 					return ERROR;
 				}
 				state = obj_colon;
@@ -470,6 +537,7 @@ static status json_parse_obj( ljson_node_t * parent, ljson_ctx_t * ctx )
 			{
 				return OK;
 			}
+            err("ljson obj state name unexpect [%c]\n", *p );
 			return ERROR;
 		}
 		if( state == obj_colon ) 
@@ -484,6 +552,7 @@ static status json_parse_obj( ljson_node_t * parent, ljson_ctx_t * ctx )
 				state = obj_value;
 				continue;
 			}
+            err("ljson obj colon unexpect [%c]\n", *p );
 			return ERROR;
 		}
 		if( state == obj_value ) 
@@ -502,15 +571,17 @@ static status json_parse_obj( ljson_node_t * parent, ljson_ctx_t * ctx )
 				*p == '\t' ) {
 				continue;
 			} else if ( *p == ',' ) {
-				state = obj_name;
+				state = obj_comma;
 				continue;
 			} else if ( *p == '}' ) {
 				return OK;
 			} else {
+                err("ljson obj part unexpect [%c]\n", *p );
 				return ERROR;
 			}
 		}
 	}
+    err("ljson obj unexpect [%c]\n", *p );
 	return ERROR;
 }
 
@@ -521,6 +592,7 @@ static status json_parse_array ( ljson_node_t * arr, ljson_ctx_t * ctx )
 
 	enum {
 		arr_start = 0,
+        arr_comma,
 		arr_value,
 		arr_part	
 	} state;
@@ -545,16 +617,38 @@ static status json_parse_array ( ljson_node_t * arr, ljson_ctx_t * ctx )
 			} 
 			else if( *p == ',' ) 
 			{
-				state = arr_value;
+				state = arr_comma;
 				continue;
 			} 
 			else if( *p == ']' ) 
 			{
 				arr->node_type	= JSON_ARR;
 				return OK;
-			} 
+			}
+            err("ljson arr part unexpect [%c]\n", *p );
 			return ERROR;
 		}
+        if( state == arr_comma )
+        {
+            if(
+               *p == ' '  ||
+               *p == '\r' ||
+               *p == '\n' ||
+               *p == '\t' )
+            {
+                continue;
+            }
+            else if ( *p == ']' )
+            {
+                err("ljson arr comma unexpect [%c]\n", *p );
+                return ERROR;
+            }
+            if( OK != json_parse_token( arr, ctx ) ) {
+                return ERROR;
+            }
+            state = arr_part;
+            continue;
+        }
 		if( state == arr_value ) 
 		{
 			if(
@@ -577,6 +671,7 @@ static status json_parse_array ( ljson_node_t * arr, ljson_ctx_t * ctx )
 			continue;
 		}
 	}
+    err("ljson arr unexpect [%c]\n", *p );
 	return ERROR;
 }
 
@@ -616,6 +711,7 @@ static status json_parse_num ( ljson_node_t * json, ljson_ctx_t * ctx )
 				state = inte_string;
 				continue;
 			}
+            err("ljson num start unexpect [%c]\n", *p );
 			return ERROR;
 		}
 		if( state == inte_string_start ) 
@@ -624,7 +720,8 @@ static status json_parse_num ( ljson_node_t * json, ljson_ctx_t * ctx )
 			{
 				state = inte_string;
 				continue;
-			} 
+			}
+            err("ljson inte_string_start unexpect [%c]\n", *p );
 			return ERROR;
 		}
 		if( state == inte_string ) 
@@ -652,6 +749,7 @@ static status json_parse_num ( ljson_node_t * json, ljson_ctx_t * ctx )
 			}
 			else
 			{
+                err("ljson num inte_dec_before_end unexpect [%c]\n", *p );
 				return ERROR;
 			}
 		}
@@ -661,7 +759,8 @@ static status json_parse_num ( ljson_node_t * json, ljson_ctx_t * ctx )
 			{
 				state = dec_string;
 				continue;
-			} 
+			}
+            err("ljson dec_string_start unexpect [%c]\n", *p );
 			return ERROR;
 		}
 		if( state == dec_string ) 
@@ -682,11 +781,11 @@ static status json_parse_num ( ljson_node_t * json, ljson_ctx_t * ctx )
 			json->num_i = (int)json->num_f;
 			
 			if( errno == ERANGE && ( json->num_d == HUGE_VAL || json->num_d == -HUGE_VAL ) ) {
-				err ( " number is too big or to less\n" );
+				err("ljson num is too big or to less\n");
 				return ERROR;
 			}
 			if( num_string.data == end ) {
-				err ( " number str empty\n" );
+				err("ljson num str empty\n" );
 				return ERROR;
 			}
 			ctx->p-=1;
@@ -704,11 +803,11 @@ static status json_parse_num ( ljson_node_t * json, ljson_ctx_t * ctx )
 		json->num_i = (int)json->num_f;
 		
 		if( errno == ERANGE && ( json->num_d == HUGE_VAL || json->num_d == -HUGE_VAL ) ) {
-			err ( " number is too big or to less\n" );
+			err("ljson num is too big or to less\n");
 			return ERROR;
 		}
 		if( num_string.data == end ) {
-			err ( " number str empty\n" );
+			err("ljson num str empty\n" );
 			return ERROR;
 		}
 		return OK;
@@ -721,24 +820,21 @@ static status json_parse_token( ljson_node_t * parent, ljson_ctx_t * ctx )
 	ljson_node_t * cur_node = NULL;
 	unsigned char * p = NULL;
 
-	for( ; ctx->p < ctx->end; ctx->p ++ ) {
-		
+	for( ; ctx->p < ctx->end; ctx->p ++ )
+    {
 		p = ctx->p;
-	
 		if( 
-			*p == ' ' ||
+			*p == ' '  ||
 			*p == '\r' ||
 			*p == '\n' ||
 			*p == '\t' ) {
-			
 			continue;
 		} 
 		else if( *p == 't' ) 
 		{
 			if( OK != json_parse_true( ctx ) ) 
 			{
-				err("ljson parse 'true' failed\n");
-				goto failed;
+                break;
 			}
 			// json_node_add will alloc a new structrue
 			json_node_add( ctx, parent, &cur_node );
@@ -748,8 +844,7 @@ static status json_parse_token( ljson_node_t * parent, ljson_ctx_t * ctx )
 		else if( *p == 'f' ) 
 		{
 			if( OK != json_parse_false( ctx ) ) {
-				err("ljson parse 'false' failed\n");
-				goto failed;
+                break;
 			}
 			json_node_add( ctx, parent, &cur_node );
 			cur_node->node_type = JSON_FALSE;
@@ -759,8 +854,7 @@ static status json_parse_token( ljson_node_t * parent, ljson_ctx_t * ctx )
 		else if( *p == 'n' ) 
 		{
 			if( OK != json_parse_null( ctx ) ) {
-				err("ljson parse 'null' failed\n");
-				goto failed;
+                break;
 			}
 			json_node_add( ctx, parent, &cur_node );
 			cur_node->node_type = JSON_NULL;
@@ -771,8 +865,7 @@ static status json_parse_token( ljson_node_t * parent, ljson_ctx_t * ctx )
 		{
 			json_node_add( ctx, parent, &cur_node );
 			if( OK != json_parse_string( cur_node, ctx ) ) {
-				err("ljson parse string failed\n");
-				goto failed;
+                break;
 			}
 			cur_node->node_type = JSON_STR;
 			return OK;
@@ -782,8 +875,7 @@ static status json_parse_token( ljson_node_t * parent, ljson_ctx_t * ctx )
 		{
 			json_node_add( ctx, parent, &cur_node );
 			if( OK != json_parse_obj( cur_node, ctx ) ) {
-				err("parse obj failed\n");
-				goto failed;
+                break;
 			}
 			cur_node->node_type = JSON_OBJ;
 			return OK;
@@ -792,22 +884,19 @@ static status json_parse_token( ljson_node_t * parent, ljson_ctx_t * ctx )
 		{	
 			json_node_add( ctx, parent, &cur_node );
 			if( OK != json_parse_array( cur_node, ctx ) ) {
-				err("parse array failed\n");
-				goto failed;
+                break;
 			}
 			return OK;
 
 		} else {
 			json_node_add( ctx, parent, &cur_node );
 			if( OK != json_parse_num( cur_node, ctx ) ) {
-				err("parse number failed\n");
-				goto failed;
+                break;
 			}
 			cur_node->node_type = JSON_NUM;
 			return OK;
 		}
 	}
-failed:
 	return ERROR;
 }
 #endif
