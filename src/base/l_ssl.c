@@ -15,7 +15,6 @@ static void ssl_clear_error( void )
     do
     {
         rc = ERR_peek_error();
-        err("ssl clear error, rc [%d]\n", rc );
     } while( rc );
     ERR_clear_error();
 }
