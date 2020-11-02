@@ -167,7 +167,12 @@ static status webser_resp_send_body( event_t * ev )
         if( webser->type == WEBSER_STATIC )
         {
             ssize_t size = 0, unfinish = webser->filelen - webser->filesend;
-            if( unfinish <= 0 )break;
+            if( unfinish <= 0 )
+            {
+                // break the loop when send file success
+                debug("webser send body success\n");
+                break;
+            }
 
             timer_add( &ev->timer, WEBSER_TIMEOUT );
             webser->response_body->pos = webser->response_body->last = webser->response_body->start;
@@ -185,7 +190,7 @@ static status webser_resp_send_body( event_t * ev )
             continue;
         }
     }
-    while (0);
+    while (1);
 
     timer_del( &ev->timer );
     if( webser->http_resp_code == 200 & webser->http_req_head->keepalive == 1 )

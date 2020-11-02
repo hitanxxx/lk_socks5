@@ -145,6 +145,10 @@ status send_chains( connection_t * c, meta_t * head )
 		size = sends( c, cur->pos, meta_len( cur->pos, cur->last ) );
 		if( size < 0 )
 		{
+            if( AGAIN == size )
+            {
+                return AGAIN;
+            }
 			return ERROR;
 		}
 		cur->pos += size;
