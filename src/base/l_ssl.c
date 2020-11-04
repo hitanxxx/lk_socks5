@@ -11,11 +11,6 @@ static private_ssl_t * this = NULL;
 static void ssl_clear_error( void )
 {
     // ignoring stale global SSL error
-    unsigned long rc = 0;
-    do
-    {
-        rc = ERR_peek_error();
-    } while( rc );
     ERR_clear_error();
 }
 
