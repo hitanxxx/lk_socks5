@@ -11,7 +11,37 @@ static private_ssl_t * this = NULL;
 static void ssl_clear_error( void )
 {
     // ignoring stale global SSL error
+    unsigned long rc = 0;
+    do
+    {
+        rc = ERR_peek_error();
+        err("ssl clear error, ignore stale error [%d]\n", rc );
+    }while(rc);
     ERR_clear_error();
+}
+
+static void ssl_record_error( int sslerr )
+{
+    unsigned long n = 0;
+    unsigned char errstr[512] = {0};
+    unsigned char *p = errstr, *last = errstr + sizeof(errstr);
+    
+    if( sslerr == SSL_ERROR_SSL )
+    {
+        if( ERR_peek_error() )
+        {
+            while( (n = ERR_peek_error()) )
+            {
+                if( p < last - 1 )
+                {
+                    *p++ = ' ';
+                    ERR_error_string_n( n, (char*)p, last-p );
+                }
+                (void)ERR_get_error();
+            }
+        }
+        err("ssl record error, [%s]\n", errstr );
+    }
 }
 
 status ssl_shutdown_handler( event_t * ev )
@@ -33,7 +63,7 @@ status ssl_shutdown_handler( event_t * ev )
 
 status ssl_shutdown( ssl_connection_t * ssl )
 {
-    int32 n, ssler = 0;
+    int32 n, sslerr = 0;
     connection_t * c = ssl->data;
     
     if( SSL_in_init( c->ssl->con ) )
@@ -48,9 +78,9 @@ status ssl_shutdown( ssl_connection_t * ssl )
     n = SSL_shutdown( c->ssl->con );
     if( n != 1 && ERR_peek_error() )
     {
-        ssler = SSL_get_error(c->ssl->con, n );
+        sslerr = SSL_get_error(c->ssl->con, n );
     }
-    if( n == 1 || ssler == 0 || ssler == SSL_ERROR_ZERO_RETURN )
+    if( n == 1 || sslerr == 0 || sslerr == SSL_ERROR_ZERO_RETURN )
     {
         SSL_free( c->ssl->con );
         l_safe_free( c->ssl );
@@ -59,7 +89,7 @@ status ssl_shutdown( ssl_connection_t * ssl )
         return OK;
     }
     
-    if( ssler == SSL_ERROR_WANT_READ )
+    if( sslerr == SSL_ERROR_WANT_READ )
     {
         if( 0 == ssl->cache_ev_type )
         {
@@ -69,7 +99,7 @@ status ssl_shutdown( ssl_connection_t * ssl )
         c->event->read_pt	= ssl_shutdown_handler;
         return AGAIN;
     }
-    else if ( ssler == SSL_ERROR_WANT_WRITE )
+    else if ( sslerr == SSL_ERROR_WANT_WRITE )
     {
         if( 0 == ssl->cache_ev_type )
         {
@@ -84,6 +114,7 @@ status ssl_shutdown( ssl_connection_t * ssl )
     l_safe_free( c->ssl );
     c->ssl      = NULL;
     c->ssl_flag = 0;
+    ssl_record_error(sslerr);
     return ERROR;
 }
 
@@ -105,7 +136,7 @@ static status ssl_handshake_handler( event_t * ev )
 
 status ssl_handshake( ssl_connection_t * ssl )
 {
-    int n, ssler;
+    int n, sslerr;
     connection_t * c = ssl->data;
     
     ssl_clear_error();
@@ -115,8 +146,8 @@ status ssl_handshake( ssl_connection_t * ssl )
         ssl->handshaked = 1;
         return OK;
     }
-    ssler = SSL_get_error( ssl->con, n );
-    if( ssler == SSL_ERROR_WANT_READ )
+    sslerr = SSL_get_error( ssl->con, n );
+    if( sslerr == SSL_ERROR_WANT_READ )
     {
         if( 0 == ssl->cache_ev_type )
         {
@@ -126,7 +157,7 @@ status ssl_handshake( ssl_connection_t * ssl )
         c->event->read_pt = ssl_handshake_handler;
         return AGAIN;
     }
-    else if ( ssler == SSL_ERROR_WANT_WRITE )
+    else if ( sslerr == SSL_ERROR_WANT_WRITE )
     {
         if( 0 == ssl->cache_ev_type )
         {
@@ -137,11 +168,12 @@ status ssl_handshake( ssl_connection_t * ssl )
         return AGAIN;
     }
     
-    if( ssler == SSL_ERROR_ZERO_RETURN || ERR_peek_error() == 0 )
+    if( sslerr == SSL_ERROR_ZERO_RETURN || ERR_peek_error() == 0 )
     {
         err ("ssl handshake peer closed\n" );
         return ERROR;
     }
+    ssl_record_error(sslerr);
     return ERROR;
 }
 
@@ -207,6 +239,7 @@ ssize_t ssl_read( connection_t * c, unsigned char * start, uint32 len )
     {
         return ERROR;
     }
+    ssl_record_error(sslerr);
     return ERROR;
 }
 
@@ -272,6 +305,7 @@ ssize_t ssl_write( connection_t * c, unsigned char * start, uint32 len )
     {
         return ERROR;
     }
+    ssl_record_error(sslerr);
     return ERROR;
 }
 
@@ -308,50 +342,6 @@ status ssl_write_chain( connection_t * c, meta_t * meta )
             cl->pos += sent;
         }
     }
-}
-
-status ssl_client_ctx( SSL_CTX ** s )
-{
-    if( this->ctx_client == NULL )
-    {
-        this->ctx_client = SSL_CTX_new( SSLv23_client_method() );
-    }
-    *s = this->ctx_client;
-    return OK;
-}
-
-status ssl_server_ctx( SSL_CTX ** s )
-{
-    int32 rc;
-    SSL_CTX * local_ctx = NULL;
-    
-    if( !this->ctx_server )
-    {
-        local_ctx = SSL_CTX_new( SSLv23_server_method() );
-        rc = SSL_CTX_use_certificate_chain_file (local_ctx, (char*)conf.base.sslcrt);
-        if( rc != 1 )
-        {
-            err("ssl serv use crt file [%s] failed. error [%s]\n", conf.base.sslcrt, ERR_error_string( ERR_get_error(), this->g_err_msg) );
-            return ERROR;
-        }
-        rc = SSL_CTX_use_PrivateKey_file( local_ctx, (char*)conf.base.sslkey, SSL_FILETYPE_PEM );
-        if( rc != 1 )
-        {
-            err("ssl serv use private key failed\n");
-            SSL_CTX_free( local_ctx );
-            return ERROR;
-        }
-        rc = SSL_CTX_check_private_key( local_ctx );
-        if( rc != 1 )
-        {
-            err("ssl serv check private key failed\n");
-            SSL_CTX_free( local_ctx );
-            return ERROR;
-        }
-        this->ctx_server = local_ctx;
-    }
-    *s = this->ctx_server;
-    return OK;
 }
 
 status ssl_load_con_certificate( SSL_CTX * ctx, int flag, SSL ** ssl )
