@@ -1,6 +1,11 @@
 #ifndef _L_HTTP_RESPONSE_HEAD_H_INCLUDED_
 #define _L_HTTP_RESPONSE_HEAD_H_INCLUDED_
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 typedef struct http_response_head_t http_response_head_t;
 typedef status (*response_handler)( http_response_head_t * );
 typedef struct http_response_handlers 
@@ -33,5 +38,9 @@ struct http_response_head_t {
 status http_response_head_create( connection_t * c, http_response_head_t ** response );
 status http_response_head_init_module ( void );
 status http_response_head_end_module( void );
-
+    
+#ifdef __cplusplus
+}
+#endif
+        
 #endif

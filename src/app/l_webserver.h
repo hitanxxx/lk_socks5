@@ -1,6 +1,11 @@
 #ifndef _L_WEBSERVER_H_INCLUDED_
 #define _L_WEBSERVER_H_INCLUDED_
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 #define WEBSER_TIMEOUT                  5
 #define WEBSER_LENGTH_INDEX_STR         32
 #define WEBSER_LENGTH_HOME_STR          256
@@ -46,4 +51,8 @@ void webser_interface_set_mimetype( webser_t * webser, char * mimetype );
 status webser_init( void );
 status webser_end( void );
 
+#ifdef __cplusplus
+}
+#endif
+    
 #endif

@@ -1,6 +1,11 @@
 #ifndef _L_SOCKS5_H_INCLUDED_
 #define _L_SOCKS5_H_INCLUDED_
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 // socks5 private macro
 #define SOCKS5_META_LENGTH			(1024*16)	// 16KB = openssl default ssl layer cache buffer size
 #define SOCKS5_TIME_OUT				3
@@ -108,4 +113,9 @@ status socks5_cycle_over( socks5_cycle_t * cycle );
 status socks5_pipe( event_t * ev );
 status socks5_cycle_alloc( socks5_cycle_t ** cycle );
 status socks5_server_secret_mode_start( event_t * ev );
+    
+#ifdef __cplusplus
+}
+#endif
+    
 #endif

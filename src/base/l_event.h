@@ -1,6 +1,12 @@
 #ifndef _L_EVENT_H_INCLUDED_
 #define _L_EVENT_H_INCLUDED_
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+    
+
 #define EV_NONE         0x0
 #if defined(EVENT_EPOLL)
 #define EV_R            EPOLLIN
@@ -49,8 +55,12 @@ status event_run( time_t msec );
 status event_alloc( event_t ** ev );
 status event_free( event_t * ev );
 
-
 status event_init( void );
 status event_end( void );
 
+#ifdef __cplusplus
+}
+#endif
+        
+    
 #endif

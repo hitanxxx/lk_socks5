@@ -1,6 +1,12 @@
 #ifndef _L_HTTP_REQUEST_HEAD_H_INCLUDED_
 #define _L_HTTP_REQUEST_HEAD_H_INCLUDED_
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+    
+
 #define REQ_LENGTH_URI_STR			2048
 
 typedef struct http_req_head http_req_head_t;
@@ -62,4 +68,10 @@ struct http_req_head
 status http_request_head_create( connection_t * c, http_req_head_t ** request );
 status http_request_head_init_module( void );
 status http_request_head_end_module( void );
+    
+#ifdef __cplusplus
+}
+#endif
+        
+    
 #endif

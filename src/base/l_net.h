@@ -1,6 +1,12 @@
 #ifndef _L_NET_H_INCLUDED_
 #define _L_NET_H_INCLUDED_
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+    
+
 #define MAX_NET_CON	FD_SETSIZE
 
 typedef status ( *net_send_chain ) ( connection_t * c, meta_t * meta );
@@ -49,4 +55,9 @@ status net_free( connection_t * connection );
 
 status net_init( void );
 status net_end( void );
+    
+#ifdef __cplusplus
+}
+#endif
+    
 #endif

@@ -1,6 +1,11 @@
 #ifndef _L_JSON_H_INCLUDED_
 #define _L_JSON_H_INCLUDED_
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 #define JSON_OBJ 	0x0001
 #define JSON_ARR	0x0002
 #define JSON_STR	0x0003
@@ -56,4 +61,8 @@ status json_ctx_free( ljson_ctx_t * ctx );
 status json_decode( ljson_ctx_t * ctx, unsigned char * p, unsigned char * end );
 status json_encode( ljson_ctx_t * ctx, meta_t ** string );
 
+#ifdef __cplusplus
+}
+#endif
+        
 #endif

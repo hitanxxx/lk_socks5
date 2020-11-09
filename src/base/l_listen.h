@@ -1,6 +1,12 @@
 #ifndef _L_LISTEN_H_INCLUDED_
 #define _L_LISTEN_H_INCLUDED_
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+    
+
 #define L_SSL		0x01
 #define L_NOSSL		0x02
 
@@ -27,4 +33,8 @@ status listen_stop( void );
 status listen_init( void );
 status listen_end( void );
 
+#ifdef __cplusplus
+}
+#endif
+    
 #endif

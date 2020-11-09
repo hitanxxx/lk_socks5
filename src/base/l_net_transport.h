@@ -1,6 +1,11 @@
 #ifndef _L_NET_TRANSPORT_H_INCLUDED_
 #define _L_NET_TRANSPORT_H_INCLUDED_
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 #define NET_TRANSPORT_BUFFER_SIZE  8192
 #define NET_TRANSPORT_BUFFER_NUM    10
 
@@ -20,4 +25,8 @@ status net_transport_alloc( net_transport_t ** t );
 status net_transport_free( net_transport_t * t );
 status net_transport( net_transport_t * t, uint32 write );
 
+#ifdef __cplusplus
+}
+#endif
+    
 #endif

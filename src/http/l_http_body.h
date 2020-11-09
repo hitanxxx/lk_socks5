@@ -1,6 +1,12 @@
 #ifndef _L_HTTP_ENTITYBODY_H_INCLUDED_
 #define _L_HTTP_ENTITYBODY_H_INCLUDED_
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+    
+
 #define ENTITY_BODY_CHUNKED_PART_HEX_STR_LENGTH     20
 #define ENTITY_BODY_BUFFER_SIZE                     8192
 
@@ -45,5 +51,9 @@ status http_body_create( connection_t * c, http_body_t ** body, int discard );
 status http_body_init_module( void );
 status http_body_end_module( void );
 
+#ifdef __cplusplus
+}
+#endif
+        
 
 #endif

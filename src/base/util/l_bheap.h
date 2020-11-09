@@ -1,6 +1,12 @@
 #ifndef _L_BHEAP_H_INCLUDED_
 #define _L_BHEAP_H_INCLUDED_
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+    
+
 #define HEAP_LCHILD(index) ( index*2 )
 #define	HEAP_RCHILD(index) ( ( index*2 ) + 1 )
 #define HEAP_PARENT(index) ( index/2 )
@@ -27,4 +33,8 @@ status  heap_empty( heap_t * heap );
 int32 heap_num( heap_t * heap );
 heap_node_t * heap_min( heap_t * heap );
 
+#ifdef __cplusplus
+}
+#endif
+        
 #endif

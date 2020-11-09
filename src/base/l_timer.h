@@ -1,6 +1,11 @@
 #ifndef _L_TIMER_H_INCLUDED_
 #define _L_TIMER_H_INCLUDED_
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 typedef void ( * timer_pt ) ( void * data );
 typedef struct l_timer_t {
 	void * 				data;
@@ -25,5 +30,8 @@ void timer_set_pt( l_timer_t * timer, timer_pt pt );
 status timer_init( void );
 status timer_end( void );
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif

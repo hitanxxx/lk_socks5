@@ -1,6 +1,11 @@
 #ifndef _L_USMGR_H_INCLUDE_
 #define _L_USMGR_H_INCLUDE_ 
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
 #define USER_NAME_MAX		16
 #define USER_PASSWD_MAX		16
 #define USER_AUTH_FILE_LEN  4096
@@ -19,5 +24,8 @@ status user_end(void);
 status user_add( string_t * name, string_t * passwd );
 status user_find( string_t * name, user_t ** user );
 
-
+#ifdef __cplusplus
+}
+#endif
+        
 #endif

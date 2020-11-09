@@ -1,9 +1,15 @@
 #ifndef _L_BST_H_INCLUDED_
 #define _L_BST_H_INCLUDED_
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+    
+
 #define	BST_STACK_LENGTH		8192
-#define BST_LEFT		1
-#define BST_RIGHT		2
+#define BST_LEFT		        1
+#define BST_RIGHT		        2
 
 typedef struct bst_node_t bst_node_t;
 typedef status (*bst_travesal_handler)( bst_node_t * node );
@@ -32,4 +38,8 @@ status bst_travesal_deepth_preorder( bst_t * tree );
 status bst_travesal_deepth_inorder( bst_t * tree );
 status bst_travesal_deepth_postorder( bst_t * tree );
 
+#ifdef __cplusplus
+}
+#endif
+        
 #endif

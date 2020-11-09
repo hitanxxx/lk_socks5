@@ -1,6 +1,12 @@
 #ifndef _L_DNS_H_INCLUDED_
 #define _L_DNS_H_INCLUDED_
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
+
 #define DNS_TIMEOUT         5
 #define DNS_BUFFER_LEN      1500
 
@@ -65,5 +71,10 @@ uint32_t l_dns_request_qname_conv( unsigned char * qname, unsigned char * query 
 
 status l_dns_init( void );
 status l_dns_end( void );
+    
+#ifdef __cplusplus
+}
+#endif
+    
 #endif
 

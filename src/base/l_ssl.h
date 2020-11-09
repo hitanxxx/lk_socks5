@@ -1,6 +1,12 @@
 #ifndef _L_SSL_H_INCLUDED_
 #define _L_SSL_H_INCLUDED_
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+    
+
 #define L_SSL_CLIENT        0x01
 #define L_SSL_SERVER        0x02
 
@@ -35,4 +41,9 @@ status ssl_write_chain( connection_t * c, meta_t * meta );
 status ssl_create_connection( connection_t * c, uint32 flag );
 status ssl_conf_set_crt ( string_t * value );
 status ssl_conf_set_key ( string_t * value );
+    
+#ifdef __cplusplus
+}
+#endif
+        
 #endif

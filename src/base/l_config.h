@@ -1,6 +1,12 @@
 #ifndef _L_CONFIG_H_INCLUDED_
 #define _L_CONFIG_H_INCLUDED_
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+    
+
 #define CONF_SETTING_LENGTH		32768
 
 typedef struct socks5_client 
@@ -62,5 +68,9 @@ extern gobal_conf_t conf;
 
 status config_init( void );
 status config_end( void );
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

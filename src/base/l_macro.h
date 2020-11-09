@@ -1,6 +1,12 @@
 #ifndef _L_MACRO_H_INCLUDED_
 #define _L_MACRO_H_INCLUDED_
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
+
 //#define EVENT_EPOLL
 
 #include <stdio.h>
@@ -140,6 +146,10 @@ typedef struct l_connection_t   connection_t;
     (struct_type *)\
     (((unsigned char*)ptr)-offsetof(struct_type,struct_member))\
 )
+
+#ifdef __cplusplus
+}
+#endif
 
 
 #endif

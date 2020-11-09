@@ -1,6 +1,12 @@
 #ifndef _L_LOG_H_INCLUDED_
 #define _L_LOG_H_INCLUDED_
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+    
+
 #define LOG_TIME_LENGTH		strlen("0000.00.00 00:00:00 ")
 #define LOG_LEVEL_LENGTH	strlen("[ xxxxx ]-")
 #define	LOG_TEXT_LENGTH		512
@@ -65,4 +71,8 @@ status l_log( uint32 id, uint32 level,  const char * func, int line, const char 
 status log_init( void );
 status log_end( void );
 
+#ifdef __cplusplus
+}
+#endif
+    
 #endif
