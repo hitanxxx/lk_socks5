@@ -289,6 +289,7 @@ static status http_body_process( http_body_t * bd )
                 bd->body_last->last += remain_len;
             }
             bd->content_need = bd->content_length - remain_len;
+			bd->body_length += remain_len;
             
             // change the connection meta pos whatever cache or discard
             bd->c->meta->pos += remain_len;

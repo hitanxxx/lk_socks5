@@ -189,6 +189,10 @@ static status webser_resp_send_body( event_t * ev )
             webser->filesend            += size;
             continue;
         }
+		else
+		{
+			break;
+		}
     }
     while (1);
 
@@ -231,14 +235,28 @@ static status webser_request_try_read( event_t * ev  )
 {
     connection_t * c = ev->data;
     webser_t * webser = c->data;
+	int n = 0;
+	char buf[1] = {0};
 
-    if( OK != l_socket_check_status( c->fd ) )
-    {
-        err("webser check con fd status error\n");
-        webser_over( webser );
-        return ERROR;
+	n = recv(c->fd, buf, 1, MSG_PEEK);
+    if (n == 0) 
+	{
+        goto closed;
+    } 
+	else if (n == -1)
+	{
+        if (errno != AGAIN) 
+		{
+            goto closed;
+        }
     }
+
     return OK;
+closed:
+	err("webser try read failed\n");
+    webser_over( webser );
+    
+    return ERROR;
 }
 
 status webser_response( event_t * ev )
@@ -521,7 +539,7 @@ static status webser_process_req_static_file ( event_t * ev )
     return ev->read_pt( ev );
 }
 
-static status webser_process_req_webapi( event_t * ev )
+status webser_process_req_webapi( event_t * ev )
 {
     int32 rc;
     connection_t * c = ev->data;
@@ -530,7 +548,16 @@ static status webser_process_req_webapi( event_t * ev )
     rc = webser->webapi_handler( ev );
     if( rc == AGAIN )
     {
-        return rc;
+		/*
+			if recvd body, and return again, need to change read pt.
+			if not change, when next time read action, it can't send 
+			response head and body
+		*/
+		if( webser->http_resp_body &&  c->event->read_pt == webser_process_req_body )
+		{
+			webser->http_resp_body->callback = webser_process_req_webapi;
+        	return rc;
+		}
     }
 
     webser->http_resp_code = ( rc == OK ) ? 200 : 500;

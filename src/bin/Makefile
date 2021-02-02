@@ -14,6 +14,6 @@ DEPEND_OBJS     +=      $(PROJDIR)/test/libtest.a
 DIR_BIN         +=      .
 APP_BIN         +=      lks5
 
-LD_FLAGS 	+= -lcrypto -lssl
+LD_FLAGS 	+= -lcrypto -lssl -lpthread
 
 include $(PROJDIR)/build.mk

@@ -20,7 +20,7 @@ static void ssl_clear_error( void )
     ERR_clear_error();
 }
 
-static void ssl_record_error( int sslerr )
+void ssl_record_error( int sslerr )
 {
     unsigned long n = 0;
     unsigned char errstr[512] = {0};

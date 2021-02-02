@@ -86,8 +86,8 @@ enum http_body_type
 enum http_body_stat
 {
 	HTTP_BODY_STAT_OK = 1,
-	HTTP_BODY_STAT_DONE_CACHE,
-	HTTP_BODY_STAT_DONE_CACHENO,
+	HTTP_BODY_STAT_DONE_CACHE = 3,
+	HTTP_BODY_STAT_DONE_CACHENO = 5,
 };
 
 /* webser type */

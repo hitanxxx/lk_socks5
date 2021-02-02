@@ -7,6 +7,7 @@
 #include "l_http_request_head.h"
 #include "l_http_response_head.h"
 #include "l_webserver.h"
+#include "l_mailsender.h"
 
 modules_init_t init_modules[] =
 {
@@ -26,6 +27,7 @@ modules_init_t init_modules[] =
     {http_response_head_init_module,    http_response_head_end_module,  "http_response_head"},
     {http_request_head_init_module,     http_request_head_end_module,   "http_req_head"},
     {http_body_init_module,             http_body_end_module,           "http_body"},
+    {mailsender_init,                   mailsender_exit,                "mailsender"},
     {webser_init,                       webser_end,                     "http"},
     {l_dns_init,                        l_dns_end,                      "dns"},
     {NULL,	NULL,  NULL}

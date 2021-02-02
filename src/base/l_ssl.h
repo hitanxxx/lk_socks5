@@ -41,7 +41,12 @@ status ssl_write_chain( connection_t * c, meta_t * meta );
 status ssl_create_connection( connection_t * c, uint32 flag );
 status ssl_conf_set_crt ( string_t * value );
 status ssl_conf_set_key ( string_t * value );
-    
+
+status ssl_load_ctx_certificate( SSL_CTX ** ctx, int flag );
+status ssl_load_con_certificate( SSL_CTX * ctx, int flag, SSL ** ssl );
+
+void ssl_record_error( int sslerr );
+
 #ifdef __cplusplus
 }
 #endif
