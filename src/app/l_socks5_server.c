@@ -124,7 +124,7 @@ static status lks5_down_recv( event_t * ev )
         // disable down recv && enable up send
         event_opt( down->event, down->fd, ( down->event->type & ~EV_R ) );
         event_opt( cycle->up->event, cycle->up->fd, ( cycle->up->event->type | EV_W ) );
-        return cycle->up->event->write_pt( cycle->up->event );
+        return cycle->up->event->write_pt( cycle->up->event); 
     }
     return AGAIN;
 }
@@ -448,7 +448,7 @@ static status socks5_server_s5_msg_advance_req_addr( event_t * ev )
     }
     cycle->up->data = cycle;
 
-    if( cycle->advance.atyp == 0x01 )
+    if( cycle->advance.atyp == S5_REQ_TYPE_IPV4 )
     {
         int local_port = 0;
         // ip type address
@@ -468,7 +468,7 @@ static status socks5_server_s5_msg_advance_req_addr( event_t * ev )
         cycle->up->event->write_pt 			= socks5_server_connect_up;
         return cycle->up->event->write_pt( cycle->up->event );
     }
-    else if ( cycle->advance.atyp == 0x03 )
+    else if ( cycle->advance.atyp == S5_REQ_TYPE_DOMAIN )
     {
         if( l_strlen( cycle->advance.addr_str ) > DOMAIN_LENGTH )
         {
@@ -583,18 +583,18 @@ static status socks5_server_s5_msg_advance_req_recv( event_t * ev )
                     0x03		domain		first octet
                     0x04		ipv6		16
                 */
-                if( cycle->advance.atyp == 0x01 ) {
+                if( cycle->advance.atyp == S5_REQ_TYPE_IPV4 ) {
                     state = dst_addr_ipv4;
                     cycle->advance.addr_recv = 0;
                     continue;
                 }
-                else if ( cycle->advance.atyp == 0x04 )
+                else if ( cycle->advance.atyp == S5_REQ_TYPE_IPV6 )
                 {
                     state = dst_addr_ipv6;
                     cycle->advance.addr_recv = 0;
                     continue;
                 }
-                else if ( cycle->advance.atyp == 0x03 )
+                else if ( cycle->advance.atyp == S5_REQ_TYPE_DOMAIN )
                 {
                     state = dst_addr_domain_len;
                     cycle->advance.addr_recv 	= 0;
@@ -703,29 +703,6 @@ static status socks5_server_s5_msg_invate_resp_send ( event_t * ev )
     return ev->read_pt( ev );
 }
 
-static status socks5_server_s5_msg_invate_resp_build( event_t * ev )
-{
-    connection_t * down = ev->data;
-    socks5_cycle_t * cycle = down->data;
-    meta_t * meta = &cycle->down2up_meta;
-    socsk5_message_invite_response_t * invite_resp = NULL;
-    /*
-        s5 msg invate resp format
-        1 byte 		1 byte
-        version | ack authentication method
-    */
-    meta->pos = meta->last = meta->start;
-    invite_resp             = ( socsk5_message_invite_response_t* ) meta->pos;
-    invite_resp->ver	 	= 0x05;
-    invite_resp->method 	= 0x00;
-    meta->last += sizeof(socsk5_message_invite_response_t);
-
-    ev->read_pt 	= NULL;
-    ev->write_pt 	= socks5_server_s5_msg_invate_resp_send;
-    event_opt( ev, down->fd, EV_W );
-    return ev->write_pt( ev );
-}
-
 static status socks5_server_s5_msg_invate_req_recv( event_t * ev )
 {
     connection_t * down = ev->data;
@@ -790,8 +767,16 @@ static status socks5_server_s5_msg_invate_req_recv( event_t * ev )
                     // recv auth over
                     timer_del( &ev->timer );
 
-                    ev->read_pt = socks5_server_s5_msg_invate_resp_build;
-                    return ev->read_pt(ev);
+					meta->pos = meta->last = meta->start;
+					socsk5_message_invite_response_t * invite_resp = ( socsk5_message_invite_response_t* ) meta->pos;
+					invite_resp->ver	 	= 0x05;
+				    invite_resp->method 	= 0x00;
+				    meta->last += sizeof(socsk5_message_invite_response_t);
+					
+                    ev->read_pt 	= NULL;
+				    ev->write_pt 	= socks5_server_s5_msg_invate_resp_send;
+				    event_opt( ev, down->fd, EV_W );
+				    return ev->write_pt( ev );
                 }
             }
         }
@@ -799,28 +784,7 @@ static status socks5_server_s5_msg_invate_req_recv( event_t * ev )
     }
 }
 
-static status socks5_server_authorization_finish( event_t * ev )
-{
-    connection_t * down = ev->data;
-    socks5_cycle_t * cycle = down->data;
-    meta_t * meta = &cycle->down2up_meta;
-    socks5_auth_header_t * head = (socks5_auth_header_t*)meta->start;
-
-    // if s5 server check auth data failed, stop the connection
-    if( S5_AUTH_STAT_SUCCESS != head->message_status )
-    {
-        socks5_cycle_over( cycle );
-        return ERROR;
-    }
-
-    meta->pos = meta->last = meta->start;
-    ev->write_pt 	= NULL;
-    ev->read_pt  	= socks5_server_s5_msg_invate_req_recv;
-    event_opt( ev, down->fd, EV_R );
-    return ev->read_pt( ev );
-}
-
-static status socks5_server_authorization_resp_send( event_t * ev )
+static status socks5_server_authorization_resp( event_t * ev )
 {
     connection_t * down = ev->data;
     socks5_cycle_t * cycle = down->data;
@@ -844,110 +808,24 @@ static status socks5_server_authorization_resp_send( event_t * ev )
 
     timer_del( &ev->timer );
 
-    ev->write_pt	= socks5_server_authorization_finish;
-    return ev->write_pt( ev );
-}
-
-static status socks5_server_authorization_req_check_userinfo( event_t * ev )
-{
-    connection_t * c = ev->data;
-    socks5_cycle_t * cycle = c->data;
-    meta_t * meta = &cycle->down2up_meta;
-    socks5_auth_header_t * head = NULL;
-    socks5_auth_authinfo_t * info = (socks5_auth_authinfo_t*)meta->pos;
-    string_t req_name = string_null, req_passwd = string_null;
-    user_t * user = NULL;
-    unsigned char auth_stat = S5_AUTH_STAT_SUCCESS;
-
-    req_name.len    = l_strlen(info->name);
-    req_name.data   = info->name;
-
-    req_passwd.len  = l_strlen(info->passwd);
-    req_passwd.data = info->passwd;
-
-    do
-    {
-        if( OK != user_find( &req_name, &user ) )
-        {
-            err("s5 server check userinfo failed, user [%s] not found\n", info->name );
-            auth_stat = S5_AUTH_STAT_NO_USER;
-            break;
-        }
-        if( (l_strlen(info->passwd) != l_strlen(user->passwd)) || (0 != memcmp( user->passwd, info->passwd, l_strlen(info->passwd)) ) )
-        {
-            err("s5 server check userinfo failed, user passwd verification failed\n");
-            auth_stat = S5_AUTH_STAT_PASSWD_FAIL;
-            break;
-        }
-    } while(0);
-
-    head = (socks5_auth_header_t*)meta->start;
-    head->magic             = S5_AUTH_MAGIC_NUM;
-    head->message_type      = S5_AUTH_TYPE_AUTH_RESP;
-    head->message_status    = auth_stat;
-
-    meta->pos   = meta->start;
-    meta->last  = meta->pos + sizeof(socks5_auth_header_t);
-
-    ev->read_pt     = NULL;
-    ev->write_pt    = socks5_server_authorization_resp_send;
-    event_opt( ev, c->fd, EV_W );
-    return ev->write_pt( ev );
-}
-
-static status socks5_server_authorization_req_check_payload( event_t * ev )
-{
-    connection_t * down = ev->data;
-    socks5_cycle_t * cycle = down->data;
-    meta_t * meta = &cycle->down2up_meta;
-    socks5_auth_header_t * auth_head = (socks5_auth_header_t*)meta->start;
-    event_pt want_pt    = NULL;
-    uint32_t want_len   = 0;
-    ssize_t rc = 0;
-
-    switch( auth_head->message_type )
-    {
-        case S5_AUTH_TYPE_AUTH_REQ:
-            want_len    = sizeof(socks5_auth_authinfo_t);
-            want_pt     = socks5_server_authorization_req_check_userinfo;
-            break;
-        default:
-            err("s5 server auth check payload failed, not support msg type [%x]\n", auth_head->message_type );
-            socks5_cycle_over( cycle );
-            return ERROR;
-    }
-
-    while( meta_len( meta->pos, meta->last ) < want_len )
-    {
-        rc = down->recv( down, meta->last, meta_len( meta->last, meta->end ) );
-        if( rc < 0 )
-        {
-            if( ERROR == rc )
-            {
-                err("s5 server authorizaton payload recv failed\n");
-                socks5_cycle_over(cycle);
-                return ERROR;
-            }
-            timer_set_data( &ev->timer, cycle );
-            timer_set_pt(&ev->timer, socks5_timeout_cycle );
-            timer_add( &ev->timer, SOCKS5_TIME_OUT );
-            return AGAIN;
-        }
-        meta->last += rc;
-    }
-    timer_del( &ev->timer );
-
-    ev->read_pt = want_pt;
+	meta->pos = meta->last = meta->start;
+	ev->write_pt	= NULL;
+	ev->read_pt  	= socks5_server_s5_msg_invate_req_recv;
+  	event_opt( ev, down->fd, EV_R );
     return ev->read_pt( ev );
 }
 
-static status socks5_server_mode_authorization_req_check_header( event_t * ev )
+
+static status socks5_server_authorization_check( event_t * ev )
 {
     connection_t * down = ev->data;
     socks5_cycle_t * cycle = down->data;
     meta_t * meta = &cycle->down2up_meta;
     socks5_auth_header_t * head = NULL;
     ssize_t rc = 0;
+	string_t req_name = string_null, req_passwd = string_null;
+    user_t * user = NULL;
+    unsigned char resp_status = S5_AUTH_STAT_SUCCESS;
 
     while( meta_len( meta->pos, meta->last ) < sizeof(socks5_auth_header_t) )
     {
@@ -969,19 +847,57 @@ static status socks5_server_mode_authorization_req_check_header( event_t * ev )
     }
     timer_del( &ev->timer );
 
+	// check auth data
     do
     {
         head = (socks5_auth_header_t*)meta->pos;
-        // filter magic number
         if( S5_AUTH_MAGIC_NUM != head->magic )
         {
             err("s5 server auth check header, magic [%x] error\n", head->magic );
+			resp_status = S5_AUTH_STAT_MAGIC_FAIL;
             break;
         }
-        
-        meta->pos   += sizeof(socks5_auth_header_t);
-        ev->read_pt = socks5_server_authorization_req_check_payload;
-        return ev->read_pt( ev );
+
+		if( S5_AUTH_TYPE_AUTH_REQ != head->message_type )
+		{
+			err("s5 auth check, message type failed. [%x]\n", head->message_type );
+			resp_status = S5_AUTH_STAT_TYPE_FAIL;
+			break;
+		}
+
+	    req_name.len    = l_strlen(head->data.name);
+	    req_name.data   = head->data.name;
+
+	    req_passwd.len  = l_strlen(head->data.passwd);
+	    req_passwd.data = head->data.passwd;
+
+		if( OK != user_find( &req_name, &user ) )
+		{
+		    err("s5 auth check, user [%s] not found\n", head->data.name );
+		    resp_status = S5_AUTH_STAT_NO_USER;
+		    break;
+		}
+		if( (l_strlen(head->data.passwd) != l_strlen(user->passwd)) ||
+			(0 != memcmp( user->passwd, head->data.passwd, l_strlen(head->data.passwd)) ) 
+		)
+		{
+		    err("s5 auth check, user passwd verification failed\n");
+		    resp_status = S5_AUTH_STAT_PASSWD_FAIL;
+		    break;
+		}
+
+	    head = (socks5_auth_header_t*)meta->start;
+	    head->magic             = S5_AUTH_MAGIC_NUM;
+	    head->message_type      = S5_AUTH_TYPE_AUTH_RESP;
+	    head->message_status    = resp_status;
+
+	    meta->pos   = meta->start;
+	    meta->last  = meta->pos + sizeof(socks5_auth_header_t);
+
+	    ev->read_pt     = NULL;
+	    ev->write_pt    = socks5_server_authorization_resp;
+	    event_opt( ev, down->fd, EV_W );
+		return ev->write_pt( ev );
     } while(0);
 
     socks5_cycle_over( cycle );
@@ -1007,7 +923,7 @@ static status socks5_server_mode_start( event_t * ev )
     meta->pos = meta->last = meta->start = cycle->down2up_buffer;
     meta->end = meta->start + SOCKS5_META_LENGTH;
 
-    ev->read_pt	= socks5_server_mode_authorization_req_check_header;
+    ev->read_pt	= socks5_server_authorization_check;
     return ev->read_pt( ev );
 }
 
@@ -1031,10 +947,9 @@ status socks5_server_secret_mode_start( event_t * ev )
     meta->end = meta->start + SOCKS5_META_LENGTH;
     
     memcpy( meta->pos, down->meta->pos, l_min( SOCKS5_META_LENGTH, meta_len( down->meta->pos, down->meta->last ) ) );
-    meta->pos   += sizeof( socks5_auth_header_t );
     meta->last  += meta_len( down->meta->pos, down->meta->last );
     
-    ev->read_pt = socks5_server_authorization_req_check_payload;
+    ev->read_pt = socks5_server_authorization_check;
     return ev->read_pt( ev );
 }
 
@@ -1135,7 +1050,7 @@ status socks5_init( void )
 
 status socks5_server_init( void )
 {
-    if( SOCKS5_META_LENGTH < (sizeof(socks5_auth_header_t)+sizeof(socks5_auth_authinfo_t)) ||
+    if( SOCKS5_META_LENGTH < sizeof(socks5_auth_header_t) ||
         SOCKS5_META_LENGTH < sizeof(socks5_message_invite_t) ||
         SOCKS5_META_LENGTH < sizeof(socks5_message_advance_t) ||
         SOCKS5_META_LENGTH < 4096

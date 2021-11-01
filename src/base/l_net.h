@@ -7,7 +7,9 @@ extern "C"
 #endif
     
 
-#define MAX_NET_CON	FD_SETSIZE
+//#define MAX_NET_CON	FD_SETSIZE
+#define MAX_NET_CON  1024
+
 
 typedef status ( *net_send_chain ) ( connection_t * c, meta_t * meta );
 typedef status ( *net_recv_chain ) ( connection_t * c, meta_t * meta );

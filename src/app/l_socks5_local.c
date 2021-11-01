@@ -3,42 +3,8 @@
 #include "l_socks5_local.h"
 #include "l_socks5_server.h"
 
-static status socks5_local_authorization_resp_check( event_t * ev )
-{
-    connection_t * up = ev->data;
-    socks5_cycle_t * cycle = up->data;
-    meta_t * meta = &cycle->up2down_meta;
-    socks5_auth_header_t * head = NULL;
+static struct sockaddr_in  s5_serv_addr;
 
-    do
-    {
-        head = (socks5_auth_header_t*) meta->pos;
-        if( S5_AUTH_MAGIC_NUM != head->magic )
-        {
-            err("s5 local auth check failed, magic [%x]\n", head->magic );
-            break;
-        }
-
-        if( S5_AUTH_TYPE_AUTH_RESP != head->message_type )
-        {
-            err("s5 local auth check msg type failed, type [%x]\n", head->message_type );
-            break;
-        }
-
-        if( S5_AUTH_STAT_SUCCESS != head->message_status )
-        {
-            err("s5 local auth check stat failed, stat [%x]\n", head->message_status );
-            break;
-        }
-
-        ev->read_pt		= socks5_pipe;
-        ev->write_pt	= NULL;
-        return ev->read_pt( ev );
-    } while(0);
-
-    socks5_cycle_over( cycle );
-    return ERROR;
-}
 
 static status socks5_local_authorization_resp_recv( event_t * ev )
 {
@@ -67,8 +33,35 @@ static status socks5_local_authorization_resp_recv( event_t * ev )
     }
     timer_del( &ev->timer );
 
-    up->event->read_pt = socks5_local_authorization_resp_check;
-    return ev->read_pt( ev );
+	socks5_auth_header_t * head = (socks5_auth_header_t*) meta->pos;
+	do
+    {
+        head = (socks5_auth_header_t*) meta->pos;
+        if( S5_AUTH_MAGIC_NUM != head->magic )
+        {
+            err("s5 local auth check failed, magic [%x]\n", head->magic );
+            break;
+        }
+
+        if( S5_AUTH_TYPE_AUTH_RESP != head->message_type )
+        {
+            err("s5 local auth check msg type failed, type [%x]\n", head->message_type );
+            break;
+        }
+
+        if( S5_AUTH_STAT_SUCCESS != head->message_status )
+        {
+            err("s5 local auth check stat failed, stat [%x]\n", head->message_status );
+            break;
+        }
+
+        ev->read_pt		= socks5_pipe;
+        ev->write_pt	= NULL;
+        return ev->read_pt( ev );
+    } while(0);
+
+   	socks5_cycle_over( cycle );
+    return ERROR;
 }
 
 static status socks5_local_authorization_req_send( event_t * ev )
@@ -107,8 +100,7 @@ static status socks5_local_authorization_req_build( event_t * ev )
     socks5_cycle_t * cycle = up->data;
     meta_t * meta = &cycle->up2down_meta;
     socks5_auth_header_t * head     = NULL;
-    socks5_auth_authinfo_t * info   = NULL;
-
+    
     meta->pos = meta->last = meta->start = cycle->up2down_buffer;
     meta->end = meta->start + SOCKS5_META_LENGTH;
 
@@ -116,13 +108,11 @@ static status socks5_local_authorization_req_build( event_t * ev )
     head->magic             = S5_AUTH_MAGIC_NUM;
     head->message_type      = S5_AUTH_TYPE_AUTH_REQ;
     head->message_status    = 0;
+	
+	memcpy( head->data.name, conf.socks5.client.user, USERNAME_LENGTH );
+	memcpy( head->data.passwd, conf.socks5.client.passwd, PASSWD_LENGTH );
+	
     meta->last += sizeof(socks5_auth_header_t);
-
-    info = (socks5_auth_authinfo_t*)meta->last;
-    memcpy( info->name, conf.socks5.client.user, sizeof(info->name)-1 );
-    memcpy( info->passwd, conf.socks5.client.passwd, sizeof(info->passwd)-1 );
-    meta->last += sizeof(socks5_auth_authinfo_t);
-
 
     ev->write_pt = socks5_local_authorization_req_send;
     return ev->write_pt( ev );
@@ -200,10 +190,7 @@ static status socks5_local_server_connect_check( event_t * ev )
 
 static inline void socks5_local_server_addr_get( struct sockaddr_in * addr )
 {
-    memset( addr, 0, sizeof(struct sockaddr_in) );
-    addr->sin_family 		= AF_INET;
-    addr->sin_port 			= htons( (uint16_t)conf.socks5.client.server_port );
-    addr->sin_addr.s_addr	= inet_addr( (char*)conf.socks5.client.server_ip );
+	memcpy( addr, &s5_serv_addr, sizeof(struct sockaddr_in) );
 }
 
 static status socks5_local_cycle_init( event_t * ev )
@@ -261,6 +248,12 @@ static status socks5_local_cycle_init( event_t * ev )
 
 status socks5_local_init( void )
 {
+	// init s5 server add for use
+	memset( &s5_serv_addr, 0, sizeof(struct sockaddr_in) );
+	s5_serv_addr.sin_family 		= AF_INET;
+    s5_serv_addr.sin_port 			= htons( (uint16_t)conf.socks5.client.server_port );
+    s5_serv_addr.sin_addr.s_addr	= inet_addr( (char*)conf.socks5.client.server_ip );
+
     if( conf.socks5_mode == SOCKS5_CLIENT )
     {
         // socks5 client connect s5 local use normal tcp connection

@@ -427,6 +427,10 @@ status webser_process_req_body( event_t * ev )
         timer_set_data( &ev->timer, webser );
         timer_set_pt( &ev->timer, webser_timeout_cycle );
         timer_add( &ev->timer, WEBSER_TIMEOUT );
+
+		// if again, webapi will be return again immediately.
+		// if not change callback, after req body will not send response
+		webser->http_resp_body->callback = webser_process_req_webapi;
         return AGAIN;
     }
 
@@ -548,16 +552,7 @@ status webser_process_req_webapi( event_t * ev )
     rc = webser->webapi_handler( ev );
     if( rc == AGAIN )
     {
-		/*
-			if recvd body, and return again, need to change read pt.
-			if not change, when next time read action, it can't send 
-			response head and body
-		*/
-		if( webser->http_resp_body &&  c->event->read_pt == webser_process_req_body )
-		{
-			webser->http_resp_body->callback = webser_process_req_webapi;
-        	return rc;
-		}
+		return rc;
     }
 
     webser->http_resp_code = ( rc == OK ) ? 200 : 500;

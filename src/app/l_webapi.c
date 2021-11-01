@@ -59,7 +59,6 @@ static status webapi_mailsender( event_t * ev )
 		because sender email need send and recv 
 		many times
 	*/
-	
 	// get request body
     if( (NULL == webser->http_resp_body) || !(webser->http_resp_body->callback_status & HTTP_BODY_STAT_OK) )
     {
@@ -195,7 +194,6 @@ static status webapi_mailsender( event_t * ev )
 		err("webapi mailsender, send failed\n");
 		rc = ERROR;
 	}
-	
 	return rc;
 }
 

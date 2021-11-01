@@ -1,5 +1,5 @@
 #CC 		:= gcc
-CC          := clang
+CC              := clang
 AR		:= ar
 
 INC_FLAGS 	+= $(addprefix -I, $(INC_DIR))

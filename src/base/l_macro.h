@@ -6,8 +6,7 @@ extern "C"
 {
 #endif
 
-
-//#define EVENT_EPOLL
+#define EVENT_EPOLL
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,7 +21,7 @@ extern "C"
 #include <fcntl.h>
 #include <limits.h>
 #include <signal.h>
-#include <sys/malloc.h>
+#include <malloc.h>
 #include <errno.h>
 #include <semaphore.h>
 #include <pthread.h>

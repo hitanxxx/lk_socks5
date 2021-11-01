@@ -168,7 +168,7 @@ int32 main( int argc, char * argv[] )
 	/*
 	 unit test run..
 	 */
-	test_start( );
+	//test_start( );
 	
 	if( conf.base.worker_process > 0 ) 
 	{

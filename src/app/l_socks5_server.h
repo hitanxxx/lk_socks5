@@ -6,19 +6,17 @@ extern "C"
 {
 #endif
 
-// socks5 private macro
+
 #define SOCKS5_META_LENGTH			(1024*16)	// 16KB = openssl default ssl layer cache buffer size
 #define SOCKS5_TIME_OUT				3
+#define S5_AUTH_MAGIC_NUM           0x2314bacd
 
-/* socks5 message type */
-#define S5_AUTH_MAGIC_NUM           0xffffeeee
-enum socks5_private_auth_message_type
+enum socks5_auth_message_type
 {
     S5_AUTH_TYPE_AUTH_REQ       = 0x1,
     S5_AUTH_TYPE_AUTH_RESP      = 0x2,
 };
-/* scoks5 message status */
-enum socks5_private_auth_message_status
+enum socks5_auth_message_status
 {
     S5_AUTH_STAT_SUCCESS        = 0x1,
     S5_AUTH_STAT_MAGIC_FAIL     = 0x2,
@@ -26,24 +24,37 @@ enum socks5_private_auth_message_status
     S5_AUTH_STAT_NO_USER        = 0x4,
     S5_AUTH_STAT_PASSWD_FAIL    = 0x5
 };
+enum socks5_req_type
+{
+	S5_REQ_TYPE_IPV4 	= 0x1,
+	S5_REQ_TYPE_IPV6 	= 0x4,
+	S5_REQ_TYPE_DOMAIN 	= 0x3,
+};
+
 
 #pragma pack(push,1)
-typedef struct socks5_auth_header
+
+typedef struct
+{
+    unsigned char           name[USERNAME_LENGTH];  
+    unsigned char           passwd[PASSWD_LENGTH];	
+	char					resverd[32];
+} socks5_auth_data_t;
+
+
+typedef struct 
 {
     uint32_t            magic;                  // magic num filed
     unsigned char       message_type;           // private auth message type. enum socks5_message_type
     unsigned char       message_status;         // private auth message status, enum socks5_message_status
     unsigned short      reserved;
+
+	socks5_auth_data_t	data;
 } socks5_auth_header_t;
 
-typedef struct socks5_auth_authinfo
-{
-    unsigned char           name[USERNAME_LENGTH+1];  // private auth username
-    unsigned char           passwd[PASSWD_LENGTH+1];	// private auth passwd
-} socks5_auth_authinfo_t;
 
 
-typedef struct socks5_message_invite 
+typedef struct 
 {
     int32               state;
     unsigned char       ver;
@@ -52,13 +63,13 @@ typedef struct socks5_message_invite
     unsigned char       method[256];
 } socks5_message_invite_t;
 
-typedef struct socsk5_message_invite_response 
+typedef struct 
 {
     unsigned char       ver;
     unsigned char       method;
 } socsk5_message_invite_response_t;
 
-typedef struct socks5_message_advcance 
+typedef struct 
 {
     int32               state;
     unsigned char       ver;
@@ -73,7 +84,7 @@ typedef struct socks5_message_advcance
     unsigned char       addr_port[2];
 } socks5_message_advance_t;
 
-typedef struct socks5_message_advance_response 
+typedef struct 
 {
     unsigned char       ver;
     unsigned char       rep;
@@ -84,7 +95,7 @@ typedef struct socks5_message_advance_response
 } socks5_message_advance_response_t;
 #pragma pack(pop)
 
-typedef struct socks5_cycle_t 
+typedef struct 
 {
     queue_t                     queue;
     socks5_message_invite_t     invite;
