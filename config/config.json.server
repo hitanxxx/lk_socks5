@@ -1,24 +1,16 @@
 {
-    "daemon":true,
-    "worker_process":2,
+        "sys_daemon":true,
+        "sys_process":2,
+        "sys_log_level":0,
 
-    "log_error":true,
-    "log_debug":false,
+        "ssl_crt_path":"/usr/local/lks5/certificate/2048.crt",
+        "ssl_key_path":"/usr/local/lks5/certificate/2048.key",
 
-    "sslcrt":"/usr/local/lks5/certificate/2048.crt",
-    "sslkey":"/usr/local/lks5/certificate/2048.key",
-    "authfile":"/usr/local/lks5/config/auth.json",
+        "s5_mode":3,
+        "s5_serv_auth_path":"/usr/local/lks5/config/auth.json",
 
-    "socks5":
-    {
-        "mode":"server_secret",
-    },
+        "https_arr":[12345],
+        "http_home":"/usr/local/lks5/www",
+        "http_index":"index.html"
 
-    "http":
-    {
-        "port":[80],
-        "ssl_port":[443],
-        "home":"/usr/local/lks5/www",
-        "index":"index.html"
-    }
 }

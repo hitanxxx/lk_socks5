@@ -1,0 +1,29 @@
+{
+	"daemon":true,
+	"worker_process":2,
+
+	"log_error":true,
+	"log_debug":true,
+
+	"sslcrt":"/usr/local/lks5/certificate/2048.crt",
+	"sslkey":"/usr/local/lks5/certificate/2048.key",
+        "authfile":"/usr/local/lks5/config/auth.json",
+
+	"socks5":
+	{
+		"mode":"client",
+		"serverip":"47.74.222.104",
+		"serverport":12345,
+		"localport":1080,
+		"username":"user1",
+		"passwd":"12345"
+	},
+
+	"http":
+	{
+		"port":[80],
+		"sslport":[443],
+		"home":"/usr/local/lks5/www",
+		"index":"index.html"
+	}
+}

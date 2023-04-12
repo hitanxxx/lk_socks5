@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+		<title>lowfi radio - LK</title>
+		<link rel="stylesheet" href="css/mainpage.css"/>
+		<script src="https://cdn.bootcss.com/axios/0.19.0-beta.1/axios.min.js"></script>
+	</head>
+	<body>
+		<div id="glowall" class="glowall">
+			<div id="glodec" class="glodec" ></div>
+			<div id="header" class="header"></div>
+			<div id="content" class="content">
+				<div id="music_core_wall" class="music_core_wall">
+					<div id="music_core_dec" class="music_core_dec"></div>
+					<div id="music_core_content" class="music_core_content">
+						<div id="needle" class="needle">
+							<img id="needle_img" class="needle_img" src="/images/play_needle.png"/>
+						</div>
+						<div id="disk" class="disk" >
+							<img id="disk_inring" class="disk_inring" src="/images/inring.png"/>
+							<img id="disk_outring"class="disk_outring" src="/images/outring.png"/>
+						</div>
+						<audio id="audio"></audio>
+					</div>
+				</div>
+				<div id="song" class="song"><p id="name">[ This is human music :) ]</p>
+				</div>
+				<div id="footer" class="footer" >
+				<p>Powered by <a href="https://github.com/hitanxxx/LK">LK</a></p>
+				<p>Copyright © Peppa Pig</p>
+				</div>
+			</div>
+			<script src="js/music-v0.1.js"></script>
+		</div>
+	</body>
+</html>
