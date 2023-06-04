@@ -26,23 +26,23 @@ long long systime_msec( )
 status systime_update( void )
 {
 	struct timeval tv;
-	int msec;
 	time_t sec;
+	int msec;
 
 	memset( &tv, 0, sizeof(struct timeval) );
 	gettimeofday( &tv, NULL );
-	sec 	= tv.tv_sec;
-	msec 	= tv.tv_usec/1000;
+	sec = tv.tv_sec;
+	msec = tv.tv_usec/1000;
 	time_msec = sec * 1000 + msec;
 	
 	struct tm gmt;
 	gmtime_r( &sec, &gmt );
-    	memset( time_str_gmt, 0, sizeof(time_str_gmt) );
-	snprintf( (char*)time_str_gmt, sizeof(time_str_gmt)-1,
+    memset( time_str_gmt, 0, sizeof(time_str_gmt) );
+	sprintf( (char*)time_str_gmt,
 		"%s, %02d %s %04d %02d:%02d:%02d GMT",
 		arr_week[gmt.tm_wday],
 		gmt.tm_mday,
-        	arr_month[gmt.tm_mon - 1],
+        arr_month[gmt.tm_mon - 1],
 		gmt.tm_year+1900,
 		gmt.tm_hour,
 		gmt.tm_min,
@@ -51,10 +51,10 @@ status systime_update( void )
 	
 	struct tm local;
 	localtime_r( &sec, &local );
-	local.tm_mon	++;
-    local.tm_year 	+= 1900;
+	local.tm_mon ++;
+    local.tm_year += 1900;
     memset( time_str_log, 0, sizeof(time_str_log) );
-	snprintf( (char*)time_str_log, sizeof(time_str_log)-1,
+	sprintf( (char*)time_str_log,
 		"%04d/%02d/%02d %02d:%02d:%02d.%03d",
 		(unsigned int)(local.tm_year%1000+2000),
 		(unsigned int)(local.tm_mon%100),

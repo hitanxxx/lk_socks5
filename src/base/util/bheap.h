@@ -7,9 +7,6 @@ extern "C"
 #endif
     
 
-#define HEAP_LCHILD(index) ( index*2 )
-#define	HEAP_RCHILD(index) ( ( index*2 ) + 1 )
-#define HEAP_PARENT(index) ( index/2 )
 
 typedef struct heap_node_t 
 {

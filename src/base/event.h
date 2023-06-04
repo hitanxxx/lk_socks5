@@ -23,25 +23,19 @@ struct l_event
     queue_t         queue;
     int32           fd;
     // every event should have a timer to control network time out
-    ev_timer_t         timer;
+    ev_timer_t      timer;
 	void *          data;
 	int 			trigger_type_record;
 	char   			f_active;  // the event can disable other events 
 	
     event_pt        read_pt;
     event_pt        write_pt;
-
-#if !defined(EVENT_EPOLL)
-	int				idx;
-#endif
-
 };
 typedef status (*event_handler_init) (void);
 typedef status (*event_handler_end) (void);
 typedef status (*event_handler_opt)( event_t * ev, int32 fd, int type );
 typedef status (*event_handler_run)( time_t msec );
-typedef struct event_handler
-{
+typedef struct event_handler {
     event_handler_init      init;
     event_handler_end       end;
     event_handler_opt       opt;

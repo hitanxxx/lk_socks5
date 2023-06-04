@@ -5,13 +5,11 @@ static heap_t * g_heap = NULL;
 
 status timer_add( ev_timer_t * timer, uint32 sec )
 {
-	if( 1 == timer->f_timeset ) 
-	{
+	if( 1 == timer->f_timeset ) {
 		timer_del( timer );
 	}
 	timer->node.key = systime_msec() + ( sec * 1000 );
-	if( OK != heap_add( g_heap, &timer->node ) ) 
-	{
+	if( OK != heap_add( g_heap, &timer->node ) )  {
 		err(" heap insert\n" );
 		return ERROR;
 	}
@@ -34,12 +32,10 @@ inline void timer_set_pt( ev_timer_t * timer, timer_pt pt )
 
 status timer_del( ev_timer_t * timer )
 {
-	if( 0 == timer->f_timeset ) 
-	{
+	if( 0 == timer->f_timeset ) {
 		return OK;
 	}
-	if( OK != heap_del( g_heap, timer->node.index ) ) 
-	{
+	if( OK != heap_del( g_heap, timer->node.index ) )  {
 		err(" heap del\n" );
 		return ERROR;
 	}
@@ -54,8 +50,7 @@ static ev_timer_t * timer_min( void )
 	heap_node_t * min = NULL;
 
 	min = heap_min( g_heap );
-	if( !min ) 
-	{
+	if( !min )  {
 		err("heap min\n" );
 		return NULL;
 	}
@@ -67,25 +62,19 @@ status timer_expire( int32 * timer )
 {
 	ev_timer_t * oldest = NULL;
 
-	while(1) 
-	{
-		if( OK == heap_empty(g_heap) ) 
-		{
+	while(1) {
+		if( OK == heap_empty(g_heap) )  {
 			*timer = 200;
 			return OK;
 		}
 		oldest = timer_min( );
-		if( ( oldest->node.key - systime_msec() ) > 0 ) 
-		{
+		if( ( oldest->node.key - systime_msec() ) > 0 )  {
 			*timer = (int32)( oldest->node.key - systime_msec() );
 			return OK;
-		} 
-		else 
-		{
+		} else {
 			timer_del( oldest );
 			oldest->f_timeout = 1;
-			if( oldest->timeout_handler ) 
-			{
+			if( oldest->timeout_handler )  {
 				oldest->timeout_handler( oldest->data );
 			}
 		}
@@ -103,8 +92,7 @@ status timer_init( void )
 
 status timer_end( void )
 {
-	if( g_heap ) 
-	{
+	if( g_heap )  {
 		heap_free( g_heap );
 	}
 	return OK;
@@ -113,10 +101,8 @@ status timer_end( void )
 #if (1)
 status timer_free( ev_timer_t * timer )
 {
-	if( timer ) 
-	{
-		if( timer->f_timeset ) 
-		{
+	if( timer ) {
+		if( timer->f_timeset )  {
 			timer_del( timer );
 		}
 		l_safe_free(timer);
@@ -130,8 +116,7 @@ status timer_alloc( ev_timer_t ** timer )
 	ev_timer_t * new = NULL;
 
 	new = (ev_timer_t *)l_safe_malloc( sizeof(ev_timer_t) );
-	if( !new ) 
-	{
+	if( !new )  {
 		err("safe malloc timer failed\n" );
 		return ERROR;
 	}

@@ -30,6 +30,7 @@ static g_process_t * g_proc_ctx = NULL;
 static int32 proc_reap( void );
 static pid_t proc_spawn( process_t * data );
 
+
 status proc_self_pid( pid_t * pid )
 {
 	int32 fd=  0;
@@ -81,13 +82,12 @@ void proc_worker_run( void )
 	int32 timer;
 	sigset_t set;
 
-	/*
-		clear signal set
-		no block any signal
-	*/
+	/// worker process not block any signal
 	sigemptyset( &set );
 	sigprocmask( SIG_SETMASK, &set, NULL );
-	modules_init();
+
+	/// init process modules
+	modules_process_init();
 	while( 1 ) 
 	{
 		if( g_proc_ctx->sig_quit ) 
@@ -98,7 +98,7 @@ void proc_worker_run( void )
 		timer_expire( &timer );
 		event_run( timer );
 	}
-	modules_end();
+	modules_pocess_exit();
 }
 
 static int32 proc_reap( void )
@@ -141,82 +141,52 @@ static pid_t proc_spawn( process_t * data )
 		err("fork child failed, [%d]\n", errno );
 		return ERROR;
 	} 
-	else if ( pid == 0 )
-	{
-		/*
-			child, set id value
-		*/
+	else if ( pid == 0 ) /// child
 		g_proc_ctx->id = data->sequence_num;
-		proc_worker_run();
-	}
-	else if ( pid > 0 )
-	{
-		/*
-			parent
-		*/
+	else if ( pid > 0 )  /// parent
 		data->pid = pid;
-	}
 	return OK;
 }
-
-
-status proc_worker_start( )
-{
-	int32 i;
-	status ret;
-
-	for( i = 0; i < g_proc_ctx->all; i ++ )
-	{
-		ret = proc_spawn( &g_proc_ctx->arr[i] );
-		if( ret == ERROR )
-		{
-			err("process spawn number [%d] child failed, errno [%d]\n", i, errno );
-			return ERROR;
-		}
-
-		// if child. jump the loop
-		if( g_proc_ctx->id != L_PROCESS_MASTER )
-		{
-			break;
-		}
-	}
-	return OK;
-}
-
 
 void proc_master_run( void )
 {
 	int32 live = 1;
-    sigset_t set;
+	int32 i;
+	status ret;
+	sigset_t set;
 
-	// add signal set
+	/// block the signals
     sigemptyset( &set );
     sigaddset( &set, SIGCHLD );
     sigaddset( &set, SIGINT );
 	sigaddset( &set, SIGUSR1 );
 	sigaddset( &set, SIGUSR2 );
-
-	/*
-		SIG_BLOCK means new set | with old set 
-		block signal set
-		
-	*/
     if( sigprocmask( SIG_BLOCK, &set, NULL ) == ERROR )
 	{
 		err("master blcok signal failed, [%d]\n", errno );
 		return;
     }
 
-	if( OK != proc_worker_start() )
+	/// start worker process
+	for( i = 0; i < g_proc_ctx->all; i ++ )
 	{
-		return;
-	}
+		ret = proc_spawn( &g_proc_ctx->arr[i] );
+		if( ret == ERROR )
+		{
+			err("process spawn number [%d] child failed, errno [%d]\n", i, errno );
+			return;
+		}
 
-	// if child. return immediately
+		/// child jump the loop
+		if( g_proc_ctx->id != L_PROCESS_MASTER ) break;
+	}
+	/// child goto got work
 	if( g_proc_ctx->id != L_PROCESS_MASTER )
 	{
+		proc_worker_run(); 
+		/// if child break the worker run loop. means need to stop
 		return;
-	}
+	} 
 	
 	// clear signal set
 	sigemptyset(&set);
@@ -235,16 +205,15 @@ void proc_master_run( void )
 			g_proc_ctx->sig_reap = 0;
 			live = proc_reap(  );
 		}
+        
 		if( !live && g_proc_ctx->sig_quit ) 
-		{
 			break;
-		}
+        
 		if( g_proc_ctx->sig_quit == 1 || g_proc_ctx->sig_reload == 1 ) 
 		{
 			if( g_proc_ctx->sig_reload == 1 )
-			{
 				g_proc_ctx->sig_reload = 0;
-			}
+            
 			proc_send_signal_childs( SIGINT );
 			continue;
 		}
@@ -259,21 +228,16 @@ void proc_child_status( )
 	while(1)
 	{
 		pid = waitpid( -1, NULL, WNOHANG );
-		if( pid == 0 )
-		{
-			// no child dead;
+		if( pid == 0 ) // no child dead;
 			return;
-		}
 		if( pid == -1 )
 		{
-			if( errno == EINTR )
-			{
-				// stop by signal
+			if( errno == EINTR ) /// stop by signal
 				continue;
-			}
-			// all child dead
-			return;
+			return; /// error
 		}
+
+		/// find the child pid and changed status
 		for( i = 0; i < g_proc_ctx->all; i ++ )
 		{
  			if( pid == g_proc_ctx->arr[i].pid )
@@ -292,34 +256,23 @@ void proc_signal_cb( int32 signal )
 
 	g_proc_ctx->signal = signal;
 
+	/// master process deal with signal
 	if( g_proc_ctx->id == L_PROCESS_MASTER )
 	{
-		// master need to process quit, reap, hup ...
 		if( signal == SIGINT )
-		{
 			g_proc_ctx->sig_quit 	= 1;
-		}
 		else if( signal == SIGCHLD )
-		{
 			g_proc_ctx->sig_reap 	= 1;
-		}
 		else if ( signal == SIGHUP )
-		{
 			g_proc_ctx->sig_reload	= 1;
-		}
 
-		if( signal == SIGCHLD )
-		{
-			proc_child_status();
-		}
+		if( signal == SIGCHLD ) proc_child_status();
 	}
 	else
 	{
-		// worker process only need to process quit
+		/// worker process
 		if( signal == SIGINT )
-		{
 			g_proc_ctx->sig_quit = 1;
-		}
 	}
 	errno = errno_cache;
 }
@@ -382,7 +335,7 @@ status process_get_pid( )
 	return g_proc_ctx->arr[g_proc_ctx->id].pid;
 }
 
-void process_mutex_value_set( int v )
+void  process_mutex_value_set( int v )
 {
 	*g_proc_ctx->lock = v;
 }
@@ -396,7 +349,7 @@ status process_init( void )
 {
 	uint32 sequence = 0;
 
-	// register signale handler
+	/// register all process signal callback
 	if( OK != proc_signal_init() )
 	{
 		err("signal env init failed\n");

@@ -30,7 +30,7 @@ static void ts_dns_timer_pt( void * data )
 	dns_cycle_t * cycle = data;
 
 	t_echo("dns timer action\n");
-	l_dns_start( cycle );
+	dns_start( cycle );
 }
 #endif
 
@@ -41,7 +41,7 @@ static void ts_dns_conv_qname( void )
     uint32 len = 0;
     
     strcpy( (char*)host, "www.baidu.com" );
-    len = l_dns_request_qname_conv( dns, (unsigned char*)host );
+    len = dns_request_qname_conv( dns, (unsigned char*)host );
 #if(1)
     int j = 0;
     for( j = 0; j < len; j ++ )
@@ -57,7 +57,7 @@ void ts_dns_init( )
 #if(0)
 	int rc = 0;
 	dns_cycle_t * cycle = NULL;
-	rc = l_dns_create( &cycle );
+	rc = dns_create( &cycle );
 	t_assert( rc == OK );
 
 	strncpy( cycle->query, "www.baidu.com", sizeof(cycle->query) );

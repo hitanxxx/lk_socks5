@@ -41,11 +41,14 @@ modules_init_t app_modules[] =
     {http_body_init_module,             http_body_end_module,           "http_body"},
     {mailsender_init,                   mailsender_exit,                "mailsender"},
     {webser_init,                       webser_end,                     "http"},
-    {l_dns_init,                        l_dns_end,                      "dns"},
+    {dns_init,                        dns_end,                      "dns"},
     {NULL,	NULL,  NULL}
 };
 
-status core_modules_init( void )
+/// @brief core modules means need by all process include master process and worke process
+/// @param  
+/// @return 
+status modules_core_init( void )
 {
     int i = 0;
     while( core_modules[i].init_pt )
@@ -60,7 +63,7 @@ status core_modules_init( void )
     return OK;
 }
 
-status core_modules_end( void )
+status modules_core_exit( void )
 {
     int i = 0;
 
@@ -76,8 +79,10 @@ status core_modules_end( void )
     return OK;
 }
 
-
-status modules_init( void )
+/// @brief modules process means only need in worker process
+/// @param  
+/// @return 
+status modules_process_init( void )
 {
     int i = 0;
     while( app_modules[i].init_pt )
@@ -92,7 +97,7 @@ status modules_init( void )
     return OK;
 }
 
-status modules_end( void )
+status modules_pocess_exit( void )
 {
     int i = 0;
 

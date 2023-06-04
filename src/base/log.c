@@ -78,8 +78,8 @@ static status log_write_file_access( char * str, int32 length )
 
 status log_print( uint32 id, uint32 level, const char * func, int line, const char * str, ... )
 {
-	log_content_t 	ctx;
-	char 			buffer[LOG_TEXT_LENGTH] = {0};
+    log_content_t 	ctx;
+    char    buffer[LOG_TEXT_LENGTH] = {0};
 
     if( level <= config_get()->sys_log_level )
     {

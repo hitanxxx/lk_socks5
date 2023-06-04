@@ -118,13 +118,16 @@ config_t * config_get(  )
     return &g_config;
 }
 
+/// @brief read and parse config file form file
+/// @param  
+/// @return 
 status config_init ( void )
 {
     memset( &g_config, 0, sizeof(config_t) );
     g_config.sys_log_level	=	0xff;
     struct stat stconf;
-    int filesz = 0;
     meta_t * meta = NULL;
+    int filesz = 0;
     int fd = 0;
     int rc = 0;
 
@@ -133,20 +136,20 @@ status config_init ( void )
     {
         if( stat( L_PATH_CONFIG, &stconf ) < 0 )
         {
-            err("stat config file failed. [%d]\n", errno );
+            err("config stat file failed. [%d]\n", errno );
             break;
         }
         filesz = (int)stconf.st_size;
 
         if( OK != meta_alloc( &meta, filesz ) )
         {
-            pdbg("alloc meta failed. [%d]\n", errno );
+            pdbg("config alloc meta to storge failed. [%d]\n", errno );
             break;
         }
         fd = open( L_PATH_CONFIG, O_RDONLY );
         if( fd <= 0 )
         {
-            pdbg("open config file failed. [%d]\n", errno );
+            pdbg("config open file failed. [%d]\n", errno );
             break;
         }
 
@@ -155,16 +158,20 @@ status config_init ( void )
             rc = read( fd, meta->last, meta->end - meta->last );
             if( rc <= 0 )
             {
-                pdbg("read config all [%d] cur [%d] failed. [%d]\n", filesz, (int)(meta->last - meta->pos), errno );
+                pdbg("config read file failed. [%d]\n", errno );
                 break;
             }
             meta->last += rc;
         }while(0);
 
         pdbg("%s", meta->pos );
-        config_parse( (char*)meta->pos );
+        if( OK != config_parse( (char*)meta->pos ) )
+        {
+            pdbg("config parse failed\n");
+            break;
+        }
 
-    }	while(0);
+    } while(0);
 
     if( fd )
         close(fd);

@@ -49,7 +49,7 @@ status s5_free( socks5_cycle_t * s5 )
     }
     if( s5->dns_cycle )
     {
-        l_dns_over( s5->dns_cycle );
+        dns_over( s5->dns_cycle );
         s5->dns_cycle = NULL;
     }
 
@@ -529,7 +529,7 @@ static status socks5_server_up_addr_get( event_t * ev )
             return ERROR;
         }
         // domain type address
-        rc = l_dns_create( &s5->dns_cycle );
+        rc = dns_create( &s5->dns_cycle );
         if( rc == ERROR )
         {
             err("s5 server dns cycle create failed\n");
@@ -539,7 +539,7 @@ static status socks5_server_up_addr_get( event_t * ev )
         memcpy( s5->dns_cycle->query, s5->advance.addr_str, sizeof(s5->dns_cycle->query)-1 );
         s5->dns_cycle->cb 		= socks5_server_up_addr_get_cb;
         s5->dns_cycle->cb_data 	= s5;
-        return l_dns_start( s5->dns_cycle );
+        return dns_start( s5->dns_cycle );
     }
     err("s5 server not support socks5 request atyp [%x]\n", s5->advance.atyp );
     s5_free( s5 );

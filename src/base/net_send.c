@@ -1,8 +1,6 @@
 #include "common.h"
 
 
-
-
 ssize_t recvs( connection_t * c, unsigned char * buffer, uint32 len )
 {
     ssize_t rc;
@@ -11,16 +9,12 @@ ssize_t recvs( connection_t * c, unsigned char * buffer, uint32 len )
     sys_assert( buffer != NULL );
     sys_assert( c != NULL );
     
-    while(1)
-    {
+    while(1) {
         rc = recv( c->fd, buffer, len, 0 );
-
-        if( rc <= 0 )
-        {
+        if( rc <= 0 ) {
             if( rc ==0 )
                 return ERROR;
-            else
-            {
+            else {
                 if( (errno == EAGAIN) || (errno == EWOULDBLOCK) )
                     return AGAIN;
                 else if ( errno == EINTR )
@@ -43,11 +37,9 @@ ssize_t sends( connection_t * c, unsigned char * buffer, uint32 len )
     sys_assert( buffer != NULL );
     sys_assert( len > 0 );
 
-    while(1)
-    {
+    while(1) {
         rc = send( c->fd, buffer, len, 0 );
-        if( rc < 0 )
-        {
+        if( rc < 0 ) {
             if( (errno == EAGAIN) || (errno == EWOULDBLOCK) )
                 return AGAIN;
             else if ( errno == EINTR )
@@ -72,11 +64,9 @@ status send_chains( connection_t * c, meta_t * head )
     sys_assert( c != NULL );
     sys_assert( head != NULL );
 
-    while(1)
-    {
+    while(1) {
         cur = head;
-        while( cur )
-        {
+        while( cur ) {
             if( OK == meta_need_send(cur) )
                 break;
             cur = cur->next;
@@ -86,8 +76,7 @@ status send_chains( connection_t * c, meta_t * head )
             return DONE;
 
         size = sends( c, cur->pos, meta_len( cur->pos, cur->last ) );
-        if( size < 0 )
-        {
+        if( size < 0 ) {
             if( AGAIN == size )
                 return AGAIN;
             
@@ -106,15 +95,12 @@ ssize_t udp_recvs( connection_t * c, unsigned char * buffer, uint32 len )
     sys_assert( buffer != NULL );
     sys_assert( len > 0 );
 
-    while(1)
-    {
+    while(1) {
         rc = recvfrom( c->fd, buffer, len, 0, (struct sockaddr*)&c->addr, &socklen );
-        if( rc <= 0 )
-        {
+        if( rc <= 0 ) {
             if( rc == 0 )
                 return ERROR;
-            else 
-            {
+            else {
                 if( (errno == EAGAIN) || (errno == EWOULDBLOCK) )
                     return AGAIN;
                 else if ( errno == EINTR )
@@ -137,11 +123,9 @@ ssize_t udp_sends( connection_t * c, unsigned char * buffer, uint32 len )
     sys_assert( buffer != NULL);
     sys_assert( len > 0 );
 
-    while(1)
-    {
+    while(1) {
         rc = sendto( c->fd, buffer, len, 0, (struct sockaddr*)&c->addr, socklen );
-        if( rc < 0 )
-        {
+        if( rc < 0 ) {
             if( (errno == EAGAIN) || (errno == EWOULDBLOCK))
                 return AGAIN;
             else if ( errno == EINTR )

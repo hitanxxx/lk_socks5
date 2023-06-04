@@ -64,13 +64,13 @@ typedef struct dns_cycle
     unsigned char   dns_buffer[DNS_BUFFER_LEN];
 } dns_cycle_t;
 
-status l_dns_start( dns_cycle_t * cycle );
-status l_dns_create( dns_cycle_t ** dns_cycle );
-status l_dns_over( dns_cycle_t * cycle );
-uint32_t l_dns_request_qname_conv( unsigned char * qname, unsigned char * query );
+status dns_start( dns_cycle_t * cycle );
+status dns_create( dns_cycle_t ** dns_cycle );
+status dns_over( dns_cycle_t * cycle );
+uint32_t dns_request_qname_conv( unsigned char * qname, unsigned char * query );
 
-status l_dns_init( void );
-status l_dns_end( void );
+status dns_init( void );
+status dns_end( void );
     
 #ifdef __cplusplus
 }

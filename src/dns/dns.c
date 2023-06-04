@@ -9,12 +9,12 @@ typedef struct private_dns
 } private_dns_t;
 private_dns_t * this = NULL;
 
-inline static char * l_dns_get_serv( void )
+inline static char * dns_get_serv( void )
 {
 	return "8.8.8.8";
 }
 
-static status l_dns_alloc( dns_cycle_t ** cycle )
+static status dns_alloc( dns_cycle_t ** cycle )
 {
     queue_t * q = NULL;
     dns_cycle_t * dns = NULL;
@@ -32,14 +32,14 @@ static status l_dns_alloc( dns_cycle_t ** cycle )
     return OK;
 }
 
-static status l_dns_free( dns_cycle_t * cycle )
+static status dns_free( dns_cycle_t * cycle )
 {
     queue_remove( &cycle->queue );
     queue_insert_tail( &this->usable, &cycle->queue );
     return OK;
 }
 
-status l_dns_over( dns_cycle_t * cycle )
+status dns_over( dns_cycle_t * cycle )
 {
 	if( cycle )
 	{
@@ -52,17 +52,17 @@ status l_dns_over( dns_cycle_t * cycle )
         memset( cycle->query, 0, DOMAIN_LENGTH+1 );
         memset( &cycle->answer, 0, sizeof(dns_record_t) );
         
-		l_dns_free( cycle );
+		dns_free( cycle );
 	}
 	return OK;
 }
 
-status l_dns_create( dns_cycle_t ** dns_cycle )
+status dns_create( dns_cycle_t ** dns_cycle )
 {
 	dns_cycle_t * local_cycle = NULL;
     meta_t * meta = NULL;
     
-	if( OK != l_dns_alloc( &local_cycle ) )
+	if( OK != dns_alloc( &local_cycle ) )
     {
         err("dns create alloc failed\n");
         return ERROR;
@@ -87,13 +87,13 @@ status l_dns_create( dns_cycle_t ** dns_cycle )
 	
 	if( local_cycle )
 	{
-		l_dns_over( local_cycle );
+		dns_over( local_cycle );
 	}
 	return ERROR;
 }
 
 
-static void l_dns_stop( dns_cycle_t * cycle, status rc )
+static void dns_stop( dns_cycle_t * cycle, status rc )
 {
     if( cycle && cycle->c && cycle->c->fd )
     {
@@ -112,12 +112,12 @@ static void l_dns_stop( dns_cycle_t * cycle, status rc )
 	}
 }
 
-inline static void l_dns_cycle_timeout( void * data )
+inline static void dns_cycle_timeout( void * data )
 {
-	l_dns_stop( (dns_cycle_t *)data, ERROR );
+	dns_stop( (dns_cycle_t *)data, ERROR );
 }
 
-status l_dns_response_process( dns_cycle_t * cycle )
+status dns_response_process( dns_cycle_t * cycle )
 {
 	unsigned char * p = NULL;
 	int state_len = 0, cur = 0;
@@ -209,7 +209,7 @@ status l_dns_response_process( dns_cycle_t * cycle )
 	return ERROR;
 }
 
-static char* l_dns_resp_response_code2str( uint32 num )
+static char* dns_resp_response_code2str( uint32 num )
 {
     if( num == 0 )
     {
@@ -238,7 +238,7 @@ static char* l_dns_resp_response_code2str( uint32 num )
     return "unknow";
 }
 
-status l_dns_response_recv( event_t * ev )
+status dns_response_recv( event_t * ev )
 {
 	connection_t * c = ev->data;
 	dns_cycle_t * cycle = c->data;
@@ -256,12 +256,12 @@ status l_dns_response_recv( event_t * ev )
             {
                 // add timer for recv
                 timer_set_data( &c->event->timer, (void*)cycle );
-                timer_set_pt( &c->event->timer, l_dns_cycle_timeout );
+                timer_set_pt( &c->event->timer, dns_cycle_timeout );
                 timer_add( &c->event->timer, DNS_TIMEOUT );
                 return AGAIN;
             }
             err("dns recv response failed, errno [%d]\n", errno );
-            l_dns_stop( cycle, ERROR );
+            dns_stop( cycle, ERROR );
             return ERROR;
         }
         meta->last += size;
@@ -271,17 +271,17 @@ status l_dns_response_recv( event_t * ev )
 	header = (dns_header_t*)meta->pos;
 	if( ntohs(header->flag) & 0xf )
 	{
-		err("dns response error, flag's resp code %x, [%s]\n", ntohs(header->flag)&0xf, l_dns_resp_response_code2str(ntohs(header->flag)&0xf) );
-		l_dns_stop( cycle, ERROR );
+		err("dns response error, flag's resp code %x, [%s]\n", ntohs(header->flag)&0xf, dns_resp_response_code2str(ntohs(header->flag)&0xf) );
+		dns_stop( cycle, ERROR );
 		return ERROR;
 	}
     // make dns connection event invalidate
-	rc = l_dns_response_process( cycle );
-    l_dns_stop( cycle, rc );
+	rc = dns_response_process( cycle );
+    dns_stop( cycle, rc );
 	return rc;
 }
 
-status l_dns_request_send( event_t * ev )
+status dns_request_send( event_t * ev )
 {
 	connection_t * c = ev->data;
 	dns_cycle_t * cycle = c->data;
@@ -297,12 +297,12 @@ status l_dns_request_send( event_t * ev )
 			{
 				// add timer for send
 				timer_set_data( &c->event->timer, (void*)cycle );
-				timer_set_pt( &c->event->timer, l_dns_cycle_timeout );
+				timer_set_pt( &c->event->timer, dns_cycle_timeout );
 				timer_add( &c->event->timer, DNS_TIMEOUT );
 				return AGAIN;
 			}
 			err("dns send request failed, errno [%d]\n", errno );
-			l_dns_stop( cycle, ERROR );
+			dns_stop( cycle, ERROR );
 			return ERROR;
 		}
 		meta->pos += rc;
@@ -313,11 +313,11 @@ status l_dns_request_send( event_t * ev )
 
 	event_opt( ev, c->fd, EV_R );
 	ev->write_pt 	= NULL;
-	ev->read_pt 	= l_dns_response_recv;
+	ev->read_pt 	= dns_response_recv;
 	return ev->read_pt( ev );
 }
 
-uint32_t l_dns_request_qname_conv( unsigned char * qname, unsigned char * query )
+uint32_t dns_request_qname_conv( unsigned char * qname, unsigned char * query )
 {
     unsigned char * host = query;
     unsigned char * dns = qname;
@@ -359,7 +359,7 @@ uint32_t l_dns_request_qname_conv( unsigned char * qname, unsigned char * query 
     return meta_len( qname, dns );
 }
 
-status l_dns_request_prepare( event_t * ev )
+static status dns_request_prepare( event_t * ev )
 {
     connection_t * c = ev->data;
     dns_cycle_t * cycle = c->data;
@@ -378,7 +378,7 @@ status l_dns_request_prepare( event_t * ev )
     meta->last += sizeof(dns_header_t);
 	
     qname = meta->last;
-    cycle->qname_len = l_dns_request_qname_conv( qname, cycle->query );
+    cycle->qname_len = dns_request_qname_conv( qname, cycle->query );
     meta->last += cycle->qname_len;
 	
     qinfo = (dns_question_t*)meta->last;
@@ -387,18 +387,18 @@ status l_dns_request_prepare( event_t * ev )
     meta->last += sizeof(dns_question_t);
 
 	event_opt( c->event, c->fd, EV_W );
-	ev->write_pt = l_dns_request_send;
+	ev->write_pt = dns_request_send;
 	return ev->write_pt( ev );
 }
 
-status l_dns_start( dns_cycle_t * cycle )
+status dns_start( dns_cycle_t * cycle )
 {
 	connection_t * c = cycle->c;
 	struct sockaddr_in addr;
 	
 	addr.sin_family 		= AF_INET;
 	addr.sin_port 			= htons( 53 );
-	addr.sin_addr.s_addr 	= inet_addr( l_dns_get_serv() );
+	addr.sin_addr.s_addr 	= inet_addr( dns_get_serv() );
 
     do
     {
@@ -421,15 +421,15 @@ status l_dns_start( dns_cycle_t * cycle )
         
         memcpy( &c->addr, &addr, sizeof(c->addr) );
         c->event->read_pt       = NULL;
-        c->event->write_pt      = l_dns_request_prepare;
+        c->event->write_pt      = dns_request_prepare;
         return c->event->write_pt( c->event );
     } while(0);
     
-    l_dns_stop( cycle, ERROR );
+    dns_stop( cycle, ERROR );
     return ERROR;
 }
 
-status l_dns_init( void )
+status dns_init( void )
 {
     uint32 i = 0;
     if( this )
@@ -455,7 +455,7 @@ status l_dns_init( void )
     return OK;
 }
 
-status l_dns_end( void )
+status dns_end( void )
 {
     if( this )
     {

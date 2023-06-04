@@ -53,7 +53,10 @@ extern "C"
 #include <sched.h>
 #include <sys/resource.h>
 #include <arpa/inet.h>
+#include <sys/prctl.h>
+
 #include <openssl/ssl.h>
+#include <openssl/evp.h>
 #include <openssl/err.h>
 
 

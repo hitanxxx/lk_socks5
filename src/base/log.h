@@ -6,7 +6,7 @@ extern "C"
 {
 #endif
     
-#define	LOG_TEXT_LENGTH		512
+#define	LOG_TEXT_LENGTH     512
 
 #define LOG_ID_MAIN			0
 #define LOG_ID_ACCESS		1
