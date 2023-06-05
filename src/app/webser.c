@@ -6,8 +6,17 @@
 #include "http_body.h"
 #include "webser.h"
 
+typedef struct 
+{
+	string_t 			key;
+	event_pt			handler;
+} webser_api_t;
+
 typedef struct
 {
+    mem_arr_t *  g_api_list;
+    mem_page_t * g_api_page;
+
     queue_t     g_queue_use;
     queue_t     g_queue_usable;
     webser_t    g_pool[0];
@@ -34,6 +43,49 @@ static mime_type_t mimetype_table[] =
 };
 
 static status webser_start( event_t * ev );
+
+static status webser_api_find( string_t * key, event_pt * handler )
+{
+    uint32 i = 0;
+	webser_api_t *s = NULL;
+
+	if( !g_web_ctx->g_api_list ) {
+		return ERROR;
+	}
+	for( i = 0; i < g_web_ctx->g_api_list->elem_num; i ++ ) {
+		s = mem_arr_get( g_web_ctx->g_api_list, i + 1 );
+		if( s == NULL ) {
+			continue;
+        }
+        
+		if( (s->key.len == key->len) && (OK == strncasecmp( (char*)s->key.data, (char*)key->data, key->len ) ) )  {
+			if( handler ) {
+				*handler = s->handler;
+			}
+			return OK;
+		}
+	}
+	return ERROR;
+}
+
+status webser_api_reg( char * key, event_pt cb )
+{
+    webser_api_t * p = mem_arr_push( g_web_ctx->g_api_list );
+    if( !p ) {
+        err("webser g_api_list mem list push failed\n");
+		return ERROR;
+    }
+
+	p->key.len     = strlen(key);
+	p->key.data    = mem_page_alloc( g_web_ctx->g_api_page, p->key.len+1 );
+	if( p->key.data == NULL ) {
+		err("page mem alloc failed\n");
+		return ERROR;
+	}
+	memcpy( p->key.data, key, p->key.len );
+	p->handler = cb;
+	return OK;
+}
 
 static string_t * webser_get_mimetype( unsigned char * str, int len )
 {
@@ -624,14 +676,11 @@ static status webser_switch( event_t * ev )
     webser_t * webser = c->data;
     status rc = 0;
 	
-	rc = serv_api_find( &webser->http_req->uri, &webser->webapi_handler );
-    if( rc == OK )
-    {
+	rc = webser_api_find( &webser->http_req->uri, &webser->webapi_handler );
+    if( rc == OK ) {
         webser->type 	= WEBSER_API;
         ev->read_pt 	= webser_api;
-    }
-    else
-    {
+    } else {
         webser->type 	= WEBSER_FILE;
         ev->read_pt		= webser_file;
     }
@@ -891,39 +940,74 @@ status webser_accept_cb( event_t * ev )
     return ev->read_pt( ev );
 }
 
+
+
 status webser_init( void )
 {
     uint32 i = 0;
+    int ret = -1;
 
-    if( g_web_ctx )
-    {
-        err("g_web_ctx not empty\n");
-        return ERROR;
-    }
-    g_web_ctx = l_safe_malloc(sizeof(g_web_t)+MAX_NET_CON*sizeof(webser_t));
-    if( !g_web_ctx )
-    {
-        err("webser alloc this failed, [%d]\n", errno );
-        return ERROR;
-    }
-    memset(g_web_ctx, 0, sizeof(g_web_t)+MAX_NET_CON*sizeof(webser_t));
+    do {
+        if( g_web_ctx ) {
+            err("g_web_ctx not empty\n");
+            return ERROR;
+        }
+        g_web_ctx = l_safe_malloc(sizeof(g_web_t)+MAX_NET_CON*sizeof(webser_t));
+        if( !g_web_ctx ) {
+            err("webser alloc this failed, [%d]\n", errno );
+            return ERROR;
+        }
+        memset(g_web_ctx, 0, sizeof(g_web_t)+MAX_NET_CON*sizeof(webser_t));
+        queue_init( &g_web_ctx->g_queue_use );
+        queue_init( &g_web_ctx->g_queue_usable );
+        for( i = 0; i < MAX_NET_CON; i ++ )
+            queue_insert_tail( &g_web_ctx->g_queue_usable, &g_web_ctx->g_pool[i].queue );
+        
+        /// init webserv api data
+        if( OK != mem_arr_create( &g_web_ctx->g_api_list, sizeof(webser_api_t) ) ) {
+            err("webser create api mem arr create failed\n" );
+            break;
+        }
+        if( OK != mem_page_create( &g_web_ctx->g_api_page, L_PAGE_DEFAULT_SIZE ) ){
+            err("webser api mem page create failed\n");
+            break;
+        }
+        webapi_init();
+        ret = 0;
+    } while(0);
 
-    queue_init( &g_web_ctx->g_queue_use );
-    queue_init( &g_web_ctx->g_queue_usable );
-	
-    for( i = 0; i < MAX_NET_CON; i ++ )
-    {
-        queue_insert_tail( &g_web_ctx->g_queue_usable, &g_web_ctx->g_pool[i].queue );
+    if( 0 != ret ) {
+        if( g_web_ctx ) {
+            if( g_web_ctx->g_api_list ) {
+                mem_arr_free( g_web_ctx->g_api_list );
+                g_web_ctx->g_api_list = NULL;
+            }
+            
+            if( g_web_ctx->g_api_page ) {
+                mem_page_free( g_web_ctx->g_api_page );
+                g_web_ctx->g_api_page = NULL;
+            }
+
+            l_safe_free(g_web_ctx);
+            g_web_ctx = 0;
+        }
     }
-    webapi_init();
-    return OK;
+    return (0 == ret)? OK:ERROR;
 }
 
 status webser_end( void )
 {
-    if( g_web_ctx )
-    {
-        l_safe_free( g_web_ctx );
+    if( g_web_ctx ) {
+        if( g_web_ctx->g_api_list ) {
+                mem_arr_free( g_web_ctx->g_api_list );
+                g_web_ctx->g_api_list = NULL;
+            }
+            
+            if( g_web_ctx->g_api_page ) {
+                mem_page_free( g_web_ctx->g_api_page );
+                g_web_ctx->g_api_page = NULL;
+            }
+            l_safe_free( g_web_ctx );
     }
     return OK;
 }

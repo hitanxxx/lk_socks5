@@ -58,13 +58,13 @@ static status webapi_hello_world( event_t * ev )
 
 status webapi_init(  )
 {
-    serv_api_register( "/helloworld", webapi_hello_world );
-	serv_api_register( "/connect/token", webapi_test_token );
-	serv_api_register( "/api/FeedsManager/AddFeed", webapi_test_feedid );
-	serv_api_register( "/api/FeedReceiver/UploadChunk", webapi_hello_world );
-	serv_api_register( "/api/VideoAnalytics/ProcessMotionData", webapi_hello_world );
-	serv_api_register( "/api/ota", webapi_ota_start );
-	serv_api_register( "/upload/birdtest/12345.mp4", webapi_upload_record );
+    webser_api_reg( "/helloworld", webapi_hello_world );
+	webser_api_reg( "/connect/token", webapi_test_token );
+	webser_api_reg( "/api/FeedsManager/AddFeed", webapi_test_feedid );
+	webser_api_reg( "/api/FeedReceiver/UploadChunk", webapi_hello_world );
+	webser_api_reg( "/api/VideoAnalytics/ProcessMotionData", webapi_hello_world );
+	webser_api_reg( "/api/ota", webapi_ota_start );
+	webser_api_reg( "/upload/birdtest/12345.mp4", webapi_upload_record );
 	return OK;
 }
 

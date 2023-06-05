@@ -21,7 +21,6 @@
 #include "timer.h"
 #include "event.h"
 #include "listen.h"
-#include "serv.h"
 #include "ssl.h"
 #include "net.h"
 #include "ringbuffer.h"

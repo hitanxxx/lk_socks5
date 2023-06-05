@@ -29,7 +29,6 @@ modules_init_t core_modules[] =
 modules_init_t app_modules[] =
 {
 	{ssl_init,                          ssl_end,                        "ssl"},
-    {serv_init,                         serv_end,                       "serv"},
     {timer_init,                        timer_end,                      "timer"},
     {net_init,                          net_end,                        "net"},
     {event_init,                        event_end,                      "event"},
