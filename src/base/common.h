@@ -12,7 +12,6 @@
 #include "list.h"
 #include "meta.h"
 #include "sys_string.h"
-#include "usrmgr.h"
 #include "sys_time.h"
 #include "config.h"
 #include "log.h"

@@ -3,8 +3,21 @@
 #include "s5_local.h"
 #include "s5_server.h"
 
+#define S5_USER_NAME_MAX		16
+#define S5_USER_PASSWD_MAX		16
+#define S5_USER_AUTH_FILE_LEN  4096
+
+typedef struct s5_user {
+	char		name[S5_USER_NAME_MAX];
+	char 		passwd[S5_USER_PASSWD_MAX];
+	queue_t		queue;
+} s5_user_t;
+
 typedef struct 
 {
+    queue_t g_users;
+    mem_page_t * g_user_mempage;
+
     queue_t         usable;
     queue_t         use;
     socks5_cycle_t  pool[0];
@@ -29,6 +42,50 @@ status s5_alloc( socks5_cycle_t ** s5 )
     *s5 = n_s5;
     return OK;
 }
+
+
+static status s5_serv_usr_user_find( char * name, s5_user_t ** user )
+{
+	queue_t * q;
+	s5_user_t * t = NULL;
+
+	for( q = queue_head( &g_s5_ctx->g_users ); q != queue_tail( &g_s5_ctx->g_users ); q = queue_next(q) ) {
+		t = ptr_get_struct( q, s5_user_t, queue );
+		if( t && l_strlen(t->name) == strlen(name) && memcmp( t->name, name, strlen(name) ) == 0 ) {
+			if( user ) {
+				*user = t;
+			}
+			return OK;
+		}
+	}
+	return ERROR;
+}
+
+static status s5_serv_usr_user_add( char * name, char * passwd )
+{
+    s5_user_t * user = mem_page_alloc( g_s5_ctx->g_user_mempage, sizeof(s5_user_t) );
+	if( !user ) {
+		err("alloc new user\n");
+		return ERROR;
+	}
+	memset( user, 0, sizeof(s5_user_t) );
+
+	memcpy( user->name, name, strlen(name) );
+	memcpy( user->passwd, passwd, strlen(passwd) );
+	queue_insert_tail( &g_s5_ctx->g_users, &user->queue );
+
+#if(1)
+	// show all users
+	queue_t * q;
+	s5_user_t * t = NULL;
+	for( q = queue_head( &g_s5_ctx->g_users ); q != queue_tail( &g_s5_ctx->g_users ); q = queue_next(q) ) {
+		t = ptr_get_struct( q, s5_user_t, queue );
+		debug("queue show [%s] --- [%s]\n", t->name, t->passwd );
+	}
+#endif
+    return OK;
+}
+
 
 status s5_free( socks5_cycle_t * s5 )
 {
@@ -886,7 +943,7 @@ static status socks5_server_msg_pri_recv( event_t * ev )
     socks5_cycle_t * s5 = down->data;
     socks5_auth_header_t * head = NULL;
     ssize_t rc = 0;
-    user_t * user = NULL;
+    s5_user_t * user = NULL;
     unsigned char resp_status = 0;
 	meta_t * meta = down->meta;
 
@@ -926,7 +983,7 @@ static status socks5_server_msg_pri_recv( event_t * ev )
 			resp_status = S5_AUTH_STAT_TYPE_FAIL;
 		}
 
-		if( OK != user_find( (char*)head->data.name, &user ) )
+		if( OK != s5_serv_usr_user_find( (char*)head->data.name, &user ) )
 		{
 		    err("s5 pri, user [%s] not found\n", head->data.name );
 		    resp_status = S5_AUTH_STAT_NO_USER;
@@ -1085,34 +1142,127 @@ status socks5_server_accept_cb( event_t * ev )
     return ERROR;
 }
 
+
+static status s5_serv_usr_db_decode( meta_t * meta )
+{
+    cJSON * socks5_user_database = NULL;
+
+	cJSON * root = cJSON_Parse( (char*)meta->pos );
+	if( root ) {
+		socks5_user_database = cJSON_GetObjectItem( root, "socks5_user_database" );
+		if( socks5_user_database ) {
+			int i = 0;
+			cJSON * obj = NULL;
+			cJSON * username = NULL;
+			cJSON * passwd = NULL;
+			for( i = 0; i < cJSON_GetArraySize( socks5_user_database ); i ++ ) {
+				obj = cJSON_GetArrayItem( socks5_user_database, i );
+				if( obj ) {
+					username = cJSON_GetObjectItem( obj, "username" );
+					passwd = cJSON_GetObjectItem( obj, "passwd" );
+					if( username && passwd ) {
+						s5_serv_usr_user_add( cJSON_GetStringValue(username), cJSON_GetStringValue(passwd) );
+					}
+				}
+			}
+		}
+		cJSON_Delete( root );
+	}
+    return OK;
+}
+
+static status s5_serv_db_file_load( meta_t * meta )
+{
+    ssize_t size = 0;
+    
+    int fd = open( (char*)config_get()->s5_serv_auth_path, O_RDONLY  );
+    if( ERROR == fd ) {
+        err("usmgr auth open file [%s] failed, errno [%d]\n", config_get()->s5_serv_auth_path,  errno );
+        return ERROR;
+    }
+    size = read( fd, meta->pos, meta_len( meta->start, meta->end ) );
+    close( fd );
+    if( size == ERROR ) {
+        err("usmgr auth read auth file failed\n");
+        return ERROR;
+    }
+    meta->last += size;
+    return OK;
+}
+
+
+
+static status s5_serv_usr_db_init( )
+{
+    meta_t * meta = NULL;
+    status rc = ERROR;
+    
+    do {
+        if( OK != meta_alloc( &meta, S5_USER_AUTH_FILE_LEN ) ) {
+            err("usmgr auth databse alloc meta failed\n");
+            break;
+        }
+        if( OK != s5_serv_db_file_load( meta ) ) {
+            err("usmgr auth file load failed\n");
+            break;
+        }
+        if( OK != s5_serv_usr_db_decode( meta ) ) {
+            err("usmgr auth file decode failed\n");
+            break;
+        }
+        rc = OK;
+    }while(0);
+    
+    if( meta ){
+        meta_free( meta );
+    }
+    return rc;
+}
+
 status socks5_server_init( void )
 {
    	int i = 0;
-    if( g_s5_ctx )
-    {
+    int ret = -1;
+
+    if( g_s5_ctx ) {
         err("s5 ctx not empty\n");
         return ERROR;
     }
-    g_s5_ctx = l_safe_malloc( sizeof(g_s5_t) + MAX_NET_CON*sizeof(socks5_cycle_t) );
-    if( !g_s5_ctx )
-    {
-        err("s5 init allo this failed, [%d]\n", g_s5_ctx );
-        return ERROR;
-    }
-    memset( g_s5_ctx, 0, sizeof(g_s5_t) + MAX_NET_CON*sizeof(socks5_cycle_t) );
-	
-    queue_init(&g_s5_ctx->usable);
-    queue_init(&g_s5_ctx->use);
-    for( i = 0; i < MAX_NET_CON; i++ )
-        queue_insert_tail( &g_s5_ctx->usable, &g_s5_ctx->pool[i].queue );
 
-    if( config_get()->s5_mode > SOCKS5_CLIENT )
-    {
-        debug("s5 server init usrmgr\n");
-        if( OK != user_init() )
-        {
-            err("s5 server init usrmgr failed\n");
+    do {
+        g_s5_ctx = l_safe_malloc( sizeof(g_s5_t) + MAX_NET_CON*sizeof(socks5_cycle_t) );
+        if( !g_s5_ctx ) {
+            err("s5 init allo this failed, [%d]\n", g_s5_ctx );
             return ERROR;
+        }
+        memset( g_s5_ctx, 0, sizeof(g_s5_t) + MAX_NET_CON*sizeof(socks5_cycle_t) );
+        queue_init(&g_s5_ctx->usable);
+        queue_init(&g_s5_ctx->use);
+        for( i = 0; i < MAX_NET_CON; i++ )
+           queue_insert_tail( &g_s5_ctx->usable, &g_s5_ctx->pool[i].queue );
+        /// s5 server mode or server screct mode
+        if( config_get()->s5_mode > SOCKS5_CLIENT ) {
+            queue_init( &g_s5_ctx->g_users );
+            if( OK != mem_page_create( &g_s5_ctx->g_user_mempage, sizeof(s5_user_t) ) ) {
+                err("s5 serv alloc user mem page\n");
+                break;
+            }
+            if( OK != s5_serv_usr_db_init() )
+            {
+                err("s5 serv usr db init failed\n");
+                break;
+            }
+        }
+    } while(0);
+
+    if( ret == -1 ) {
+        if( g_s5_ctx ) {
+            if( g_s5_ctx->g_user_mempage ) {
+                mem_page_free( g_s5_ctx->g_user_mempage );
+                g_s5_ctx->g_user_mempage = NULL;
+            }
+            l_safe_free(g_s5_ctx);
+            g_s5_ctx = NULL;
         }
     }
     return OK;
@@ -1120,11 +1270,14 @@ status socks5_server_init( void )
 
 status socks5_server_end( void )
 {
-	if( g_s5_ctx )
-	{
-		l_safe_free(g_s5_ctx);
-		g_s5_ctx = NULL;
-	}
+    if( g_s5_ctx ) {
+        if( g_s5_ctx->g_user_mempage ) {
+            mem_page_free( g_s5_ctx->g_user_mempage );
+            g_s5_ctx->g_user_mempage = NULL;
+        }
+        l_safe_free(g_s5_ctx);
+        g_s5_ctx = NULL;
+    }
 	return OK;
 }
 
