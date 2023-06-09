@@ -48,7 +48,7 @@ status net_socket_nodelay(  int32 fd );
 status net_socket_nopush( int32 fd );
 status net_socket_lowat_send( int32 fd );
 status net_socket_check_status( int32 fd );
-status net_socket_check_ssl_connection( connection_t * c );
+status net_check_ssl_valid( connection_t * c );
 
 status net_accept( event_t * event );
 status net_connect( connection_t * c, struct sockaddr_in * addr);

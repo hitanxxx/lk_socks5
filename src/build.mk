@@ -14,7 +14,7 @@ SRC_OBJS        += $(patsubst %.c, %.o, $(patsubst %.cpp, %.o, $(patsubst %.cc, 
 STATIC_LIB	+= lib$(TARGET).a
 APP_BIN		+= $(TARGET)
 
-CMP_FLAGS   += -Wall -O2 -ffunction-sections -fdata-sections
+CMP_FLAGS   += -Wall -O0 -ffunction-sections -fdata-sections
 LD_FLAGS    += 
 
 %.o:%.c

@@ -129,12 +129,12 @@ static status proc_cmd_option( int argc, char * argv[] )
             break;
         }
         
-        if( OK != proc_self_pid( &self_pid ) )
+        if( OK != proc_pid_form_file( &self_pid ) )
         {
             err("get current process failed, errno [%d]\n", errno );
             break;
         }
-        if( OK != proc_send_signal( self_pid, g_opt_type ) )
+        if( OK != proc_signal_send( self_pid, g_opt_type ) )
         {
             err("send signal to self failed\n");
             break;
@@ -201,7 +201,7 @@ int32 main( int argc, char * argv[] )
 			break;
 		}
 
-		(config_get()->sys_process > 0) ? proc_master_run( ) : proc_worker_run( );
+		(config_get()->sys_process_num > 0) ? proc_master_run( ) : proc_worker_run( );
 	} while(0);
 
 	modules_core_exit();

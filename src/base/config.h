@@ -13,7 +13,7 @@ extern "C"
 typedef struct gobal_conf
 {
     int 		sys_daemon;
-    int 		sys_process;
+    int 		sys_process_num;
     int 		sys_log_level;
 
     char 		ssl_crt_path[FILEPATH_LENGTH];

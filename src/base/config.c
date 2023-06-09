@@ -36,11 +36,11 @@ static status config_parse( char * str )
         if( sys_daemon )
             g_config.sys_daemon 	= sys_daemon->valueint;
         if( sys_process )
-            g_config.sys_process	= sys_process->valueint;
+            g_config.sys_process_num	= sys_process->valueint;
         if( sys_loglevel )
             g_config.sys_log_level	= sys_loglevel->valueint;
         pdbg("sys_daemon [%d]\n", g_config.sys_daemon );
-        pdbg("sys_process [%d]\n", g_config.sys_process);
+        pdbg("sys_process [%d]\n", g_config.sys_process_num);
         pdbg("sys_log_level [%d]\n", g_config.sys_log_level);
 
 

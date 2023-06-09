@@ -9,6 +9,9 @@ typedef struct
 } g_net_t;
 static g_net_t * g_net_ctx = NULL;
 
+
+
+
 status net_socket_nbio( int32 fd )
 {
 	int32 nbio = 1;
@@ -70,7 +73,7 @@ status net_socket_check_status( int32 fd )
 	return OK;
 }
 
-status net_socket_check_ssl_connection( connection_t * c )
+status net_check_ssl_valid( connection_t * c )
 {
     ssize_t n = 0;
     unsigned char buf = 0;
@@ -89,6 +92,10 @@ status net_socket_check_ssl_connection( connection_t * c )
         return ERROR;
     return OK;
 }
+
+
+
+
 
 status net_connect( connection_t * c, struct sockaddr_in * addr )
 {

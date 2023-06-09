@@ -298,7 +298,7 @@ status event_run( time_t msec )
 				listen->event.read_pt 	= net_accept;
 				event_opt( &listen->event, listen->fd, EV_R );
 			}
-			process_mutex_value_set( process_get_pid() );	
+			process_mutex_value_set( proc_pid() );	
 		}
 		process_unlock();
 	}
@@ -306,7 +306,7 @@ status event_run( time_t msec )
 	g_event_ctx->g_event_handler.run( msec );
 	
 	process_lock();
-	if( process_mutex_value_get() == process_get_pid() ) {
+	if( process_mutex_value_get() == proc_pid() ) {
 		for( i = 0; i < listens->elem_num; i ++ )  {
 			listen = mem_arr_get( listens, i+1 );
 			listen->event.data 		= listen;
@@ -403,6 +403,20 @@ status event_init( void )
 status event_end( void )
 {
 	if( g_event_ctx ) {
+	    int i = 0;
+        listen_t * listen = NULL;
+	    process_lock();
+    	if( process_mutex_value_get() == proc_pid() ) {
+    		for( i = 0; i < listens->elem_num; i ++ )  {
+    			listen = mem_arr_get( listens, i+1 );
+    			listen->event.data 		= listen;
+    			listen->event.read_pt 	= net_accept;
+    			event_opt( &listen->event, listen->fd, EV_NONE );
+    		}	
+    		process_mutex_value_set(0);
+    	}
+    	process_unlock();
+    	
 		if( g_event_ctx->g_event_handler.end ) {
 			g_event_ctx->g_event_handler.end();
 		}

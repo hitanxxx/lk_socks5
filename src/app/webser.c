@@ -894,7 +894,7 @@ status webser_accept_cb_ssl( event_t * ev )
 
     do
     {
-        rc = net_socket_check_ssl_connection(c);
+        rc = net_check_ssl_valid(c);
         if( OK != rc )
         {
             if( AGAIN == rc )

@@ -18,16 +18,16 @@ typedef struct process_t {
 void proc_master_run( void );
 void proc_worker_run( void );
 
+status proc_pid( );
+status proc_pid_form_file( pid_t * pid );
 
-status proc_self_pid( pid_t * pid );
-status proc_send_signal( pid_t pid, int32 signal );
+status proc_signal_send( pid_t pid, int32 signal );
 
 status process_end( void );
 status process_init( void );
 
 void process_lock( );
 void process_unlock( );
-status process_get_pid( );
 
 void process_mutex_value_set( int v );
 int process_mutex_value_get( );

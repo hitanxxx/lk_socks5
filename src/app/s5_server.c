@@ -1102,7 +1102,7 @@ status socks5_server_accept_cb( event_t * ev )
     // s5 local connect s5 server must use tls connection
     do
     {
-        rc = net_socket_check_ssl_connection(down);
+        rc = net_check_ssl_valid(down);
         if( OK != rc )
         {
             if( AGAIN == rc )
@@ -1240,6 +1240,7 @@ status socks5_server_init( void )
         queue_init(&g_s5_ctx->use);
         for( i = 0; i < MAX_NET_CON; i++ )
            queue_insert_tail( &g_s5_ctx->usable, &g_s5_ctx->pool[i].queue );
+           
         /// s5 server mode or server screct mode
         if( config_get()->s5_mode > SOCKS5_CLIENT ) {
             queue_init( &g_s5_ctx->g_users );
@@ -1253,13 +1254,16 @@ status socks5_server_init( void )
                 break;
             }
         }
+        ret = 0;
     } while(0);
 
     if( ret == -1 ) {
         if( g_s5_ctx ) {
-            if( g_s5_ctx->g_user_mempage ) {
-                mem_page_free( g_s5_ctx->g_user_mempage );
-                g_s5_ctx->g_user_mempage = NULL;
+            if( config_get()->s5_mode > SOCKS5_CLIENT ) {
+                if( g_s5_ctx->g_user_mempage ) {
+                    mem_page_free( g_s5_ctx->g_user_mempage );
+                    g_s5_ctx->g_user_mempage = NULL;
+                }
             }
             l_safe_free(g_s5_ctx);
             g_s5_ctx = NULL;
