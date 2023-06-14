@@ -408,7 +408,7 @@ status dns_start( dns_cycle_t * cycle )
             err("dns socket open failed, errno [%d]\n", errno );
             break;
         }
-        if( OK != net_socket_resueaddr( c->fd ) )
+        if( OK != net_socket_reuseaddr( c->fd ) )
         {
             err("dns socket set reuseaddr failed\n" );
             break;

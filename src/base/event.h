@@ -25,8 +25,14 @@ struct l_event
     // every event should have a timer to control network time out
     ev_timer_t      timer;
 	void *          data;
-	int 			trigger_type_record;
+	int 			trigger_type_previously;
 	char   			f_active;  // the event can disable other events 
+    char            f_pending_eof;
+    
+    char            f_listen;
+    char            f_post;
+    char            f_read;
+    char            f_write;
 	
     event_pt        read_pt;
     event_pt        write_pt;

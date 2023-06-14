@@ -3,6 +3,11 @@
 
 typedef struct
 {
+    event_t *       arr_act[MAX_NET_CON+128];
+    event_t *       arr_act_accept[128];
+    int             arr_act_num;
+    int             arr_act_accept_num;
+
 #if defined(EVENT_EPOLL)
     int32           event_fd;
     struct epoll_event * events;
@@ -54,14 +59,17 @@ static status event_epoll_opt( event_t * ev, int32 fd, int trigger_type )
 	memset( &sysev, 0, sizeof(struct epoll_event) );
 
 	/// want type not same as record type
-	if( ev->trigger_type_record != trigger_type ) {
+	if( ev->trigger_type_previously != trigger_type ) {
 		 
 		if( trigger_type == EV_NONE ) {
 			sysop = EPOLL_CTL_DEL;
 			p_sysev = NULL;
 			ev->f_active = 0;
 		} else {
-			if( ev->trigger_type_record == EV_NONE ) {
+            if( trigger_type == EV_R ) {
+                trigger_type |= EPOLLRDHUP;
+            }
+			if( ev->trigger_type_previously == EV_NONE ) {
 				sysop = EPOLL_CTL_ADD;
 			} else {
 				sysop = EPOLL_CTL_MOD;
@@ -78,7 +86,7 @@ static status event_epoll_opt( event_t * ev, int32 fd, int trigger_type )
 		}
 
 		if( !ev->fd ) ev->fd	= fd;
-		ev->trigger_type_record = trigger_type;
+		ev->trigger_type_previously = trigger_type;
 	}
 	return OK;
 }
@@ -111,11 +119,27 @@ status event_epoll_run( time_t msec )
 		ev = g_event_ctx->events[i].data.ptr;
 		trigger_type = g_event_ctx->events[i].events;
         if( ev->f_active ) {
-            if( (trigger_type & EV_R) && ev->read_pt )
-                ev->read_pt( ev );
-            
-            if( (trigger_type & EV_W) && ev->write_pt )
-                ev->write_pt( ev );
+            if( trigger_type & EV_R ) {
+                if( trigger_type & EPOLLRDHUP ) {
+                    ev->f_pending_eof = 1;
+                }
+                if( ev->f_listen ) {
+                    g_event_ctx->arr_act_accept[g_event_ctx->arr_act_accept_num] = ev;
+                    g_event_ctx->arr_act_accept_num ++;
+                } else {
+                    g_event_ctx->arr_act[g_event_ctx->arr_act_num] = ev;
+                    g_event_ctx->arr_act_num ++;
+                }
+                ev->f_post = 1;
+                ev->f_read = 1;
+            }            
+            if( trigger_type & EV_W ) {
+                if( !ev->f_post ) {
+                    g_event_ctx->arr_act[g_event_ctx->arr_act_num] = ev;
+                    g_event_ctx->arr_act_num ++;
+                }
+                ev->f_write = 1;
+            }
         }
 	}
 	return OK;
@@ -139,35 +163,21 @@ static status event_select_end( void )
 
 static status event_select_opt( event_t * ev, int32 fd, int trigger_type )
 {
-	if( ev->trigger_type_record != trigger_type ) {
-		if ( (trigger_type & EV_R) && ( !(trigger_type & EV_W) ) ) {
-			if( ev->trigger_type_record & EV_W )
-				FD_CLR( fd, &g_event_ctx->wfds );
-
-			if( !( ev->trigger_type_record & EV_R) )
-				FD_SET( fd, &g_event_ctx->rfds );
-		}
-		else if ( (trigger_type & EV_W) && ( !(trigger_type & EV_R) ) ) {
-			if( ev->trigger_type_record & EV_R )
-				FD_CLR( fd, &g_event_ctx->rfds );
-			
-			if( !( ev->trigger_type_record & EV_W ) )
-				FD_SET( fd, &g_event_ctx->wfds );
-		}
-		else if( (trigger_type & EV_R) && (trigger_type & EV_W) ) {
-			if( !(ev->trigger_type_record & EV_R) )
-				FD_SET( fd, &g_event_ctx->rfds );
-
-			if( !(ev->trigger_type_record & EV_W) )
-				FD_SET( fd, &g_event_ctx->wfds );
-		}
-		else if ( trigger_type == EV_NONE ) {
-			if( ev->trigger_type_record & EV_W )
-				FD_CLR( fd, &g_event_ctx->wfds );
-
-			if( ev->trigger_type_record & EV_R )
-				FD_CLR( fd, &g_event_ctx->rfds );
-		}
+	if( ev->trigger_type_previously != trigger_type ) {
+	
+        if( (trigger_type & EV_R) && (trigger_type & EV_W) ) {
+            if( !ev->trigger_type_previously & EV_R ) FD_SET( fd, &g_event_ctx->rfds );
+            if( !ev->trigger_type_previously & EV_W ) FD_SET( fd, &g_event_ctx->wfds );
+        } else if ( trigger_type & EV_R ) {
+            if( !(ev->trigger_type_previously & EV_R) ) FD_SET( fd, &g_event_ctx->rfds );
+            if( ev->trigger_type_previously & EV_W ) FD_CLR( fd, &g_event_ctx->wfds );
+        } else if ( trigger_type & EV_W ) {
+            if( !(ev->trigger_type_previously & EV_W) ) FD_SET( fd, &g_event_ctx->wfds );
+            if( ev->trigger_type_previously & EV_R ) FD_CLR( fd, &g_event_ctx->rfds );
+        } else {
+            if( ev->trigger_type_previously & EV_W ) FD_CLR( fd, &g_event_ctx->wfds );
+            if( ev->trigger_type_previously & EV_R ) FD_CLR( fd, &g_event_ctx->rfds );
+        }
 
 		if( trigger_type == EV_NONE ) {
 			ev->f_active = 0;
@@ -176,7 +186,7 @@ static status event_select_opt( event_t * ev, int32 fd, int trigger_type )
 		}
 		if( 0 == ev->fd ) 
 			ev->fd = fd;
-		ev->trigger_type_record = trigger_type;
+		ev->trigger_type_previously = trigger_type;
 	}
 	return OK;
 }
@@ -201,17 +211,16 @@ status event_select_run( time_t msec )
 	for( i = 0; i < listens->elem_num; i ++ ) {
 		listen_t * p_listen = mem_arr_get( listens, i + 1 );
 		event_t * p_ev = &p_listen->event;
-		if( p_ev->f_active == 1 && p_ev->fd > fd_max ) {
+		if( (p_ev->f_active == 1) && (p_ev->fd > fd_max) ) {
 			fd_max = p_ev->fd;
 		}
 	}
 	/// find max fd in pool events 
 	for( i = 0; i < MAX_NET_CON; i++ ) {
-		if( g_event_ctx->pool[i].f_active == 1 && g_event_ctx->pool[i].fd > fd_max ) {
+		if( (g_event_ctx->pool[i].f_active == 1) && (g_event_ctx->pool[i].fd > fd_max) ) {
 			fd_max = g_event_ctx->pool[i].fd;
 		}
 	}
-	
 
 	// select return will be change read fds and write fds
 	memcpy( &tmp_rfds, &g_event_ctx->rfds, sizeof(fd_set) );
@@ -261,12 +270,24 @@ status event_select_run( time_t msec )
 		int faction = 0;
 		event_t * p_ev = &g_event_ctx->pool[i];
 		if( p_ev->f_active == 1 ) {
-			if( FD_ISSET( p_ev->fd, &tmp_rfds ) && p_ev->read_pt ) {
-				p_ev->read_pt(p_ev);
+			if( FD_ISSET( p_ev->fd, &tmp_rfds ) ) {
+				if( p_ev->f_listen ) {
+                    g_event_ctx->arr_act_accept[g_event_ctx->arr_act_accept_num] = p_ev;
+                    g_event_ctx->arr_act_accept_num ++;
+                } else {
+                    g_event_ctx->arr_act[g_event_ctx->arr_act_num] = p_ev;
+                    g_event_ctx->arr_act_num ++;
+                }
+                p_ev->f_post = 1;
+                p_ev->f_read = 1;
 				faction |= 0x1;
 			}
-			if( FD_ISSET( p_ev->fd, &tmp_wfds ) && p_ev->write_pt ) {
-				p_ev->write_pt(p_ev);
+			if( FD_ISSET( p_ev->fd, &tmp_wfds ) ) {
+				if( !p_ev->f_post ) {
+                    g_event_ctx->arr_act[g_event_ctx->arr_act_num] = p_ev;
+                    g_event_ctx->arr_act_num ++;
+                }
+                p_ev->f_write = 1;
 				faction |= 0x2;
 			}
 			if( faction > 0 ) act_cnt ++;
@@ -287,35 +308,69 @@ status event_run( time_t msec )
 	int i = 0;
 	listen_t * listen = NULL;
 
-	/// if process current used event num < all*80%, then try to listen
-	if( g_event_ctx->queue_use_num <= (MAX_NET_CON*80/100) ){
-		// try to get listen event lock
-		process_lock();
-		if( process_mutex_value_get() == 0 ) {
-			for( i = 0; i < listens->elem_num; i ++ )  {
-				listen = mem_arr_get( listens, i+1 );
-				listen->event.data 		= listen;
-				listen->event.read_pt 	= net_accept;
-				event_opt( &listen->event, listen->fd, EV_R );
-			}
-			process_mutex_value_set( proc_pid() );	
-		}
-		process_unlock();
-	}
+    /// listen fd use SO_REUSEPORT. don't need do mutex again 
+    if( 0 ) {
+        /// if process current used event num < all*80%, then try to listen
+    	if( g_event_ctx->queue_use_num <= (MAX_NET_CON*80/100) ) {
+    		// try to get listen event lock
+    		process_lock();
+    		if( process_mutex_value_get() == 0 ) {
+    			for( i = 0; i < listens->elem_num; i ++ ) {
+    				listen = mem_arr_get( listens, i+1 );
+    				listen->event.data 		= listen;
+    				listen->event.read_pt 	= net_accept;
+    				event_opt( &listen->event, listen->fd, EV_R );
+    			}
+    			process_mutex_value_set( proc_pid() );	
+    		}
+    		process_unlock();
+    	}
+    }
+
+    g_event_ctx->arr_act_num = 0;
+    g_event_ctx->arr_act_accept_num = 0;
 
 	g_event_ctx->g_event_handler.run( msec );
-	
-	process_lock();
-	if( process_mutex_value_get() == proc_pid() ) {
-		for( i = 0; i < listens->elem_num; i ++ )  {
-			listen = mem_arr_get( listens, i+1 );
-			listen->event.data 		= listen;
-			listen->event.read_pt 	= net_accept;
-			event_opt( &listen->event, listen->fd, EV_NONE );
-		}	
-		process_mutex_value_set(0);
+
+    for( i = 0; i < g_event_ctx->arr_act_accept_num; i ++ ) {
+        event_t * p_ev = g_event_ctx->arr_act_accept[i];
+        if( p_ev->f_read ) {
+            if( p_ev->read_pt ) p_ev->read_pt(p_ev);
+            p_ev->f_read = 0;
+        }
+        if( p_ev->f_write ) {
+            if( p_ev->write_pt ) p_ev->write_pt(p_ev);
+            p_ev->f_write = 0;
+        }
+        p_ev->f_post = 0;
+    }
+    for( i = 0; i < g_event_ctx->arr_act_num; i ++ ) {
+        event_t * p_ev = g_event_ctx->arr_act[i];
+        if( p_ev->f_read ) {
+            if ( p_ev->read_pt ) p_ev->read_pt(p_ev);
+            p_ev->f_read = 0;
+        }
+        if( p_ev->f_write ) {
+            if ( p_ev->write_pt ) p_ev->write_pt(p_ev);
+            p_ev->f_write = 0;
+        }
+        p_ev->f_post = 0;
+    }
+
+    /// listen fd use SO_REUSEPORT. don't need do mutex again 
+	if( 0 ) {
+	    process_lock();
+    	if( process_mutex_value_get() == proc_pid() ) {
+    		for( i = 0; i < listens->elem_num; i ++ ) {
+    			listen = mem_arr_get( listens, i+1 );
+    			listen->event.data 		= listen;
+    			listen->event.read_pt 	= net_accept;
+    			event_opt( &listen->event, listen->fd, EV_NONE );
+    		}	
+    		process_mutex_value_set(0);
+    	}
+    	process_unlock();
 	}
-	process_unlock();
 	
 	return 0;
 }
@@ -341,10 +396,10 @@ status event_alloc( event_t ** ev )
 status event_free( event_t * ev )
 {
 	if( ev ) {
-		if( ev->f_active && ev->trigger_type_record != EV_NONE )  {
+		if( ev->f_active && ev->trigger_type_previously != EV_NONE )  {
 			event_opt( ev, ev->fd, EV_NONE );
 		}
-		ev->trigger_type_record = 0;
+		ev->trigger_type_previously = 0;
 		
 		ev->fd			= 0;
 		ev->read_pt		= NULL;
@@ -353,6 +408,7 @@ status event_free( event_t * ev )
 		
 		timer_del( &ev->timer );
 		ev->f_active	= 0;
+		ev->f_pending_eof = 0;
 		
 		queue_remove( &ev->queue );
 		queue_insert_tail( &g_event_ctx->usable, &ev->queue );
@@ -396,6 +452,21 @@ status event_init( void )
 	if( g_event_ctx->g_event_handler.init ) {
 		g_event_ctx->g_event_handler.init();
 	}
+
+    if(1) {
+        /// all worker process will be add listen fd into event.
+        /// listen fd set by SO_REUSEPORT. 
+        /// kernel will be process listen fd loadbalance
+        int i = 0;
+        listen_t * listen = NULL;
+        for( i = 0; i < listens->elem_num; i ++ )  {
+    		listen = mem_arr_get( listens, i+1 );
+    		listen->event.data 		= listen;
+    		listen->event.read_pt 	= net_accept;
+    		listen->event.f_listen  = 1;
+    		event_opt( &listen->event, listen->fd, EV_R );
+    	}
+    }
 	return OK;
 	
 }

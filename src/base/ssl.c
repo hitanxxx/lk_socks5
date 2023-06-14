@@ -112,7 +112,7 @@ status ssl_shutdown( ssl_connection_t * ssl )
     {
         if( 0 == ssl->cache_ev_type )
         {
-            ssl->cache_ev_type = c->event->trigger_type_record;
+            ssl->cache_ev_type = c->event->trigger_type_previously;
         }
         event_opt( c->event, c->fd, EV_R );
         c->event->read_pt	= ssl_shutdown_handler;
@@ -122,7 +122,7 @@ status ssl_shutdown( ssl_connection_t * ssl )
     {
         if( 0 == ssl->cache_ev_type )
         {
-            ssl->cache_ev_type = c->event->trigger_type_record;
+            ssl->cache_ev_type = c->event->trigger_type_previously;
         }
         event_opt( c->event, c->fd, EV_W );
         c->event->write_pt	= ssl_shutdown_handler;
@@ -172,7 +172,7 @@ status ssl_handshake( ssl_connection_t * ssl )
     {
         if( 0 == ssl->cache_ev_type )
         {
-            ssl->cache_ev_type = c->event->trigger_type_record;
+            ssl->cache_ev_type = c->event->trigger_type_previously;
         }
         event_opt( c->event, c->fd, EV_R );
         c->event->read_pt = ssl_handshake_handler;
@@ -182,7 +182,7 @@ status ssl_handshake( ssl_connection_t * ssl )
     {
         if( 0 == ssl->cache_ev_type )
         {
-            ssl->cache_ev_type = c->event->trigger_type_record;
+            ssl->cache_ev_type = c->event->trigger_type_previously;
         }
         event_opt( c->event, c->fd, EV_W );
         c->event->write_pt = ssl_handshake_handler;
@@ -228,7 +228,7 @@ ssize_t ssl_read( connection_t * c, unsigned char * start, uint32 len )
     {
         if( c->ssl->cache_ev_type == 0 )
         {
-            c->ssl->cache_ev_type = c->event->trigger_type_record;
+            c->ssl->cache_ev_type = c->event->trigger_type_previously;
         }
         event_opt( c->event, c->fd, EV_R );
         return AGAIN;
@@ -238,7 +238,7 @@ ssize_t ssl_read( connection_t * c, unsigned char * start, uint32 len )
         // ssl read mabey re-negotiation, need to set write handler to ssl read
         if( c->ssl->cache_ev_type == 0 )
         {
-            c->ssl->cache_ev_type = c->event->trigger_type_record;
+            c->ssl->cache_ev_type = c->event->trigger_type_previously;
         }
         if( c->ssl->cache_ev_handler == NULL )
         {
@@ -294,7 +294,7 @@ ssize_t ssl_write( connection_t * c, unsigned char * start, uint32 len )
     {
         if( c->ssl->cache_ev_type == 0 )
         {
-            c->ssl->cache_ev_type = c->event->trigger_type_record;
+            c->ssl->cache_ev_type = c->event->trigger_type_previously;
         }
         event_opt( c->event, c->fd, EV_W );
         return AGAIN;
@@ -304,7 +304,7 @@ ssize_t ssl_write( connection_t * c, unsigned char * start, uint32 len )
         // ssl write mabey re-negotiation, need to set read handler to ssl write
         if( c->ssl->cache_ev_type == 0 )
         {
-            c->ssl->cache_ev_type = c->event->trigger_type_record;
+            c->ssl->cache_ev_type = c->event->trigger_type_previously;
         }
         if( c->ssl->cache_ev_handler == NULL )
         {

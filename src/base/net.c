@@ -18,7 +18,13 @@ status net_socket_nbio( int32 fd )
 	return ioctl( fd, FIONBIO, &nbio );
 }
 
-status net_socket_resueaddr( int32 fd )
+status net_socket_reuseport( int32 fd )
+{
+    int tcp_reuseport = 1;
+    return setsockopt( fd, SOL_SOCKET, SO_REUSEPORT, (const void *)&tcp_reuseport, sizeof(int));    
+}
+
+status net_socket_reuseaddr( int32 fd )
 {	
 	int tcp_reuseaddr = 1;
 	return setsockopt( fd, SOL_SOCKET, SO_REUSEADDR, (const void *)&tcp_reuseaddr, sizeof(int));
@@ -113,7 +119,7 @@ status net_connect( connection_t * c, struct sockaddr_in * addr )
             err("net connect open socket failed, [%d]\n", errno );
             break;
         }
-        if( OK != net_socket_resueaddr( c->fd ) ) {
+        if( OK != net_socket_reuseaddr( c->fd ) ) {
             err("net connect net socket reuseaddr failed\n" );
             break;
         }

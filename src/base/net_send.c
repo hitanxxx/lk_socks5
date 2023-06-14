@@ -8,6 +8,10 @@ ssize_t recvs( connection_t * c, unsigned char * buffer, uint32 len )
     sys_assert( len > 0 );
     sys_assert( buffer != NULL );
     sys_assert( c != NULL );
+
+    if( c->event->f_pending_eof == 1 ) {
+        return ERROR;
+    }
     
     while(1) {
         rc = recv( c->fd, buffer, len, 0 );
@@ -37,6 +41,10 @@ ssize_t sends( connection_t * c, unsigned char * buffer, uint32 len )
     sys_assert( buffer != NULL );
     sys_assert( len > 0 );
 
+    if( c->event->f_pending_eof == 1 ) {
+        return ERROR;
+    }
+
     while(1) {
         rc = send( c->fd, buffer, len, 0 );
         if( rc < 0 ) {
@@ -63,6 +71,10 @@ status send_chains( connection_t * c, meta_t * head )
     
     sys_assert( c != NULL );
     sys_assert( head != NULL );
+
+    if( c->event->f_pending_eof == 1 ) {
+        return ERROR;
+    }
 
     while(1) {
         cur = head;

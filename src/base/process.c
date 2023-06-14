@@ -170,13 +170,16 @@ void proc_master_run( void )
         if( g_proc_ctx->sig_reap == 1 ) {
             for( i = 0; i < config_get()->sys_process_num; i ++ ) {
                 if( g_proc_ctx->arr[i].exited == 1 ) {
-                    /// clear child event mutex value
-                    process_lock();
-                	if( process_mutex_value_get() == g_proc_ctx->arr[i].pid ) {
-                		process_mutex_value_set(0);
-                	}
-                	process_unlock();
-                    
+                
+                    /// listen fd use SO_REUSEPORT. don't need do mutex again 
+                    if (0) {
+                        /// clear child event mutex value
+                        process_lock();
+                    	if( process_mutex_value_get() == g_proc_ctx->arr[i].pid ) {
+                    		process_mutex_value_set(0);
+                    	}
+                    	process_unlock();
+                    }
                 
                     if( g_proc_ctx->sig_quit != 1 ) {
                         if( ERROR == proc_fork( &g_proc_ctx->arr[i] ) ) {

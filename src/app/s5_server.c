@@ -163,8 +163,8 @@ static status s5_traffic_recv( event_t * ev )
 
 	if( down->meta->last > down->meta->pos )
 	{
-		event_opt( down->event, down->fd, down->event->trigger_type_record & ~EV_R );
-		event_opt( up->event, up->fd, up->event->trigger_type_record | EV_W );
+		event_opt( down->event, down->fd, down->event->trigger_type_previously & ~EV_R );
+		event_opt( up->event, up->fd, up->event->trigger_type_previously | EV_W );
 		return up->event->write_pt( up->event );
 	}
 	return AGAIN;
@@ -212,8 +212,8 @@ static int s5_traffic_send( event_t * ev )
 
 	down->meta->last = down->meta->pos = down->meta->start;
 
-	event_opt( down->event, down->fd, down->event->trigger_type_record | EV_R );
-	event_opt( up->event, up->fd, up->event->trigger_type_record & ~EV_W );
+	event_opt( down->event, down->fd, down->event->trigger_type_previously | EV_R );
+	event_opt( up->event, up->fd, up->event->trigger_type_previously & ~EV_W );
 	return down->event->read_pt( down->event );
 }
 
@@ -257,8 +257,8 @@ static status s5_traffic_back_recv( event_t * ev )
 
 	if( up->meta->last > up->meta->pos )
 	{
-		event_opt( up->event, up->fd, up->event->trigger_type_record & ~EV_R );
-		event_opt( down->event, down->fd, down->event->trigger_type_record | EV_W );
+		event_opt( up->event, up->fd, up->event->trigger_type_previously & ~EV_R );
+		event_opt( down->event, down->fd, down->event->trigger_type_previously | EV_W );
 		return down->event->write_pt( down->event );
 	}
 	return AGAIN;
@@ -305,8 +305,8 @@ static int s5_traffic_back_send( event_t * ev )
 
 	up->meta->last = up->meta->pos = up->meta->start;
 
-	event_opt( down->event, down->fd, down->event->trigger_type_record & ~EV_W );
-	event_opt( up->event, up->fd, up->event->trigger_type_record | EV_R );
+	event_opt( down->event, down->fd, down->event->trigger_type_previously & ~EV_W );
+	event_opt( up->event, up->fd, up->event->trigger_type_previously | EV_R );
 	return up->event->read_pt( up->event );
 }
 

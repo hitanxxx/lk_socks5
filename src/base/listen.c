@@ -38,8 +38,12 @@ static status listen_open( listen_t * listens )
 			err("listen set socket non blocking failed\n");
 			break;
 		}
-		if( OK != net_socket_resueaddr( listens->fd ) )	{
+		if( OK != net_socket_reuseaddr( listens->fd ) )	{
 			err("listen set socket reuseaddr failed\n" );
+			break;
+		}
+		if( OK != net_socket_reuseport( listens->fd ) )	{
+			err("listen set socket reuseport failed\n" );
 			break;
 		}
 		if( OK != net_socket_fastopen( listens->fd ) ) {

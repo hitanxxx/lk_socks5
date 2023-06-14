@@ -42,7 +42,8 @@ struct net_connection_t
 
 
 status net_socket_nbio( int32 fd );
-status net_socket_resueaddr( int32 fd );
+status net_socket_reuseport( int32 fd );
+status net_socket_reuseaddr( int32 fd );
 status net_socket_fastopen( int32 fd );
 status net_socket_nodelay(  int32 fd );
 status net_socket_nopush( int32 fd );
