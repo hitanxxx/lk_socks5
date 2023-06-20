@@ -419,6 +419,7 @@ status event_free( event_t * ev )
 
 status event_init( void )
 {	
+    int i = 0;
 	if( g_event_ctx ) {
 		err("g_event_ctx not empty\n");
 		return ERROR;
@@ -432,7 +433,7 @@ status event_init( void )
 	
 	queue_init( &g_event_ctx->use );
 	queue_init( &g_event_ctx->usable );
-	for( int i = 0; i < MAX_NET_CON; i ++ ) {
+	for( i = 0; i < MAX_NET_CON; i ++ ) {
 		queue_insert_tail( &g_event_ctx->usable, &g_event_ctx->pool[i].queue );
 	}
 

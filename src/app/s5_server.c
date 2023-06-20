@@ -513,10 +513,10 @@ static void socks5_server_up_addr_get_cb( void * data )
         if( OK == dns_cycle->dns_status )
         {
             snprintf( ipstr, sizeof(ipstr), "%d.%d.%d.%d",
-                dns_cycle->answer.rdata->data[0],
-                dns_cycle->answer.rdata->data[1],
-                dns_cycle->answer.rdata->data[2],
-                dns_cycle->answer.rdata->data[3]
+                dns_cycle->answer.rdata_data[0],
+                dns_cycle->answer.rdata_data[1],
+                dns_cycle->answer.rdata_data[2],
+                dns_cycle->answer.rdata_data[3]
             );
             
             s5->up->addr.sin_family		= AF_INET;
@@ -540,23 +540,21 @@ static status socks5_server_up_addr_get( event_t * ev )
 {
     connection_t * down = ev->data;
     socks5_cycle_t * s5 = down->data;
-    char ipstr[128] = {0}, portstr[128] = {0};
+    char ipstr[128] = {0};
     status rc = 0;
 
     down->event->read_pt 	= socks5_server_down_try_read;
     down->event->write_pt 	= NULL;
     event_opt( down->event, down->fd, EV_R );
 
-    if( OK != net_alloc( &s5->up ) )
-    {
+    if( OK != net_alloc( &s5->up ) ) {
         err("s5 server up alloc failed\n" );
         s5_free( s5 );
         return ERROR;
     }
     s5->up->data = s5;
 
-    if( s5->advance.atyp == S5_REQ_TYPE_IPV4 )
-    {
+    if( s5->advance.atyp == S5_REQ_TYPE_IPV4 ) {
         int local_port = 0;
 		uint16_t addr_port = 0;
         // ip type address
@@ -567,8 +565,7 @@ static status socks5_server_up_addr_get( event_t * ev )
             		(unsigned char )s5->advance.addr_str[3] );
 		memcpy( &addr_port, s5->advance.addr_port, sizeof(uint16_t) ); 
         local_port = ntohs( addr_port );
-        snprintf( portstr, sizeof(portstr), "%d", local_port );
-
+       
         s5->up->addr.sin_family			= AF_INET;
         s5->up->addr.sin_port 			= htons( local_port );
         s5->up->addr.sin_addr.s_addr 	= inet_addr( ipstr );
@@ -576,27 +573,45 @@ static status socks5_server_up_addr_get( event_t * ev )
         s5->up->event->read_pt 			= NULL;
         s5->up->event->write_pt 		= socks5_server_up_connect;
         return s5->up->event->write_pt( s5->up->event );
-    }
-    else if ( s5->advance.atyp == S5_REQ_TYPE_DOMAIN )
-    {
-        if( l_strlen( s5->advance.addr_str ) > DOMAIN_LENGTH )
-        {
+    }  else if ( s5->advance.atyp == S5_REQ_TYPE_DOMAIN ) {
+        if( l_strlen( s5->advance.addr_str ) > DOMAIN_LENGTH ) {
             err("s5 server req domain too long\n");
             s5_free( s5 );
             return ERROR;
         }
-        // domain type address
-        rc = dns_create( &s5->dns_cycle );
-        if( rc == ERROR )
-        {
-            err("s5 server dns cycle create failed\n");
-            s5_free( s5 );
-            return ERROR;
+
+        if( OK == dns_record_find( (char*)s5->advance.addr_str, ipstr ) ) {
+            int local_port = 0;
+    		uint16_t addr_port = 0;
+            
+            snprintf( ipstr, sizeof(ipstr), "%d.%d.%d.%d",
+                		(unsigned char )ipstr[0],
+                		(unsigned char )ipstr[1],
+                		(unsigned char )ipstr[2],
+                		(unsigned char )ipstr[3] );
+    		memcpy( &addr_port, s5->advance.addr_port, sizeof(uint16_t) ); 
+            local_port = ntohs( addr_port );
+          
+            s5->up->addr.sin_family			= AF_INET;
+            s5->up->addr.sin_port 			= htons( local_port );
+            s5->up->addr.sin_addr.s_addr 	= inet_addr( ipstr );
+
+            s5->up->event->read_pt 			= NULL;
+            s5->up->event->write_pt 		= socks5_server_up_connect;
+            return s5->up->event->write_pt( s5->up->event );
+        } else {
+            
+            rc = dns_create( &s5->dns_cycle );
+            if( rc == ERROR ) {
+                err("s5 server dns cycle create failed\n");
+                s5_free( s5 );
+                return ERROR;
+            }
+            memcpy( s5->dns_cycle->query, s5->advance.addr_str, sizeof(s5->dns_cycle->query)-1 );
+            s5->dns_cycle->cb 		= socks5_server_up_addr_get_cb;
+            s5->dns_cycle->cb_data 	= s5;
+            return dns_start( s5->dns_cycle );
         }
-        memcpy( s5->dns_cycle->query, s5->advance.addr_str, sizeof(s5->dns_cycle->query)-1 );
-        s5->dns_cycle->cb 		= socks5_server_up_addr_get_cb;
-        s5->dns_cycle->cb_data 	= s5;
-        return dns_start( s5->dns_cycle );
     }
     err("s5 server not support socks5 request atyp [%x]\n", s5->advance.atyp );
     s5_free( s5 );

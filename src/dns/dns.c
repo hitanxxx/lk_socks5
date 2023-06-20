@@ -1,15 +1,80 @@
 #include "common.h"
 #include "dns.h"
 
-typedef struct private_dns
+#define DNS_REC_MAX    1024
+
+typedef struct dns_cache_s {
+    queue_t     queue;
+    long long   expire_msec;
+    char        query[DOMAIN_LENGTH+1];
+    char        addr[4];
+} dns_cache_t;
+
+typedef struct dns_ctx_s
 {
     queue_t     usable;
     queue_t     use;
+    queue_t     record_mng;
     dns_cycle_t pool[0];
-} private_dns_t;
-private_dns_t * this = NULL;
+} dns_ctx_t;
+static dns_ctx_t * dns_ctx = NULL;
 
-inline static char * dns_get_serv( void )
+
+
+static status dns_record_add( char * query, char * addr, int msec )
+{
+    dns_cache_t * rdns = calloc(1, sizeof(dns_cache_t));
+    if( !rdns ) {
+        err("rdns alloc failed. [%d]\n", errno );
+        return ERROR;
+    }
+    queue_init( &rdns->queue );
+    strncpy( rdns->query, query, sizeof(rdns->query) );
+    rdns->addr[0] = addr[0];
+    rdns->addr[1] = addr[1];
+    rdns->addr[2] = addr[2];
+    rdns->addr[3] = addr[3];
+    rdns->expire_msec = systime_msec() + msec;
+    queue_insert_tail( &dns_ctx->record_mng, &rdns->queue );
+    debug("dns cache add [%s]\n", query );
+    return OK;
+}
+
+status dns_record_find( char * query, char * out_addr )
+{   
+    queue_t * q = queue_head( &dns_ctx->record_mng );
+    queue_t * n = NULL;
+    dns_cache_t * rdns = NULL;
+    int f_found = 0;
+    long long current_msec = systime_msec();
+    int ncache = 0;
+
+    if( queue_empty( &dns_ctx->record_mng ) ) return ERROR;
+    while( q != queue_tail(&dns_ctx->record_mng) ) {
+    
+        n = queue_next(q);
+        
+        rdns = ptr_get_struct( q, dns_cache_t, queue );
+        if( current_msec < rdns->expire_msec ) {
+	    if( strcmp( rdns->query, query ) == 0 ) {	         
+            	out_addr[0] = rdns->addr[0];
+            	out_addr[1] = rdns->addr[1];
+            	out_addr[2] = rdns->addr[2];
+            	out_addr[3] = rdns->addr[3];
+            	f_found = 1;
+	    }
+        } else {
+            queue_remove( q );
+            free(rdns);
+        }
+        
+        q = n;
+	ncache ++;
+    }
+    return ( f_found == 1 ? OK : ERROR );
+}
+
+inline static char * dns_get_serv( )
 {
 	return "8.8.8.8";
 }
@@ -18,15 +83,14 @@ static status dns_alloc( dns_cycle_t ** cycle )
 {
     queue_t * q = NULL;
     dns_cycle_t * dns = NULL;
-    if( queue_empty(&this->usable) )
-    {
+    if( queue_empty(&dns_ctx->usable) ) {
         err("dns usable queue empty\n");
         return ERROR;
     }
-    q = queue_head(&this->usable);
+    q = queue_head(&dns_ctx->usable);
     queue_remove( q );
     
-    queue_insert_tail(&this->use, q);
+    queue_insert_tail(&dns_ctx->use, q);
     dns = ptr_get_struct(q, dns_cycle_t, queue);
     *cycle = dns;
     return OK;
@@ -35,16 +99,14 @@ static status dns_alloc( dns_cycle_t ** cycle )
 static status dns_free( dns_cycle_t * cycle )
 {
     queue_remove( &cycle->queue );
-    queue_insert_tail( &this->usable, &cycle->queue );
+    queue_insert_tail( &dns_ctx->usable, &cycle->queue );
     return OK;
 }
 
 status dns_over( dns_cycle_t * cycle )
 {
-	if( cycle )
-	{
-		if( cycle->c )
-		{
+	if( cycle ) {
+		if( cycle->c ) {
 			net_free( cycle->c );
 			cycle->c = NULL;
 		}
@@ -62,16 +124,13 @@ status dns_create( dns_cycle_t ** dns_cycle )
 	dns_cycle_t * local_cycle = NULL;
     meta_t * meta = NULL;
     
-	if( OK != dns_alloc( &local_cycle ) )
-    {
+	if( OK != dns_alloc( &local_cycle ) ) {
         err("dns create alloc failed\n");
         return ERROR;
     }
 
-	do 
-	{
-		if( OK != net_alloc( &local_cycle->c ) )
-		{
+	do {
+		if( OK != net_alloc( &local_cycle->c ) ) {
 			err("dns alloc conn failed\n");
 			break;
 		}
@@ -85,8 +144,7 @@ status dns_create( dns_cycle_t ** dns_cycle )
 		return OK;
 	} while(0);
 	
-	if( local_cycle )
-	{
+	if( local_cycle ) {
 		dns_over( local_cycle );
 	}
 	return ERROR;
@@ -95,21 +153,18 @@ status dns_create( dns_cycle_t ** dns_cycle )
 
 static void dns_stop( dns_cycle_t * cycle, status rc )
 {
-    if( cycle && cycle->c && cycle->c->fd )
-    {
+    if( cycle && cycle->c && cycle->c->fd ) {
         event_opt( cycle->c->event, cycle->c->fd, EV_NONE );
     }
     
-	if( rc != OK && rc != ERROR )
-	{
+	if( rc != OK && rc != ERROR ) {
 		err("status not support\n");
 		rc = ERROR;
 	}
+	
 	cycle->dns_status = rc;
 	if( cycle->cb )
-	{
 		cycle->cb( cycle->cb_data );
-	}
 }
 
 inline static void dns_cycle_timeout( void * data )
@@ -134,23 +189,23 @@ status dns_response_process( dns_cycle_t * cycle )
 	} state = STATE_NAME_START;
     
 	/*
-	 find ipv4 answer
+    parse dns answer
 	 */
     p = meta->pos + sizeof(dns_header_t) + cycle->qname_len + sizeof(dns_question_t);
-	for( ; p < meta->last; p++ )
-	{
-		if( state == STATE_NAME_START )
-		{
-			if( *p == 0xc0 )
-			{
-				//debug("cycle [%p] - state name point start [%02x]\n",cycle, *p );
+	for( ; p < meta->last; p++ ) {
+		if( state == STATE_NAME_START ) {
+            /*
+            get name frist char
+            if char & 0xc0 mean name is point type
+            if !(char & 0xc0) means name is string
+            (string type do nothing util 0 comes)
+            */
+		
+			if( (*p) & 0xc0 ) {
 				cycle->answer.name = p;
 				state = STATE_NAME_START_NEXT;
 				continue;
-			}
-			else
-			{
-				//debug("cycle [%p] - state name str [%02x]\n", cycle, * p);
+			} else {
 				if( *p == '0' )
 				{	
 					state = STATE_RDATA_START;
@@ -160,82 +215,50 @@ status dns_response_process( dns_cycle_t * cycle )
 				}
 			}
 		}
-		if( state == STATE_NAME_START_NEXT )
-		{
-			//debug("cycle [%p] - state name next [%02x]\n",cycle, *p );
-			state = STATE_RDATA_START;
+		if( state == STATE_NAME_START_NEXT ) {
 			cur = 0;
 			state_len = sizeof(dns_rdata_t);
+			state = STATE_RDATA_START;
 			continue;
 		}
-		if( state == STATE_RDATA_START )
-		{
+		if( state == STATE_RDATA_START ) {
 			cycle->answer.rdata = (dns_rdata_t * )p;
 			state = STATE_RDATA;
 		}
-		if( state == STATE_RDATA )
-		{
+		if( state == STATE_RDATA ) {
 			cur++;
-			//debug("cycle [%p] - state rdata [%02x]\n",cycle, *p );
-			if( cur >= state_len )
-			{
+			if( cur >= state_len ) {
 				state = STATE_DATA_START;
 				cur = 0;
 				state_len = ntohs(cycle->answer.rdata->data_len);
 				continue;
 			}
 		}
-		if( state == STATE_DATA_START )
-		{
-			cycle->answer.data = p;
+		if( state == STATE_DATA_START ) {
+			cycle->answer.rdata_data = p;
 			state = STATE_DATA;
 		}
-		if( state == STATE_DATA )
-		{
+		if( state == STATE_DATA ) {
 			cur++;
-			//debug("cycle [%p] - state data [%02x]\n", cycle, *p );
-			if( cur >= state_len )
-			{
+			if( cur >= state_len ) {
+
+			    /// if this answer is a A TYPE answer (IPV4), return ok
+			    if( ntohs( cycle->answer.rdata->type ) == 0x0001 ) {
+			        dns_record_add( (char*)cycle->query, (char*)cycle->answer.rdata_data, systime_msec() + (1000*cycle->answer.rdata->ttl) );
+					return OK;
+				} else if ( ntohs( cycle->answer.rdata->type ) == 0x0005 ) {
+				    debug("dns answer type CNAME, ignore\n");
+				} else if ( ntohs( cycle->answer.rdata->type ) == 0x0002 ) {
+                    debug("dns answer type NAME SERVER, ignore\n");
+				} else if ( ntohs( cycle->answer.rdata->type ) == 0x000f ) {
+                    debug("dns answer type MAIL SERVER, ignore\n");
+				}
 				state = STATE_NAME_START;
 				cur = 0;
-
-				if( ntohs( cycle->answer.rdata->type ) == 1 )
-				{
-					return OK;
-				}
 			}
 		}
 	}
 	return ERROR;
-}
-
-static char* dns_resp_response_code2str( uint32 num )
-{
-    if( num == 0 )
-    {
-        return "no error";
-    }
-    else if ( num == 1 )
-    {
-        return "req format error";
-    }
-    else if ( num == 2 )
-    {
-        return "server failure";
-    }
-    else if ( num == 3 )
-    {
-        return "query name error";
-    }
-    else if ( num == 4 )
-    {
-        return "no implemented";
-    }
-    else if ( num == 5 )
-    {
-        return "refused";
-    }
-    return "unknow";
 }
 
 status dns_response_recv( event_t * ev )
@@ -245,15 +268,13 @@ status dns_response_recv( event_t * ev )
     meta_t * meta = &cycle->dns_meta;
     status rc = 0;
 	dns_header_t * header = NULL;
+	/// dns response contains dns request 
     size_t want_len = sizeof(dns_header_t) + cycle->qname_len + sizeof(dns_question_t);
 	
-    while( meta_len( meta->pos, meta->last) < want_len )
-    {
+    while( meta_len( meta->pos, meta->last) < want_len ) {
         ssize_t size = udp_recvs( c, meta->last, meta_len( meta->last, meta->end ) );
-        if( size <= 0 )
-        {
-            if( errno == EAGAIN )
-            {
+        if( size <= 0 ) {
+            if( size == AGAIN ) {
                 // add timer for recv
                 timer_set_data( &c->event->timer, (void*)cycle );
                 timer_set_pt( &c->event->timer, dns_cycle_timeout );
@@ -269,12 +290,17 @@ status dns_response_recv( event_t * ev )
 	timer_del( &c->event->timer );
     
 	header = (dns_header_t*)meta->pos;
-	if( ntohs(header->flag) & 0xf )
-	{
-		err("dns response error, flag's resp code %x, [%s]\n", ntohs(header->flag)&0xf, dns_resp_response_code2str(ntohs(header->flag)&0xf) );
-		dns_stop( cycle, ERROR );
-		return ERROR;
+    if( ntohs(header->question_count) < 1 ) {
+        err("dns response question count [%d], illegal\n", header->question_count );
+        dns_stop( cycle, ERROR );
+        return ERROR;
+    }
+	if( ntohs(header->answer_count) < 1 ) {
+	    err("dns response answer count [%d], illegal\n", header->answer_count );
+	    dns_stop( cycle, ERROR );
+	    return ERROR;
 	}
+	
     // make dns connection event invalidate
 	rc = dns_response_process( cycle );
     dns_stop( cycle, rc );
@@ -288,13 +314,10 @@ status dns_request_send( event_t * ev )
     meta_t * meta = &cycle->dns_meta;
 	ssize_t rc = 0;
 
-	while( meta_len( meta->pos, meta->last ) > 0 )
-	{
+	while( meta_len( meta->pos, meta->last ) > 0 ) {
 		rc = udp_sends( c, meta->pos, meta_len( meta->pos, meta->last ) );
-		if( rc <= 0 )
-		{
-			if( errno == EAGAIN )
-			{
+		if( rc <= 0 ) {
+			if( errno == EAGAIN ) {
 				// add timer for send
 				timer_set_data( &c->event->timer, (void*)cycle );
 				timer_set_pt( &c->event->timer, dns_cycle_timeout );
@@ -332,30 +355,26 @@ uint32_t dns_request_qname_conv( unsigned char * qname, unsigned char * query )
     } state = 0;
     
     strcat( (char*)query, "." );
-    while( host < query + l_strlen(query) )
-    {
-        if( state == s_str )
-        {
-            if( *host == '.' )
-            {
+    while( host < query + l_strlen(query) ) {
+        if( state == s_str ) {
+            if( *host == '.' ) {
                 len = host-s;
                 *dns++ = len;
-                for( i = 0; i < len; i ++ )
-                {
+                for( i = 0; i < len; i ++ ) {
                     *(dns+i) = *(s+i);
                 }
                 dns += len;
                 state = s_point;
             }
-        }
-        else if ( state == s_point )
-        {
+        } else if ( state == s_point ) {
             s = host;
             state = s_str;
         }
         host++;
     }
     *dns++ = '\0';
+    /// recovery query
+    query[strlen(query)-1] = '\0';
     return meta_len( qname, dns );
 }
 
@@ -368,22 +387,25 @@ static status dns_request_prepare( event_t * ev )
     dns_question_t * qinfo  = NULL;
     meta_t * meta = &cycle->dns_meta;
 
+    /// fixed header 
     header = (dns_header_t*)meta->last;
-    header->id              = (unsigned short) htons( 0xffff );
+    header->id              = (unsigned short) htons( 0xbeef );
     header->flag            = htons(0x100);
     header->question_count  = htons(1);
     header->answer_count    = 0;
     header->auth_count      = 0;
     header->add_count       = 0;
     meta->last += sizeof(dns_header_t);
-	
+
+	/// convert www.google.com -> 3www6google3com0
     qname = meta->last;
     cycle->qname_len = dns_request_qname_conv( qname, cycle->query );
     meta->last += cycle->qname_len;
 	
     qinfo = (dns_question_t*)meta->last;
-    qinfo->qtype    = htons(1);
-    qinfo->qclass   = htons(1);
+    /// question type is IPV4
+    qinfo->qtype    = htons(0x0001);
+    qinfo->qclass   = htons(0x0001);
     meta->last += sizeof(dns_question_t);
 
 	event_opt( c->event, c->fd, EV_W );
@@ -400,21 +422,17 @@ status dns_start( dns_cycle_t * cycle )
 	addr.sin_port 			= htons( 53 );
 	addr.sin_addr.s_addr 	= inet_addr( dns_get_serv() );
 
-    do
-    {
+    do {
         c->fd = socket(AF_INET, SOCK_DGRAM, 0 );
-        if( -1 == c->fd )
-        {
+        if( -1 == c->fd ) {
             err("dns socket open failed, errno [%d]\n", errno );
             break;
         }
-        if( OK != net_socket_reuseaddr( c->fd ) )
-        {
+        if( OK != net_socket_reuseaddr( c->fd ) ) {
             err("dns socket set reuseaddr failed\n" );
             break;
         }
-        if( OK != net_socket_nbio( c->fd ) )
-        {
+        if( OK != net_socket_nbio( c->fd ) ) {
             err("dns socket set nonblock failed\n" );
             break;
         }
@@ -432,35 +450,34 @@ status dns_start( dns_cycle_t * cycle )
 status dns_init( void )
 {
     uint32 i = 0;
-    if( this )
-    {
+    if( dns_ctx ) {
         err("dns init this not empty\n");
         return ERROR;
     }
-    this = l_safe_malloc( sizeof(private_dns_t) + sizeof(dns_cycle_t)*MAX_NET_CON );
-    if( !this )
-    {
+    dns_ctx = l_safe_malloc( sizeof(dns_ctx_t) + sizeof(dns_cycle_t)*MAX_NET_CON );
+    if( !dns_ctx ) {
         err("dns init alloc dns pool failed, [%d]\n", errno );
         return ERROR;
     }
-    memset( this, 0, sizeof(private_dns_t) + sizeof(dns_cycle_t)*MAX_NET_CON );
+    memset( dns_ctx, 0, sizeof(dns_ctx_t) + sizeof(dns_cycle_t)*MAX_NET_CON );
     
-    queue_init(&this->usable);
-    queue_init(&this->use);
+    queue_init(&dns_ctx->usable);
+    queue_init(&dns_ctx->use);
+    queue_init(&dns_ctx->record_mng);
     
-    for( i = 0; i < MAX_NET_CON; i ++ )
-    {
-        queue_insert( &this->usable, &this->pool[i].queue );
+    for( i = 0; i < MAX_NET_CON; i ++ ) {
+        queue_insert( &dns_ctx->usable, &dns_ctx->pool[i].queue );
     }
     return OK;
 }
 
 status dns_end( void )
 {
-    if( this )
-    {
-        l_safe_free(this);
-        this = NULL;
+    if( dns_ctx ) {
+        
+    
+        l_safe_free(dns_ctx);
+        dns_ctx = NULL;
     }
     return OK;
 }

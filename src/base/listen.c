@@ -42,6 +42,10 @@ static status listen_open( listen_t * listens )
 			err("listen set socket reuseaddr failed\n" );
 			break;
 		}
+		/*
+            set reuseport flag, socket listen by all process.
+            kernel will be process thundering herd 
+		*/
 		if( OK != net_socket_reuseport( listens->fd ) )	{
 			err("listen set socket reuseport failed\n" );
 			break;
@@ -70,7 +74,8 @@ static status listen_open( listen_t * listens )
 
 status listen_stop( void )
 {
-	for( int i = 0; i < listens->elem_num; i ++ )  {
+    int i = 0;
+	for( i = 0; i < listens->elem_num; i ++ )  {
 		listen_t * p = mem_arr_get( listens, i+1 );
 		if( p->fd > 0 )  {
 			close( p->fd );
@@ -109,6 +114,7 @@ int listen_num( )
 
 status listen_init( void )
 {	
+    int i = 0;
     if( OK != mem_arr_create( &listens, sizeof(listen_t) ) )  {
         err("listens arr create failed\n" );
         return ERROR;
@@ -121,10 +127,10 @@ status listen_init( void )
     if( config_get()->s5_mode == SOCKS5_SERVER )
         listen_add( config_get()->s5_serv_port, socks5_server_accept_cb, L_SSL );
     // webserver listen
-    for( int i = 0; i < config_get()->http_num; i ++ )
+    for( i = 0; i < config_get()->http_num; i ++ )
         listen_add( config_get()->http_arr[i], webser_accept_cb, L_NOSSL );
     // webserver ssl listen
-    for( int i = 0; i < config_get()->https_num; i ++ )
+    for( i = 0; i < config_get()->https_num; i ++ )
         listen_add( config_get()->https_arr[i], webser_accept_cb_ssl, L_SSL );
 
     if( OK != listen_start() ) {

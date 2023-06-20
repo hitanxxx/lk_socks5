@@ -33,15 +33,13 @@ typedef struct dns_rdata
     unsigned short  rclass;
     uint32          ttl;
     unsigned short  data_len;
-
-    unsigned char   data[0];
 }  dns_rdata_t;
 
 typedef struct dns_record
 {
     unsigned char * name;
     dns_rdata_t *   rdata;
-    unsigned char * data;
+    unsigned char * rdata_data;
 }  dns_record_t;
 #pragma pack(pop)
 
@@ -71,6 +69,8 @@ uint32_t dns_request_qname_conv( unsigned char * qname, unsigned char * query );
 
 status dns_init( void );
 status dns_end( void );
+status dns_record_find( char * query, char * out_addr );
+
     
 #ifdef __cplusplus
 }

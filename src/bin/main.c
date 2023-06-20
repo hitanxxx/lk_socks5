@@ -166,7 +166,8 @@ int32 main( int argc, char * argv[] )
 
 	/// reset process name
 	size_t space = 0;
-    for (int i = 0; i < argc; i++) 
+	int i = 0;
+        for (i = 0; i < argc; i++) 
 	{
         size_t length = strlen(argv[i]);
         space += length + 1;
