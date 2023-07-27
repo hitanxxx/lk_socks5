@@ -56,13 +56,13 @@ status dns_record_find( char * query, char * out_addr )
         
         rdns = ptr_get_struct( q, dns_cache_t, queue );
         if( current_msec < rdns->expire_msec ) {
-	    if( strcmp( rdns->query, query ) == 0 ) {	         
-            	out_addr[0] = rdns->addr[0];
-            	out_addr[1] = rdns->addr[1];
-            	out_addr[2] = rdns->addr[2];
-            	out_addr[3] = rdns->addr[3];
-            	f_found = 1;
-	    }
+    	    if( strcmp( rdns->query, query ) == 0 ) {	         
+                	out_addr[0] = rdns->addr[0];
+                	out_addr[1] = rdns->addr[1];
+                	out_addr[2] = rdns->addr[2];
+                	out_addr[3] = rdns->addr[3];
+                	f_found = 1;
+    	    }
         } else {
             queue_remove( q );
             free(rdns);
@@ -374,7 +374,7 @@ uint32_t dns_request_qname_conv( unsigned char * qname, unsigned char * query )
     }
     *dns++ = '\0';
     /// recovery query
-    query[strlen(query)-1] = '\0';
+    query[strlen((char*)query)-1] = '\0';
     return meta_len( qname, dns );
 }
 
@@ -387,7 +387,7 @@ static status dns_request_prepare( event_t * ev )
     dns_question_t * qinfo  = NULL;
     meta_t * meta = &cycle->dns_meta;
 
-    /// fixed header 
+    /// fill in dns packet header 
     header = (dns_header_t*)meta->last;
     header->id              = (unsigned short) htons( 0xbeef );
     header->flag            = htons(0x100);
@@ -474,8 +474,20 @@ status dns_init( void )
 status dns_end( void )
 {
     if( dns_ctx ) {
-        
+        dns_cache_t * rdns = NULL;
+        queue_t * q = queue_head( &dns_ctx->record_mng );
+        queue_t * n = NULL;
+        /// free dns cache if need 
+        while( q != queue_tail(&dns_ctx->record_mng) ) {
     
+            n = queue_next(q);
+            
+            rdns = ptr_get_struct( q, dns_cache_t, queue );
+            queue_remove( q );
+            free(rdns);
+            
+            q = n;
+        }
         l_safe_free(dns_ctx);
         dns_ctx = NULL;
     }

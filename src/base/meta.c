@@ -11,8 +11,7 @@ status meta_alloc_form_mempage ( mem_page_t * page, uint32 size, meta_t ** out )
 		return ERROR;
 
 	new = mem_page_alloc( page, sizeof(meta_t)+size );
-	if( !new ) 
-	{
+	if( !new ) {
 		err("meta alloc from page failed\n");
 		return ERROR;
 	}
@@ -34,8 +33,7 @@ status meta_alloc( meta_t ** meta, uint32 size )
 		return ERROR;
 	
 	t = l_safe_malloc( sizeof(meta_t)+size );
-	if( NULL == t ) 
-	{
+	if( NULL == t ) {
 		return ERROR;
 	}
 	memset( t, 0, sizeof(meta_t)+size );

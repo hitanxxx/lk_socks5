@@ -479,7 +479,7 @@ status event_end( void )
         listen_t * listen = NULL;
 	    process_lock();
     	if( process_mutex_value_get() == proc_pid() ) {
-    		for( i = 0; i < listens->elem_num; i ++ )  {
+    		for( i = 0; i < listens->elem_num; i ++ ) {
     			listen = mem_arr_get( listens, i+1 );
     			listen->event.data 		= listen;
     			listen->event.read_pt 	= net_accept;

@@ -85,8 +85,7 @@ status net_check_ssl_valid( connection_t * c )
     unsigned char buf = 0;
     
     n = recv( c->fd, (char*)&buf, 1, MSG_PEEK );
-    if( n <= 0 )
-    {
+    if( n <= 0 ) {
         if( (n < 0) && ( (errno == AGAIN) || (errno == EWOULDBLOCK) ) )
             return AGAIN;
 		

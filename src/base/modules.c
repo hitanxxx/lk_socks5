@@ -50,10 +50,8 @@ modules_init_t app_modules[] =
 status modules_core_init( void )
 {
     int i = 0;
-    while( core_modules[i].init_pt )
-    {
-        if( OK != core_modules[i].init_pt() )
-        {
+    while( core_modules[i].init_pt ) {
+        if( OK != core_modules[i].init_pt() ) {
             err("core modules [%s] init failed\n", core_modules[i].module_name );
             return ERROR;
         }
@@ -66,10 +64,8 @@ status modules_core_exit( void )
 {
     int i = 0;
 
-    while( core_modules[i].end_pt )
-    {
-        if( OK != core_modules[i].end_pt() )
-        {
+    while( core_modules[i].end_pt ) {
+        if( OK != core_modules[i].end_pt() ) {
             err("core modules [%s] end failed\n", core_modules[i].module_name );
             return ERROR;
         }
@@ -84,10 +80,8 @@ status modules_core_exit( void )
 status modules_process_init( void )
 {
     int i = 0;
-    while( app_modules[i].init_pt )
-    {
-        if( OK != app_modules[i].init_pt() )
-        {
+    while( app_modules[i].init_pt ) {
+        if( OK != app_modules[i].init_pt() ) {
             err("modules [%s] init failed\n", app_modules[i].module_name );
             return ERROR;
         }
@@ -100,10 +94,8 @@ status modules_pocess_exit( void )
 {
     int i = 0;
 
-    while( app_modules[i].end_pt )
-    {
-        if( OK != app_modules[i].end_pt() )
-        {
+    while( app_modules[i].end_pt ) {
+        if( OK != app_modules[i].end_pt() ) {
             err("modules [%s] end failed\n", app_modules[i].module_name );
             return ERROR;
         }

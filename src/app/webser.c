@@ -801,24 +801,19 @@ static status webser_start( event_t * ev )
 static status webser_convert_to_s5( event_t * ev )
 {
     connection_t * c = ev->data;
-    socks5_auth_header_t * head = NULL;
     meta_t * meta = NULL;
     ssize_t rc = 0;
     
     // page && meta init
-    if( NULL == c->page )
-    {
-        if( OK != mem_page_create(&c->page, L_PAGE_DEFAULT_SIZE) )
-        {
+    if( NULL == c->page ) {
+        if( OK != mem_page_create(&c->page, L_PAGE_DEFAULT_SIZE) ) {
             err("webser c page create failed\n");
             net_free( c );
             return ERROR;
         }
     }
-    if( NULL == c->meta )
-    {
-        if( OK != meta_alloc_form_mempage( c->page, WEBSER_REQ_META_LEN, &c->meta ) )
-        {
+    if( NULL == c->meta ) {
+        if( OK != meta_alloc_form_mempage( c->page, WEBSER_REQ_META_LEN, &c->meta ) ) {
             err("webser alloc con meta failed\n");
             net_free( c );
             return ERROR;
@@ -826,13 +821,10 @@ static status webser_convert_to_s5( event_t * ev )
     }
     
     meta = c->meta;
-    while( meta_len( meta->pos, meta->last ) < sizeof(socks5_auth_header_t) )
-    {
+    while( meta_len( meta->pos, meta->last ) < sizeof(s5_auth_info_t) ) {
         rc = c->recv( c, meta->last, meta_len( meta->last, meta->end ) );
-        if( rc < 0 )
-        {
-            if( ERROR == rc )
-            {
+        if( rc < 0 ) {
+            if( ERROR == rc ) {
                 err("webser procotol route recv failed\n");
                 net_free( c );
                 return ERROR;
@@ -846,12 +838,10 @@ static status webser_convert_to_s5( event_t * ev )
     }
     timer_del( &ev->timer );
     
-    do
-    {
-        head = (socks5_auth_header_t*)meta->pos;
-        // filter magic number
-        if( S5_AUTH_MAGIC_NUM != head->magic )
-        {
+    do {
+        s5_auth_info_t * header = (s5_auth_info_t*)meta->pos;
+        
+        if( S5_AUTH_MAGIC_NUM != header->magic ) {
             // magic number not match, goto http/https process
             break;
         }
@@ -892,13 +882,10 @@ status webser_accept_cb_ssl( event_t * ev )
     connection_t * c = ev->data;
     status rc = 0;
 
-    do
-    {
+    do {
         rc = net_check_ssl_valid(c);
-        if( OK != rc )
-        {
-            if( AGAIN == rc )
-            {
+        if( OK != rc ) {
+            if( AGAIN == rc ) {
                 timer_set_data( &ev->timer, c );
                 timer_set_pt( &ev->timer, webser_timeout_con );
                 timer_add( &ev->timer, WEBSER_TIMEOUT );
@@ -908,16 +895,13 @@ status webser_accept_cb_ssl( event_t * ev )
             break;
         }
         
-        if( OK != ssl_create_connection( c, L_SSL_SERVER ) )
-        {
+        if( OK != ssl_create_connection( c, L_SSL_SERVER ) ) {
             err("webser ssl con create failed\n");
             break;
         }
         rc = ssl_handshake( c->ssl );
-        if( rc < 0 )
-        {
-            if( rc == ERROR )
-            {
+        if( rc < 0 ) {
+            if( rc == ERROR ) {
                 err("webser ssl handshake failed\n");
                 break;
             }

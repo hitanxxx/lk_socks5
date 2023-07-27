@@ -11,15 +11,13 @@ status mem_page_create( mem_page_t ** page, uint32 size )
 
     size = ( size < L_PAGE_DEFAULT_SIZE ? L_PAGE_DEFAULT_SIZE : size );
 
-	if( !page )
-	{
+	if( !page ) {
 		err("mem_page create alloc struct NULL\n");
 		return ERROR;
 	}
 
     n_page = (mem_page_t*)l_safe_malloc( sizeof(mem_page_t) + size );
-    if( NULL == n_page ) 
-	{
+    if( NULL == n_page ) {
         err("mem_page alloc failed, [%d]\n", errno );
         return ERROR;
     }
@@ -42,8 +40,7 @@ status mem_page_free( mem_page_t * page )
 		return OK;
 
 	cur = page;
-    while( cur ) 
-	{
+    while( cur ) {
         next = cur->next;
         l_safe_free( cur );
         cur = next;
@@ -61,12 +58,10 @@ void * mem_page_alloc( mem_page_t * page, uint32 size )
 
 	// loop page chain find space
 	cur = page;
-	while( cur )
-    {
+	while( cur ) {
         last = cur;
 		next = cur->next;
-		if( cur->end - cur->start >= size )
-		{
+		if( cur->end - cur->start >= size ) {
 			cur->start += size;
 			return cur->start - size;
 		}
@@ -74,8 +69,7 @@ void * mem_page_alloc( mem_page_t * page, uint32 size )
 	}
 
 	// alloc new page 
-	if( OK != mem_page_create( &n_page, size ) )
-	{
+	if( OK != mem_page_create( &n_page, size ) ) {
 		err("alloc new page failed\n");
 		return NULL;
 	}

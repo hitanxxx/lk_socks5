@@ -9,8 +9,7 @@ static status config_parse( char * str )
 {
     int i = 0;
     cJSON * root = cJSON_Parse( str );
-    if( root )
-    {
+    if( root ) {
         cJSON * sys_daemon = cJSON_GetObjectItem(root, "sys_daemon");
         cJSON * sys_process = cJSON_GetObjectItem(root, "sys_process");
         cJSON * sys_loglevel = cJSON_GetObjectItem(root, "sys_log_level");
@@ -34,11 +33,11 @@ static status config_parse( char * str )
         cJSON * http_index = cJSON_GetObjectItem( root, "http_index" );
 
         if( sys_daemon )
-            g_config.sys_daemon 	= sys_daemon->valueint;
+            g_config.sys_daemon = sys_daemon->valueint;
         if( sys_process )
-            g_config.sys_process_num	= sys_process->valueint;
+            g_config.sys_process_num = sys_process->valueint;
         if( sys_loglevel )
-            g_config.sys_log_level	= sys_loglevel->valueint;
+            g_config.sys_log_level = sys_loglevel->valueint;
         pdbg("sys_daemon [%d]\n", g_config.sys_daemon );
         pdbg("sys_process [%d]\n", g_config.sys_process_num);
         pdbg("sys_log_level [%d]\n", g_config.sys_log_level);
@@ -80,13 +79,11 @@ static status config_parse( char * str )
         pdbg("s5_local_passwd [%s]\n", g_config.s5_local_passwd );
 
 
-        if(http_arr)
-        {
+        if(http_arr) {
             for(i = 0; i < cJSON_GetArraySize(http_arr); i ++)
                 g_config.http_arr[i]   = cJSON_GetArrayItem(http_arr, i)->valueint;
         }
-        if(https_arr)
-        {
+        if(https_arr) {
             for(i = 0; i < cJSON_GetArraySize(https_arr); i ++)
                 g_config.https_arr[i]   = cJSON_GetArrayItem(https_arr, i)->valueint;
         }
@@ -104,9 +101,7 @@ static status config_parse( char * str )
         pdbg("http_index [%s]\n", g_config.http_index );
         
         cJSON_Delete(root);
-    }
-    else
-    {
+    } else {
         err("cjson parse config file failed\n");
         return ERROR;
     }
@@ -124,60 +119,55 @@ config_t * config_get(  )
 status config_init ( void )
 {
     memset( &g_config, 0, sizeof(config_t) );
-    g_config.sys_log_level	=	0xff;
-    struct stat stconf;
-    meta_t * meta = NULL;
-    int filesz = 0;
-    int fd = 0;
+    g_config.sys_log_level = 0xff; /// full level
+    struct stat fstat;
+    meta_t * fmeta = NULL;
+    int fsz = 0;
+    int ffd = 0;
     int rc = 0;
 
-    memset( &stconf, 0, sizeof(struct stat) );
-    do 
-    {
-        if( stat( L_PATH_CONFIG, &stconf ) < 0 )
-        {
+    memset( &fstat, 0, sizeof(struct stat) );
+    do {
+        if( stat( L_PATH_CONFIG, &fstat ) < 0 ) {
             err("config stat file failed. [%d]\n", errno );
             break;
         }
-        filesz = (int)stconf.st_size;
-
-        if( OK != meta_alloc( &meta, filesz ) )
-        {
+        fsz = (int)fstat.st_size;
+        /// need to fsz+1 to storge '\0'
+        if( OK != meta_alloc( &fmeta, fsz+1 ) ) {
             pdbg("config alloc meta to storge failed. [%d]\n", errno );
             break;
         }
-        fd = open( L_PATH_CONFIG, O_RDONLY );
-        if( fd <= 0 )
-        {
+        ffd = open( L_PATH_CONFIG, O_RDONLY );
+        if( ffd <= 0 ) {
             pdbg("config open file failed. [%d]\n", errno );
             break;
         }
 
-        while( meta->last - meta->pos < filesz )
-        {
-            rc = read( fd, meta->last, meta->end - meta->last );
-            if( rc <= 0 )
-            {
+        while( fmeta->last - fmeta->pos < fsz ) {
+            rc = read( ffd, fmeta->last, fmeta->end - fmeta->last );
+            if( rc <= 0 ) {
                 pdbg("config read file failed. [%d]\n", errno );
                 break;
             }
-            meta->last += rc;
+            fmeta->last += rc;
         }while(0);
 
-        pdbg("%s", meta->pos );
-        if( OK != config_parse( (char*)meta->pos ) )
-        {
+        pdbg("===== config start =====\n");
+        pdbg("%s", fmeta->pos );
+        pdbg("===== config end =====\n");
+        if( OK != config_parse( (char*)fmeta->pos ) ) {
             pdbg("config parse failed\n");
             break;
         }
 
     } while(0);
 
-    if( fd )
-        close(fd);
+    if( ffd )
+        close(ffd);
 
-    if(meta)
-        meta_free(meta);
+    if(fmeta)
+        meta_free(fmeta);
 
     return OK;
 }

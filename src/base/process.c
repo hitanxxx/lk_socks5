@@ -38,14 +38,12 @@ status proc_pid_form_file( pid_t * pid )
 	char str[128] = {0};
 
 	fd = open( L_PATH_PIDFILE, O_RDONLY );
-	if( ERROR == fd ) 
-	{
-		err("open pid file\n" );
+	if( -1 == fd ) {
+		err("open pid file [%s] failed. [%d]\n", L_PATH_PIDFILE, errno );
 		return ERROR;
 	}
-	if( ERROR == read( fd, str, sizeof(str) ) ) 
-	{
-		err("read pid file\n" );
+	if( ERROR == read( fd, str, sizeof(str) ) ) {
+		err("read pid file [%s] failed. [%d]\n", L_PATH_PIDFILE, errno );
 		close( fd );
 		return ERROR;
 	}
@@ -155,6 +153,7 @@ void proc_master_run( void )
 		err("master received signal [%d]\n", g_proc_ctx->signal );
 
         if( g_proc_ctx->sig_quit == 1 ) {
+			/// master recvied a sigint, stop all child frist, then do exit
             proc_signal_bcast( SIGINT );
             int alive = 0;
             for( i = 0; i < config_get()->sys_process_num; i ++ ) {
@@ -168,6 +167,7 @@ void proc_master_run( void )
         }
 
         if( g_proc_ctx->sig_reap == 1 ) {
+			/// if master process know some child dead
             for( i = 0; i < config_get()->sys_process_num; i ++ ) {
                 if( g_proc_ctx->arr[i].exited == 1 ) {
                 
@@ -180,7 +180,8 @@ void proc_master_run( void )
                     	}
                     	process_unlock();
                     }
-                
+	
+					/// if master not recived sigint, just to restart the child process
                     if( g_proc_ctx->sig_quit != 1 ) {
                         if( ERROR == proc_fork( &g_proc_ctx->arr[i] ) ) {
         					err("proc_fork index [%d] failed, [%d]\n", i, errno );
@@ -199,6 +200,8 @@ void proc_master_run( void )
         }
         
         if( g_proc_ctx->sig_reload == 1 ) {
+			/// master recived sigreload, just stop all child process.
+			/// child process will be auto restart
             proc_signal_bcast( SIGINT );
             g_proc_ctx->sig_reload = 0;
         }

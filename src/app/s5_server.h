@@ -7,86 +7,72 @@ extern "C"
 #endif
 
 
-#define SOCKS5_TIME_OUT				3
-#define S5_AUTH_MAGIC_NUM           0x2314bacd
+#define S5_TIMEOUT	        5
+#define S5_AUTH_MAGIC_NUM   0x1000beef
 
-enum socks5_auth_message_type
-{
-    S5_AUTH_TYPE_AUTH_REQ       = 0x1,
-    S5_AUTH_TYPE_AUTH_RESP      = 0x2,
-};
-enum socks5_auth_message_status
-{
-    S5_AUTH_STAT_SUCCESS        = 0x1,
-    S5_AUTH_STAT_MAGIC_FAIL     = 0x2,
-    S5_AUTH_STAT_TYPE_FAIL      = 0x3,
-    S5_AUTH_STAT_NO_USER        = 0x4,
-    S5_AUTH_STAT_PASSWD_FAIL    = 0x5
-};
-enum socks5_req_type
-{
-	S5_REQ_TYPE_IPV4 	= 0x1,
-	S5_REQ_TYPE_IPV6 	= 0x4,
-	S5_REQ_TYPE_DOMAIN 	= 0x3,
-};
+/// used for private authorization
+#define S5_MSG_LOGIN_REQ    0xa1
+#define S5_MSG_LOGIN_RESP   0xa2
+
+#define S5_ERR_SUCCESS      0x0
+#define S5_ERR_MAGFAIL      0x1
+#define S5_ERR_TYPEFAIL     0x2
+#define S5_ERR_USERNULL     0x3
+#define S5_ERR_PASSFAIL     0x4
+
+/// s5 type for rfc reqest
+#define S5_RFC_IPV4         0x1
+#define S5_RFC_IPV6         0x4
+#define S5_RFC_DOMAIN       0x3
 
 
-
+/// struct 1-Byte alignment
 #pragma pack(push,1)
-/*
-	tips!!!
-	protocol struct, need pach(push, 1)
-*/
-typedef struct
+
+/// @brief  struct of private authorization data. 32 Byte
+typedef struct s5_auth_data_s
 {
-    unsigned char           name[USERNAME_LENGTH];  
-    unsigned char           passwd[PASSWD_LENGTH];	
-	char					resverd[32];
-} socks5_auth_data_t;
+    unsigned char           name[USERNAME_LENGTH];  /// 16 Byte
+    unsigned char           passwd[PASSWD_LENGTH];	/// 16 Byte
+} s5_auth_data_t;
 
-
-typedef struct 
+/// @brief struct of private authorization. 8 Byte
+typedef struct s5_auth_info_s
 {
-    uint32_t            magic;                  // magic num filed
-    unsigned char       message_type;           // private auth message type. enum socks5_message_type
-    unsigned char       message_status;         // private auth message status, enum socks5_message_status
-    unsigned short      reserved;
-
-	socks5_auth_data_t	data;
-} socks5_auth_header_t;
+    uint32_t            magic;                  /// 4 Byte
+    unsigned char       msg_type;               /// 1 Byte
+    unsigned char       msg_errcode;            /// 1 Byte
+    unsigned short      reserved;               /// 2 Byte
+} s5_auth_info_t;
 
 
-typedef struct 
+typedef struct s5_rfc_phase1_req_s
 {
-    int32               state;
     unsigned char       ver;
-    unsigned char       method_num;
-    unsigned char       method_n;
-    unsigned char       method[256];
-} socks5_message_invite_t;
+    unsigned char       methods_n;
+    unsigned char       methods_cnt;
+    unsigned char       methods[255];
+} s5_rfc_phase1_req_t;
 
-typedef struct 
+typedef struct s5_rfc_phase1_resp_s
 {
     unsigned char       ver;
     unsigned char       method;
-} socsk5_message_invite_response_t;
+} s5_rfc_phase1_resp_t;
 
-typedef struct 
+typedef struct s5_rfc_phase2_req_s
 {
-    int32               state;
     unsigned char       ver;
     unsigned char       cmd;
     unsigned char       rsv;
     unsigned char       atyp;
+    unsigned char       dst_addr_n;
+    unsigned char       dst_addr_cnt;
+    unsigned char       dst_addr[DOMAIN_LENGTH];
+    unsigned char       dst_port[2];
+} s5_rfc_phase2_req_t;
 
-    unsigned char       addr_len;
-    unsigned char       addr_recv;
-
-    unsigned char       addr_str[DOMAIN_LENGTH];
-    unsigned char       addr_port[2];
-} socks5_message_advance_t;
-
-typedef struct 
+typedef struct s5_rfc_phase2_resp_s
 {
     unsigned char       ver;
     unsigned char       rep;
@@ -94,19 +80,21 @@ typedef struct
     unsigned char       atyp;
     unsigned int        bnd_addr;
     unsigned short      bnd_port;
-} socks5_message_advance_response_t;
+} s5_rfc_phase2_resp_t;
+
 #pragma pack(pop)
 
 
 typedef struct 
 {
-    queue_t                     queue;
-    socks5_message_invite_t     invite;
-    socks5_message_advance_t    advance;
+    queue_t  queue;
+    int state;
+    s5_rfc_phase1_req_t phase1;
+    s5_rfc_phase2_req_t phase2;
 
-    connection_t *              down;
-    connection_t *              up;
-    dns_cycle_t *               dns_cycle;
+    connection_t * down;
+    connection_t * up;
+    dns_cycle_t * dns_cycle;
 
 	char		recv_down_err;
 	char		recv_up_err;
@@ -115,7 +103,7 @@ typedef struct
 
 status s5_free( socks5_cycle_t * s5 );
 status s5_alloc( socks5_cycle_t ** s5 );
-void s5_timeout( void * data );
+void s5_timeout_cb( void * data );
 
 
 status socks5_traffic_transfer( event_t * ev );

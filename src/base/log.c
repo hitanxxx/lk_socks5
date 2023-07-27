@@ -54,8 +54,7 @@ static status log_write_file_main( char * str, int32 length )
 {
 	ssize_t rc;
 
-	if( log_ctx && (log_ctx->log_fd_main > 0) )
-	{
+	if( log_ctx && (log_ctx->log_fd_main > 0) ) {
 		rc = write( log_ctx->log_fd_main, str, (size_t)length );
 		if( rc == ERROR ) 
 			return ERROR;
@@ -67,8 +66,7 @@ static status log_write_file_access( char * str, int32 length )
 {
 	ssize_t rc;
 
-	if( log_ctx && (log_ctx->log_fd_access > 0) )
-	{
+	if( log_ctx && (log_ctx->log_fd_access > 0) ) {
 		rc = write( log_ctx->log_fd_access, str, (size_t)length );
 		if( rc == ERROR )
 			return ERROR;
@@ -81,8 +79,7 @@ status log_print( uint32 id, uint32 level, const char * func, int line, const ch
     log_content_t 	ctx;
     char    buffer[LOG_TEXT_LENGTH] = {0};
 
-    if( level <= config_get()->sys_log_level )
-    {
+    if( level <= config_get()->sys_log_level ) {
         memset( &ctx, 0, sizeof(log_content_t) );
         va_start( ctx.args_list, str );
         ctx.id 		= id;
@@ -112,38 +109,32 @@ status log_print( uint32 id, uint32 level, const char * func, int line, const ch
 
 status log_init( void )
 {
-    do 
-    {
-        if( log_ctx )
-        {
+    do {
+        if( log_ctx ) {
             err("log ctx not null\n");
             break;
         }
         log_ctx = l_safe_malloc( sizeof( log_mgr_t ) );
-        if( !log_ctx )
-        {
+        if( !log_ctx ) {
             err("malloc log ctx failed. [%d]\n", errno );
             break;
         }
         memset( log_ctx, 0, sizeof( log_mgr_t ) );
 
         log_ctx->log_fd_main = open( L_PATH_LOG_MAIN, O_CREAT|O_RDWR|O_APPEND, 0644 );
-        if( log_ctx->log_fd_main <= 0 ) 
-        {
+        if( log_ctx->log_fd_main <= 0 ) {
             err( "open logfile [%s] failed, [%d]\n", L_PATH_LOG_MAIN, errno );
             break;
         }
         log_ctx->log_fd_access = open( L_PATH_LOG_ACCESS, O_CREAT|O_RDWR|O_APPEND, 0644 );
-        if( log_ctx->log_fd_access <= 0 ) 
-        {
+        if( log_ctx->log_fd_access <= 0 ) {
             err( "open logfile [%s] failed, [%d]\n", L_PATH_LOG_ACCESS, errno );
             break;
         }
         return OK;
     } while(0);
 
-    if( log_ctx )
-    {
+    if( log_ctx ) {
         if( log_ctx->log_fd_main )
             close(log_ctx->log_fd_main);
         if(log_ctx->log_fd_access)
@@ -157,8 +148,7 @@ status log_init( void )
 
 status log_end( void )
 {
-    if( log_ctx )
-    {
+    if( log_ctx ) {
         if( log_ctx->log_fd_main > 0 )
             close( log_ctx->log_fd_main );
         if( log_ctx->log_fd_access > 0 )
