@@ -134,6 +134,8 @@ int32 main( int argc, char ** argv )
 {
 	int32 rc = ERROR;	
 
+	printf("[S5] compile date [%s %s]\n", __DATE__, __TIME__ );
+
     /// change process name to 's5'
 	prctl(PR_SET_NAME, "s5");
 	/// set higiest process priority

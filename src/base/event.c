@@ -3,10 +3,12 @@
 
 typedef struct
 {
-    event_t *       arr_act[MAX_NET_CON+128];
-    event_t *       arr_act_accept[128];
-    int             arr_act_num;
-    int             arr_act_accept_num;
+    /// evt action array
+    event_t *       ev_arr[MAX_NET_CON];
+    int             ev_arrn;
+    /// accept evt action array
+    event_t *       ev_arr_accept[128];
+    int             ev_arr_acceptn;
 
 #if defined(EVENT_EPOLL)
     int32           event_fd;
@@ -27,7 +29,7 @@ static g_event_t * g_event_ctx = NULL;
 #if defined(EVENT_EPOLL)
 static status event_epoll_init(     )
 {
-	g_event_ctx->events = (struct epoll_event*) l_safe_malloc ( sizeof(struct epoll_event)*MAX_NET_CON );
+	g_event_ctx->events = (struct epoll_event*) l_safe_malloc ( sizeof(struct epoll_event)*(MAX_NET_CON+128) );
 	if( NULL == g_event_ctx->events ) {
 		err("ev epoll malloc events pool failed\n" );
 		return ERROR;
@@ -51,42 +53,42 @@ static status event_epoll_end( )
 	return OK;
 }
 
-static status event_epoll_opt( event_t * ev, int32 fd, int trigger_type )
+static status event_epoll_opt( event_t * ev, int32 fd, int want_opt )
 {
-	struct epoll_event sysev, *p_sysev = NULL;
-	int sysop = 0;
-
-	memset( &sysev, 0, sizeof(struct epoll_event) );
-
+	struct epoll_event evsys;
+	memset( &evsys, 0, sizeof(struct epoll_event) );
+    
 	/// want type not same as record type
-	if( ev->trigger_type_previously != trigger_type ) {
-		 
-		if( trigger_type == EV_NONE ) {
-			sysop = EPOLL_CTL_DEL;
-			p_sysev = NULL;
-			ev->f_active = 0;
-		} else {
-            if( trigger_type == EV_R ) {
-                trigger_type |= EPOLLRDHUP;
-            }
-			if( ev->trigger_type_previously == EV_NONE ) {
-				sysop = EPOLL_CTL_ADD;
+	if( ev->opt != want_opt ) {
+	
+		if( want_opt == EV_NONE ) {
+			if( ev->f_active == 1 ) {
+				if( -1 == epoll_ctl( g_event_ctx->event_fd, EPOLL_CTL_DEL, fd, NULL ) ) {
+					err("evt epoll_ctl fd [%d] error. want_opt [%x], errno [%d] [%s]\n", fd, want_opt, errno, strerror(errno) );
+					return ERROR;
+				}
+				ev->f_active = 0;
 			} else {
-				sysop = EPOLL_CTL_MOD;
+				/// do nothing. event already delete
 			}
-			sysev.data.ptr = (void*)ev;
-			sysev.events = EPOLLET|trigger_type;
-			p_sysev = &sysev;
+		} else {
+			evsys.data.ptr = (void*)ev;
+            /// edge trigger
+			evsys.events = EPOLLET|want_opt;
+            /// level trigger
+			/// evsys.events = want_opt;
+
+			if( -1 == epoll_ctl( g_event_ctx->event_fd, ( ev->f_active ? EPOLL_CTL_MOD : EPOLL_CTL_ADD ), fd, &evsys ) ) {
+				err("evt epoll_ctl fd [%d] error. want_opt [%x], errno [%d] [%s]\n", fd, want_opt, errno, strerror(errno) );
+				return ERROR;
+			}
 			ev->f_active = 1;
 		}
-	
-		if( OK != epoll_ctl( g_event_ctx->event_fd, sysop, fd, p_sysev ) ) {
-			err("epoll ctrl fd [%d] error sysop [%d] trigger_type [%x], errno [%d] [%s]\n", fd, sysop, trigger_type, errno, strerror(errno) );
-			return ERROR;
-		}
 
-		if( !ev->fd ) ev->fd	= fd;
-		ev->trigger_type_previously = trigger_type;
+		if( !ev->fd ) {
+            ev->fd = fd;
+        }
+		ev->opt = want_opt;
 	}
 	return OK;
 }
@@ -94,51 +96,33 @@ static status event_epoll_opt( event_t * ev, int32 fd, int trigger_type )
 status event_epoll_run( time_t msec )
 {
 	int32 i = 0, act_num = 0;
-    event_t * ev = NULL;
-	uint32 trigger_type = 0;
 
-	act_num = epoll_wait( g_event_ctx->event_fd, g_event_ctx->events, MAX_NET_CON, (int)msec );
-    systime_update( );
+    act_num = epoll_wait( g_event_ctx->event_fd, g_event_ctx->events, MAX_NET_CON+128, (int)msec ); 
 	if( act_num <= 0 ) {
 		if( act_num < 0 ) {
 			if( errno == EINTR ) {
 				err("evt epoll_wait interrupt by signal\n");
 				return OK;
 			}
-			err("ev epoll wait failed, [%d]", errno );
+			err("evt epoll_wait failed, [%d] [%s]", errno, strerror(errno) );
 			return ERROR;
-		}
-		if( msec != -1 ) {
-			return OK;
-		}
-		err("ev epoll return 0\n");
-		return ERROR;
+		} else {
+            /// msec -1 will not be timeout. can't return 0
+            return ( (msec == -1) ? ERROR : AGAIN );
+        }
 	}
 
 	for( i = 0; i < act_num; i ++ )  {
-		ev = g_event_ctx->events[i].data.ptr;
-		trigger_type = g_event_ctx->events[i].events;
+        int evopt = g_event_ctx->events[i].events;
+		event_t * ev = g_event_ctx->events[i].data.ptr;
+		
         if( ev->f_active ) {
-            if( trigger_type & EV_R ) {
-                if( trigger_type & EPOLLRDHUP ) {
-                    ev->f_pending_eof = 1;
+            if( ev->f_listen ) {
+                g_event_ctx->ev_arr_accept[g_event_ctx->ev_arr_acceptn++] = ev;
+            } else {
+                if( evopt & EV_R || evopt & EV_W ) {
+                    g_event_ctx->ev_arr[g_event_ctx->ev_arrn++] = ev;
                 }
-                if( ev->f_listen ) {
-                    g_event_ctx->arr_act_accept[g_event_ctx->arr_act_accept_num] = ev;
-                    g_event_ctx->arr_act_accept_num ++;
-                } else {
-                    g_event_ctx->arr_act[g_event_ctx->arr_act_num] = ev;
-                    g_event_ctx->arr_act_num ++;
-                }
-                ev->f_post = 1;
-                ev->f_read = 1;
-            }            
-            if( trigger_type & EV_W ) {
-                if( !ev->f_post ) {
-                    g_event_ctx->arr_act[g_event_ctx->arr_act_num] = ev;
-                    g_event_ctx->arr_act_num ++;
-                }
-                ev->f_write = 1;
             }
         }
 	}
@@ -161,32 +145,52 @@ static status event_select_end( void )
 	return OK;
 }
 
-static status event_select_opt( event_t * ev, int32 fd, int trigger_type )
+static status event_select_opt( event_t * ev, int32 fd, int want_opt )
 {
-	if( ev->trigger_type_previously != trigger_type ) {
-	
-        if( (trigger_type & EV_R) && (trigger_type & EV_W) ) {
-            if( !ev->trigger_type_previously & EV_R ) FD_SET( fd, &g_event_ctx->rfds );
-            if( !ev->trigger_type_previously & EV_W ) FD_SET( fd, &g_event_ctx->wfds );
-        } else if ( trigger_type & EV_R ) {
-            if( !(ev->trigger_type_previously & EV_R) ) FD_SET( fd, &g_event_ctx->rfds );
-            if( ev->trigger_type_previously & EV_W ) FD_CLR( fd, &g_event_ctx->wfds );
-        } else if ( trigger_type & EV_W ) {
-            if( !(ev->trigger_type_previously & EV_W) ) FD_SET( fd, &g_event_ctx->wfds );
-            if( ev->trigger_type_previously & EV_R ) FD_CLR( fd, &g_event_ctx->rfds );
+	if( ev->opt != want_opt ) {
+    
+        if( want_opt == (EV_R|EV_W) ) {
+            if( !(ev->opt & EV_R) ) {
+                FD_SET( fd, &g_event_ctx->rfds );
+            }
+            if( !(ev->opt & EV_W) ) {
+                FD_SET( fd, &g_event_ctx->wfds );
+            }
+        } else if ( want_opt == EV_R ) {
+            if( !(ev->opt & EV_R) ) {
+                FD_SET( fd, &g_event_ctx->rfds );
+            }
+            if( ev->opt & EV_W ) {
+                FD_CLR( fd, &g_event_ctx->wfds );
+            }
+        } else if ( want_opt == EV_W ) {
+            if( !(ev->opt & EV_W) ) {
+                FD_SET( fd, &g_event_ctx->wfds );
+            }
+            if( ev->opt & EV_R ) {
+                FD_CLR( fd, &g_event_ctx->rfds );
+            }
         } else {
-            if( ev->trigger_type_previously & EV_W ) FD_CLR( fd, &g_event_ctx->wfds );
-            if( ev->trigger_type_previously & EV_R ) FD_CLR( fd, &g_event_ctx->rfds );
+            /// EV_NONE
+            if( ev->opt & EV_W ) {
+                FD_CLR( fd, &g_event_ctx->wfds );
+            }
+            if( ev->opt & EV_R ) {
+                FD_CLR( fd, &g_event_ctx->rfds );
+            }
         }
 
-		if( trigger_type == EV_NONE ) {
+		if( want_opt == EV_NONE ) {
 			ev->f_active = 0;
 		} else {
-			if( !ev->f_active ) ev->f_active = 1;
+			ev->f_active = 1;           
 		}
-		if( 0 == ev->fd ) 
-			ev->fd = fd;
-		ev->trigger_type_previously = trigger_type;
+        
+		if( 0 == ev->fd ) {
+            ev->fd = fd;
+        }
+		
+		ev->opt = want_opt;
 	}
 	return OK;
 }
@@ -195,7 +199,7 @@ status event_select_run( time_t msec )
 {
 	struct timeval tv, *p_tv = NULL;
 	int i = 0, fd_max = -1;
-	int act_num = 0, act_cnt = 0;
+	int actall = 0, actn = 0;
 	
 	fd_set tmp_rfds;
 	fd_set tmp_wfds;
@@ -226,81 +230,60 @@ status event_select_run( time_t msec )
 	memcpy( &tmp_rfds, &g_event_ctx->rfds, sizeof(fd_set) );
 	memcpy( &tmp_wfds, &g_event_ctx->wfds, sizeof(fd_set) );
 
-	act_num = select( fd_max + 1, &tmp_rfds, &tmp_wfds, NULL, p_tv );
-	systime_update( );
-	if( act_num <= 0 ) {
-		if( act_num < 0 ) {
+	
+	actall = select( fd_max + 1, &tmp_rfds, &tmp_wfds, NULL, p_tv );
+	if( actall <= 0 ) {
+		if( actall < 0 ) {
 			if( errno == EINTR ) {
 				err("evt select interrupt by signal\n");
 				return OK;
 			}
-			err("ev select wait failed, [%d]\n", errno );
+			err("evt select failed, [%d] [%s]\n", errno, strerror(errno) );
 			return ERROR;
-		}
-		if( msec != -1 ) {
-			/// wait timeout
-			return OK;
-		}
-		err("ev select return 0\n");
-		return ERROR;
+		} else {
+            /// msec -1 will not be timeout. can't return 0
+            return ( (msec == -1) ? ERROR : AGAIN );
+        }
 	}
+
 	
-	
-	/// loop check all listen events
-	for( i = 0; i < listens->elem_num; i ++ ) {
-		int faction = 0;
+    /// loop check all listen events
+	for( i = 0; (i < listens->elem_num) && (actn < actall); i ++ ) {
 		listen_t * p_listen = mem_arr_get( listens, i + 1 );
 		event_t * p_ev = &p_listen->event;
 		if( p_ev->f_active == 1 ) {
-			if( FD_ISSET( p_ev->fd, &tmp_rfds ) && p_ev->read_pt ) {
-				p_ev->read_pt(p_ev);
-				faction |= 0x1;
-			}
-			if( FD_ISSET( p_ev->fd, &tmp_wfds ) && p_ev->write_pt ) {
-				p_ev->write_pt(p_ev);
-				faction |= 0x2;
-			}
-			if( faction > 0 ) act_cnt ++;
-			if( act_cnt >= act_num ) break;
-		}
-	}
-
-	/// loop check all events 
-	for( i = 0; i < MAX_NET_CON; i ++ ) {
-		int faction = 0;
-		event_t * p_ev = &g_event_ctx->pool[i];
-		if( p_ev->f_active == 1 ) {
 			if( FD_ISSET( p_ev->fd, &tmp_rfds ) ) {
-				if( p_ev->f_listen ) {
-                    g_event_ctx->arr_act_accept[g_event_ctx->arr_act_accept_num] = p_ev;
-                    g_event_ctx->arr_act_accept_num ++;
-                } else {
-                    g_event_ctx->arr_act[g_event_ctx->arr_act_num] = p_ev;
-                    g_event_ctx->arr_act_num ++;
-                }
-                p_ev->f_post = 1;
-                p_ev->f_read = 1;
-				faction |= 0x1;
-			}
-			if( FD_ISSET( p_ev->fd, &tmp_wfds ) ) {
-				if( !p_ev->f_post ) {
-                    g_event_ctx->arr_act[g_event_ctx->arr_act_num] = p_ev;
-                    g_event_ctx->arr_act_num ++;
-                }
-                p_ev->f_write = 1;
-				faction |= 0x2;
-			}
-			if( faction > 0 ) act_cnt ++;
-			if( act_cnt >= act_num ) break;
+				g_event_ctx->ev_arr_accept[g_event_ctx->ev_arr_acceptn++] = p_ev;
+	            actn ++;   
+			}         
 		}
 	}
+	
+	/// loop check all events 
+	for( i = 0; (i < MAX_NET_CON) && (actn < actall); i ++ ) {
+
+        event_t * p_ev = &g_event_ctx->pool[i];
+        if( p_ev->f_active == 1 ) {
+            if( FD_ISSET( p_ev->fd, &tmp_rfds ) || FD_ISSET( p_ev->fd, &tmp_wfds ) ) {
+                g_event_ctx->ev_arr[g_event_ctx->ev_arrn++] = p_ev;
+                actn ++;
+            }
+        }
+    } 
+	
 	return OK;
 }
 #endif
 
-status event_opt( event_t * event, int32 fd, int trigger_type )
+status event_post_event(  event_t * ev )
+{	
+	g_event_ctx->ev_arr[g_event_ctx->ev_arrn++] = ev;
+	return OK;
+}
+
+status event_opt( event_t * event, int32 fd, int want_opt )
 {
-	return g_event_ctx->g_event_handler.opt( event, fd, trigger_type );
+	return g_event_ctx->g_event_handler.opt( event, fd, want_opt );
 }
 
 status event_run( time_t msec )
@@ -309,6 +292,7 @@ status event_run( time_t msec )
 	listen_t * listen = NULL;
 
     /// listen fd use SO_REUSEPORT. don't need do mutex again 
+    /// kernel will do it 
     if( 0 ) {
         /// if process current used event num < all*80%, then try to listen
     	if( g_event_ctx->queue_use_num <= (MAX_NET_CON*80/100) ) {
@@ -317,44 +301,41 @@ status event_run( time_t msec )
     		if( process_mutex_value_get() == 0 ) {
     			for( i = 0; i < listens->elem_num; i ++ ) {
     				listen = mem_arr_get( listens, i+1 );
-    				listen->event.data 		= listen;
-    				listen->event.read_pt 	= net_accept;
+    				listen->event.data = listen;
+    				listen->event.read_pt = net_accept;
     				event_opt( &listen->event, listen->fd, EV_R );
     			}
-    			process_mutex_value_set( proc_pid() );	
+    			process_mutex_value_set( proc_pid() );
     		}
     		process_unlock();
     	}
     }
 
-    g_event_ctx->arr_act_num = 0;
-    g_event_ctx->arr_act_accept_num = 0;
-
+    /// clear evt action array
+    g_event_ctx->ev_arrn = 0;
+    g_event_ctx->ev_arr_acceptn = 0;
+    /// event run loop
 	g_event_ctx->g_event_handler.run( msec );
+	/// systime update 
+	systime_update( );
 
-    for( i = 0; i < g_event_ctx->arr_act_accept_num; i ++ ) {
-        event_t * p_ev = g_event_ctx->arr_act_accept[i];
-        if( p_ev->f_read ) {
+    for( i = 0; i < g_event_ctx->ev_arr_acceptn; i ++ ) {
+        event_t * p_ev = g_event_ctx->ev_arr_accept[i];
+        
+        if( p_ev->opt & EV_R ) {
             if( p_ev->read_pt ) p_ev->read_pt(p_ev);
-            p_ev->f_read = 0;
         }
-        if( p_ev->f_write ) {
-            if( p_ev->write_pt ) p_ev->write_pt(p_ev);
-            p_ev->f_write = 0;
-        }
-        p_ev->f_post = 0;
     }
-    for( i = 0; i < g_event_ctx->arr_act_num; i ++ ) {
-        event_t * p_ev = g_event_ctx->arr_act[i];
-        if( p_ev->f_read ) {
-            if ( p_ev->read_pt ) p_ev->read_pt(p_ev);
-            p_ev->f_read = 0;
+
+    for( i = 0; i < g_event_ctx->ev_arrn; i ++ ) {
+        event_t * p_ev = g_event_ctx->ev_arr[i];
+
+        if( p_ev->opt & EV_R ) {
+            if( p_ev->read_pt ) p_ev->read_pt(p_ev);
         }
-        if( p_ev->f_write ) {
-            if ( p_ev->write_pt ) p_ev->write_pt(p_ev);
-            p_ev->f_write = 0;
+        if( p_ev->opt & EV_W ) {
+            if( p_ev->write_pt ) p_ev->write_pt(p_ev);
         }
-        p_ev->f_post = 0;
     }
 
     /// listen fd use SO_REUSEPORT. don't need do mutex again 
@@ -363,15 +344,14 @@ status event_run( time_t msec )
     	if( process_mutex_value_get() == proc_pid() ) {
     		for( i = 0; i < listens->elem_num; i ++ ) {
     			listen = mem_arr_get( listens, i+1 );
-    			listen->event.data 		= listen;
-    			listen->event.read_pt 	= net_accept;
+    			listen->event.data = listen;
+    			listen->event.read_pt = net_accept;
     			event_opt( &listen->event, listen->fd, EV_NONE );
     		}	
     		process_mutex_value_set(0);
     	}
     	process_unlock();
 	}
-	
 	return 0;
 }
 
@@ -396,19 +376,18 @@ status event_alloc( event_t ** ev )
 status event_free( event_t * ev )
 {
 	if( ev ) {
-		if( ev->f_active && ev->trigger_type_previously != EV_NONE )  {
+		if( ev->f_active && ev->opt != EV_NONE )  {
 			event_opt( ev, ev->fd, EV_NONE );
 		}
-		ev->trigger_type_previously = 0;
+		ev->opt = 0;
 		
-		ev->fd			= 0;
-		ev->read_pt		= NULL;
-		ev->write_pt	= NULL;
-		ev->data		= NULL;
+		ev->fd = 0;
+		ev->read_pt = NULL;
+		ev->write_pt = NULL;
+		ev->data = NULL;
 		
 		timer_del( &ev->timer );
-		ev->f_active	= 0;
-		ev->f_pending_eof = 0;
+		ev->f_active = 0;
 		
 		queue_remove( &ev->queue );
 		queue_insert_tail( &g_event_ctx->usable, &ev->queue );
@@ -429,7 +408,6 @@ status event_init( void )
 		err("event alloc this failed, [%d]\n", errno );
 		return ERROR;
 	}
-	memset( g_event_ctx, 0, sizeof(g_event_t) + (sizeof(event_t)*MAX_NET_CON) );
 	
 	queue_init( &g_event_ctx->use );
 	queue_init( &g_event_ctx->usable );
@@ -459,13 +437,12 @@ status event_init( void )
         /// listen fd set by SO_REUSEPORT. 
         /// kernel will be process listen fd loadbalance
         int i = 0;
-        listen_t * listen = NULL;
         for( i = 0; i < listens->elem_num; i ++ )  {
-    		listen = mem_arr_get( listens, i+1 );
-    		listen->event.data 		= listen;
-    		listen->event.read_pt 	= net_accept;
-    		listen->event.f_listen  = 1;
-    		event_opt( &listen->event, listen->fd, EV_R );
+    		listen_t * listen_obj = mem_arr_get( listens, i+1 );
+    		listen_obj->event.data = listen_obj;
+    		listen_obj->event.read_pt = net_accept;
+    		listen_obj->event.f_listen = 1;
+    		event_opt( &listen_obj->event, listen_obj->fd, EV_R );
     	}
     }
 	return OK;

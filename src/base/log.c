@@ -119,7 +119,6 @@ status log_init( void )
             err("malloc log ctx failed. [%d]\n", errno );
             break;
         }
-        memset( log_ctx, 0, sizeof( log_mgr_t ) );
 
         log_ctx->log_fd_main = open( L_PATH_LOG_MAIN, O_CREAT|O_RDWR|O_APPEND, 0644 );
         if( log_ctx->log_fd_main <= 0 ) {

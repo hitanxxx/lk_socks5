@@ -142,6 +142,7 @@ static status s5_traffic_recv( event_t * ev )
 			    err("s5 down recv error\n");
 				s5->recv_down_err = 1;
 			}
+            /// again
 			break;
 		}
 		down->meta->last += recvn;
@@ -157,8 +158,8 @@ static status s5_traffic_recv( event_t * ev )
 	}
     /// if meta remain data, goto send the data to up stream
 	if( down->meta->last > down->meta->pos ) {
-		event_opt( down->event, down->fd, down->event->trigger_type_previously & ~EV_R );
-		event_opt( up->event, up->fd, up->event->trigger_type_previously | EV_W );
+		event_opt( down->event, down->fd, down->event->opt & ~EV_R );
+		event_opt( up->event, up->fd, up->event->opt | EV_W );
 		return up->event->write_pt( up->event );
 	}
 	return AGAIN;
@@ -202,8 +203,8 @@ static int s5_traffic_send( event_t * ev )
 
 	down->meta->last = down->meta->pos = down->meta->start;
 
-	event_opt( down->event, down->fd, down->event->trigger_type_previously | EV_R );
-	event_opt( up->event, up->fd, up->event->trigger_type_previously & ~EV_W );
+	event_opt( down->event, down->fd, down->event->opt | EV_R );
+	event_opt( up->event, up->fd, up->event->opt & ~EV_W );
 	return down->event->read_pt( down->event );
 }
 
@@ -242,8 +243,8 @@ static status s5_traffic_back_recv( event_t * ev )
 	}
 
 	if( up->meta->last > up->meta->pos ) {
-		event_opt( up->event, up->fd, up->event->trigger_type_previously & ~EV_R );
-		event_opt( down->event, down->fd, down->event->trigger_type_previously | EV_W );
+		event_opt( up->event, up->fd, up->event->opt & ~EV_R );
+		event_opt( down->event, down->fd, down->event->opt | EV_W );
 		return down->event->write_pt( down->event );
 	}
 	return AGAIN;
@@ -286,13 +287,13 @@ static int s5_traffic_back_send( event_t * ev )
 
 	up->meta->last = up->meta->pos = up->meta->start;
 
-	event_opt( down->event, down->fd, down->event->trigger_type_previously & ~EV_W );
-	event_opt( up->event, up->fd, up->event->trigger_type_previously | EV_R );
+	event_opt( down->event, down->fd, down->event->opt & ~EV_W );
+	event_opt( up->event, up->fd, up->event->opt | EV_R );
 	return up->event->read_pt( up->event );
 }
 
 
-status socks5_traffic_transfer( event_t * ev )
+status s5_traffic_process( event_t * ev )
 {
 	/*
 	 when client mode, connection means upstream
@@ -304,11 +305,11 @@ status socks5_traffic_transfer( event_t * ev )
 	connection_t * down = s5->down;
 	connection_t * up = s5->up;
 
-    s5->down->event->read_pt 	= s5_traffic_recv;
-	s5->up->event->write_pt		= s5_traffic_send;
+    s5->down->event->read_pt = s5_traffic_recv;
+	s5->up->event->write_pt	= s5_traffic_send;
 	
-    s5->up->event->read_pt 		= s5_traffic_back_recv;
-	s5->down->event->write_pt	= s5_traffic_back_send;
+    s5->up->event->read_pt = s5_traffic_back_recv;
+	s5->down->event->write_pt = s5_traffic_back_send;
 
 	// init down stream traffic buffer
 	if( !down->page ) {
@@ -376,9 +377,8 @@ static status s5_server_rfc_phase2_send( event_t * ev )
 		meta->pos += rc;
 	}
     timer_del( &ev->timer );
-	debug("s5 [%p] serv adv resp send success\n", s5);
 	/// send phase2 response to down stream finish
-    ev->read_pt = socks5_traffic_transfer;
+    ev->read_pt = s5_traffic_process;
     ev->write_pt = NULL;
     return ev->read_pt( ev );
 }
@@ -405,13 +405,12 @@ static status s5_server_rfc_phase2_resp_build( event_t * ev )
     event_opt( up->event, up->fd, EV_NONE );
     /// set down to write, ready to send phase2 response
     event_opt( down->event, down->fd, EV_W );
-	debug("s5 [%p] serv adv resp build success\n");
 	
     down->event->write_pt = s5_server_rfc_phase2_send;
     return down->event->write_pt( down->event );
 }
 
-static status socks5_server_up_connect_check( event_t * ev )
+static status s5_server_connect_check( event_t * ev )
 {
     connection_t* up = ev->data;
     socks5_cycle_t * s5 = up->data;
@@ -429,7 +428,7 @@ static status socks5_server_up_connect_check( event_t * ev )
     return ev->write_pt( ev );
 }
 
-static status socks5_server_up_connect( event_t * ev )
+static status s5_server_connect( event_t * ev )
 {
     connection_t * up = ev->data;
     socks5_cycle_t * s5 = up->data;
@@ -442,7 +441,7 @@ static status socks5_server_up_connect( event_t * ev )
         return ERROR;
     }
     ev->read_pt = NULL;
-    ev->write_pt = socks5_server_up_connect_check;
+    ev->write_pt = s5_server_connect_check;
     event_opt( ev, up->fd, EV_W );
     if( rc == AGAIN ) {
         timer_set_data( &ev->timer, s5 );
@@ -453,7 +452,7 @@ static status socks5_server_up_connect( event_t * ev )
     return ev->write_pt( ev );
 }
 
-static status socks5_server_down_try_read( event_t * ev  )
+static status s5_server_try_read( event_t * ev  )
 {
     connection_t * down = ev->data;
     socks5_cycle_t * s5 = down->data;
@@ -467,7 +466,7 @@ static status socks5_server_down_try_read( event_t * ev  )
 }
 
 
-static void socks5_server_up_addr_get_cb( void * data )
+static void s5_server_address_get_cb( void * data )
 {
     socks5_cycle_t * s5 = data;
     dns_cycle_t * dns_cycle = s5->dns_cycle;
@@ -489,7 +488,7 @@ static void socks5_server_up_addr_get_cb( void * data )
             s5->up->addr.sin_addr.s_addr = inet_addr( ipstr );
             
             s5->up->event->read_pt = NULL;
-            s5->up->event->write_pt = socks5_server_up_connect;
+            s5->up->event->write_pt = s5_server_connect;
             s5->up->event->write_pt( s5->up->event );
         } else {
             err("socks5 server dns resolv failed\n");
@@ -498,14 +497,14 @@ static void socks5_server_up_addr_get_cb( void * data )
     }
 }
 
-static status socks5_server_up_addr_get( event_t * ev )
+static status s5_server_address_get( event_t * ev )
 {
     connection_t * down = ev->data;
     socks5_cycle_t * s5 = down->data;
     char ipstr[128] = {0};
     status rc = 0;
 
-    down->event->read_pt = socks5_server_down_try_read;
+    down->event->read_pt = s5_server_try_read;
     down->event->write_pt = NULL;
     event_opt( down->event, down->fd, EV_R );
 
@@ -533,7 +532,7 @@ static status socks5_server_up_addr_get( event_t * ev )
         s5->up->addr.sin_addr.s_addr = inet_addr( ipstr );
 
         s5->up->event->read_pt = NULL;
-        s5->up->event->write_pt = socks5_server_up_connect;
+        s5->up->event->write_pt = s5_server_connect;
         return s5->up->event->write_pt( s5->up->event );
         
     }  else if ( s5->phase2.atyp == S5_RFC_DOMAIN ) {
@@ -554,7 +553,7 @@ static status socks5_server_up_addr_get( event_t * ev )
             s5->up->addr.sin_addr.s_addr = inet_addr( ipstr );
 
             s5->up->event->read_pt = NULL;
-            s5->up->event->write_pt = socks5_server_up_connect;
+            s5->up->event->write_pt = s5_server_connect;
             return s5->up->event->write_pt( s5->up->event );
         
         } else {
@@ -566,7 +565,7 @@ static status socks5_server_up_addr_get( event_t * ev )
                 return ERROR;
             }
             strncpy( (char*)s5->dns_cycle->query, (char*)s5->phase2.dst_addr, sizeof(s5->dns_cycle->query) );
-            s5->dns_cycle->cb = socks5_server_up_addr_get_cb;
+            s5->dns_cycle->cb = s5_server_address_get_cb;
             s5->dns_cycle->cb_data = s5;
             return dns_start( s5->dns_cycle );
         }
@@ -722,7 +721,7 @@ static status s5_server_rfc_phase2_recv( event_t * ev )
                 /// reset state  
                 s5->state = 0;
                 timer_del( &ev->timer );
-				debug("s5 [%p] serv adv recv req success\n", s5);
+				
                 /// !!! meta can't reset in here, becasue connect need
 
                 do {
@@ -742,7 +741,7 @@ static status s5_server_rfc_phase2_recv( event_t * ev )
                     }
 
                     ev->write_pt = NULL;
-                    ev->read_pt = socks5_server_up_addr_get;
+                    ev->read_pt = s5_server_address_get;
                     return ev->read_pt( ev );
 
                 } while(0);
@@ -779,7 +778,7 @@ static status s5_server_rfc_phase1_send( event_t * ev )
     timer_del( &ev->timer );
     /// send phase1 response finish, reset the meta
 	meta->pos = meta->last = meta->start;
-	debug("s5 [%p] serv rfc phase1 resp send success\n", s5 );
+	
 	/// goto recv phase2 request
     ev->read_pt	= s5_server_rfc_phase2_recv;
     ev->write_pt = NULL;
@@ -850,7 +849,7 @@ static status s5_server_rfc_phase1_recv( event_t * ev )
 					resp->ver = 0x05;
 				    resp->method = 0x00;
 				    meta->last += sizeof(s5_rfc_phase1_resp_t);
-					debug("s5 [%p] serv rfc phase1 recv success\n", s5 );
+				    
 					/// goto send phase1 response
                     ev->read_pt = NULL;
 				    ev->write_pt = s5_server_rfc_phase1_send;
@@ -888,7 +887,7 @@ static status s5_server_auth_send( event_t * ev )
     /// send auth resp finish, reset the meta
 	meta->pos = meta->last = meta->start;
     /// goto recv the packet addording to the RFC1928 socks5 protocol
-	debug("s5 [%p] serv pri auth resp send success\n", s5 );
+	
 	ev->write_pt = NULL;
 	ev->read_pt = s5_server_rfc_phase1_recv;
   	event_opt( ev, down->fd, EV_R );
@@ -924,7 +923,7 @@ static status s5_server_auth_recv_payload( event_t * ev )
     do {
         s5_auth_data_t * payload = (s5_auth_data_t*) meta->pos;
 
-        if( OK != s5_serv_usr_user_find( (char*)payload->name, &user ) ) {
+        if( UNLIKELY( OK != s5_serv_usr_user_find( (char*)payload->name, &user ) )) {
             /// if auth user not find
 		    err("s5 pri, user [%s] not found\n", payload->name );
 		    err_code = S5_ERR_USERNULL;
@@ -952,7 +951,7 @@ static status s5_server_auth_recv_payload( event_t * ev )
     meta->last += sizeof(s5_auth_info_t);
 
     /// goto send auth resp
-    debug("s5 [%p] serv pri auth req recv success\n", s5 );
+    
     ev->read_pt = NULL;
     ev->write_pt = s5_server_auth_send;
     event_opt( ev, down->fd, EV_W );
@@ -1011,7 +1010,7 @@ static status s5_server_auth_recv_header( event_t * ev )
     return ev->read_pt( ev );
 }
 
-static status socks5_server_start( event_t * ev )
+static status s5_server_start( event_t * ev )
 {
     connection_t * down = ev->data;
     socks5_cycle_t * s5 = NULL;
@@ -1044,26 +1043,25 @@ static status socks5_server_start( event_t * ev )
     return ev->read_pt( ev );
 }
 
-status socks5_server_secret_start( event_t * ev )
+status s5_server_transport( event_t * ev )
 {
     connection_t * down = ev->data;
     socks5_cycle_t * s5 = NULL;
 	
-	if( OK != s5_alloc(&s5) )
-    {
+	if( OK != s5_alloc(&s5) ) {
         err("s5 server http conv s5 alloc cycle failed\n");
 		net_free(down);
 		return ERROR;
     }
-    s5->down 	= down;
-    down->data  = s5;
+    s5->down = down;
+    down->data = s5;
 
 	ev->read_pt = s5_server_auth_recv_header;
 	return ev->read_pt( ev );
 	
 }
 
-static status socks5_server_accept_cb_check( event_t * ev )
+static status s5_server_accept_cb_check( event_t * ev )
 {
     connection_t * down = ev->data;
 
@@ -1074,22 +1072,22 @@ static status socks5_server_accept_cb_check( event_t * ev )
     }
     timer_del( &ev->timer );
 
-    down->recv 			= ssl_read;
-    down->send 			= ssl_write;
-    down->recv_chain 	= NULL;
-    down->send_chain 	= ssl_write_chain;
+    down->recv = ssl_read;
+    down->send = ssl_write;
+    down->recv_chain = NULL;
+    down->send_chain = ssl_write_chain;
 
-    ev->read_pt 	= socks5_server_start;
-    ev->write_pt 	= NULL;
+    ev->read_pt = s5_server_start;
+    ev->write_pt = NULL;
     return ev->read_pt( ev );
 }
 
-status socks5_server_accept_cb( event_t * ev )
+status s5_server_accept_cb( event_t * ev )
 {
     connection_t * down = ev->data;
     status rc = 0;
 
-    // s5 local connect s5 server must use tls connection
+    /// s5 server use ssl connection force 
     do {
         rc = net_check_ssl_valid(down);
         if( OK != rc ) {
@@ -1113,13 +1111,13 @@ status socks5_server_accept_cb( event_t * ev )
                 err("s5 server down ssl handshake failed\n");
                 break;
             }
-            down->ssl->cb = socks5_server_accept_cb_check;
+            down->ssl->cb = s5_server_accept_cb_check;
             timer_set_data( &ev->timer, down );
             timer_set_pt( &ev->timer, net_timeout );
             timer_add( &ev->timer, S5_TIMEOUT );
             return AGAIN;
         }
-        return socks5_server_accept_cb_check( ev );
+        return s5_server_accept_cb_check( ev );
     } while(0);
 
     net_free( down );
@@ -1219,7 +1217,7 @@ status socks5_server_init( void )
             err("s5 init allo this failed, [%d]\n", g_s5_ctx );
             return ERROR;
         }
-        memset( g_s5_ctx, 0, sizeof(g_s5_t) + MAX_NET_CON*sizeof(socks5_cycle_t) );
+
         queue_init(&g_s5_ctx->usable);
         queue_init(&g_s5_ctx->use);
         for( i = 0; i < MAX_NET_CON; i++ )

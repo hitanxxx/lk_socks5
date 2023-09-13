@@ -106,9 +106,9 @@ status s5_alloc( socks5_cycle_t ** s5 );
 void s5_timeout_cb( void * data );
 
 
-status socks5_traffic_transfer( event_t * ev );
-status socks5_server_secret_start( event_t * ev );
-status socks5_server_accept_cb( event_t * ev );
+status s5_traffic_process( event_t * ev );
+status s5_server_transport( event_t * ev );
+status s5_server_accept_cb( event_t * ev );
 
 status socks5_server_init( void );
 status socks5_server_end( void );

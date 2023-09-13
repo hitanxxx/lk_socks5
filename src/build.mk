@@ -23,7 +23,7 @@ LD_FLAGS    +=
 
 bin:$(SRC_OBJS)
 	$(CC) -o $(DIR_BIN)/$(APP_BIN) $^ $(DEPEND_OBJS) $(PREBUILD_OBJS) $(LD_FLAGS)
-	#$(STRIP) $(DIR_BIN)/$(APP_BIN)
+	$(STRIP) $(DIR_BIN)/$(APP_BIN)
 
 
 lib:$(SRC_OBJS)

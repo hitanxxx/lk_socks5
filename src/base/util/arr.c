@@ -5,11 +5,9 @@ status mem_arr_create( mem_arr_t ** list, uint32 size )
 	mem_arr_t * new = NULL;
 
 	new = l_safe_malloc( sizeof(mem_arr_t) );
-	if( !new ) 
-	{
+	if( !new ) {
 		return ERROR;
 	}
-	memset( new, 0, sizeof(mem_arr_t) );
 	new->head 		= NULL;
 	new->last 		= NULL;
 	new->elem_size 	= size;
@@ -29,7 +27,6 @@ void * mem_arr_push( mem_arr_t * list )
 		err("list alloc failed\n");
 		return NULL;
 	}
-	memset( new, 0, sizeof(mem_arr_part_t) + list->elem_size );
 		
 	if( 0 == list->elem_num )
 	{

@@ -24,7 +24,7 @@ typedef struct webser_t
     queue_t queue;
     connection_t *c;
     void *data;
-    int32 type;
+    int type;
 
     http_req_t *http_req;
     http_body_t *http_req_body;
@@ -33,16 +33,21 @@ typedef struct webser_t
     event_pt webapi_handler;
 
     // static file data
-    int32 filefd;
-    ssize_t filelen, filesend;
+    int ffd;
+    int fsize;
+    int fsend;
 
-    mem_arr_t *http_resp_head_list;
-    mem_list_t *http_resp_body_list;
-    string_t *http_resp_mime;
-    uint32 http_resp_bodylen;
-    uint32 http_resp_code;
-    meta_t *http_resp_head;
-    meta_t *http_resp_body;
+    int             http_rsp_headern;
+    meta_t *        http_rsp_header_meta;
+    mem_list_t *    http_rsp_header_list;
+    
+    int             http_rsp_bodyn;
+    meta_t *        http_rsp_body_meta;
+    mem_list_t *    http_rsp_body_list;
+    
+    int             http_rsp_code;
+    char *          http_rsp_mime;
+	
 } webser_t;
 
 typedef struct mime_type_t
@@ -51,8 +56,8 @@ typedef struct mime_type_t
     string_t header;
 } mime_type_t;
 
-void webapi_resp_string(webser_t *webser, char *str);
-void webapi_resp_mimetype(webser_t *webser, char *mimetype);
+void webser_rsp_body_push_str( webser_t * webser, char * str );
+void webser_rsp_mime(webser_t *webser, char *mimetype);
 
 status webser_process_req_body(event_t *ev);
 status webser_process_req_webapi(event_t *ev);

@@ -343,7 +343,7 @@ status process_init( void )
 		err("alloc process ctx failed, [%d]\n", errno );
 		return -1;
 	}
-	memset( g_proc_ctx, 0, sizeof(process_ctx_t) );
+
 	g_proc_ctx->id = L_PROCESS_MASTER;
 
 	/// init shm 

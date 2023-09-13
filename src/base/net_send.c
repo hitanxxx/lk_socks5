@@ -9,22 +9,20 @@ ssize_t recvs( connection_t * c, unsigned char * buffer, uint32 len )
     sys_assert( buffer != NULL );
     sys_assert( c != NULL );
 
-    if( c->event->f_pending_eof == 1 ) {
-        return ERROR;
-    }
     
     while(1) {
         rc = recv( c->fd, buffer, len, 0 );
         if( rc <= 0 ) {
-            if( rc ==0 )
+            if( rc ==0 ) {
                 return ERROR;
-            else {
-                if( (errno == EAGAIN) || (errno == EWOULDBLOCK) )
+            } else {
+                if( (errno == EAGAIN) || (errno == EWOULDBLOCK) ) {
                     return AGAIN;
-                else if ( errno == EINTR )
+                } else if ( errno == EINTR ) {
                     continue;
-                else
+                } else {
                     return ERROR;
+                }
             }
         }
         return rc;
@@ -41,19 +39,16 @@ ssize_t sends( connection_t * c, unsigned char * buffer, uint32 len )
     sys_assert( buffer != NULL );
     sys_assert( len > 0 );
 
-    if( c->event->f_pending_eof == 1 ) {
-        return ERROR;
-    }
-
     while(1) {
         rc = send( c->fd, buffer, len, 0 );
         if( rc < 0 ) {
-            if( (errno == EAGAIN) || (errno == EWOULDBLOCK) )
+            if( (errno == EAGAIN) || (errno == EWOULDBLOCK) ) {
                 return AGAIN;
-            else if ( errno == EINTR )
+            } else if ( errno == EINTR ) {
                 continue;
-            else
+            } else {
                 return ERROR;
+            }
         }
         return rc;
     };
@@ -72,26 +67,25 @@ status send_chains( connection_t * c, meta_t * head )
     sys_assert( c != NULL );
     sys_assert( head != NULL );
 
-    if( c->event->f_pending_eof == 1 ) {
-        return ERROR;
-    }
 
     while(1) {
         cur = head;
         while( cur ) {
-            if( OK == meta_need_send(cur) )
+            if( OK == meta_need_send(cur) ) {
                 break;
+            }
             cur = cur->next;
         }
 
-        if( cur == NULL )
+        if( cur == NULL ) {
             return DONE;
+        }
 
         size = sends( c, cur->pos, meta_len( cur->pos, cur->last ) );
         if( size < 0 ) {
-            if( AGAIN == size )
+            if( AGAIN == size ) {
                 return AGAIN;
-            
+            }
             return ERROR;
         }
         cur->pos += size;
@@ -110,15 +104,16 @@ ssize_t udp_recvs( connection_t * c, unsigned char * buffer, uint32 len )
     while(1) {
         rc = recvfrom( c->fd, buffer, len, 0, (struct sockaddr*)&c->addr, &socklen );
         if( rc <= 0 ) {
-            if( rc == 0 )
+            if( rc == 0 ) {
                 return ERROR;
-            else {
-                if( (errno == EAGAIN) || (errno == EWOULDBLOCK) )
+            } else {
+                if( (errno == EAGAIN) || (errno == EWOULDBLOCK) ) {
                     return AGAIN;
-                else if ( errno == EINTR )
+                } else if ( errno == EINTR ) {
                     continue;
-                else 
+                } else {
                     return ERROR;
+                }
             }
         }
         return rc;
@@ -138,12 +133,13 @@ ssize_t udp_sends( connection_t * c, unsigned char * buffer, uint32 len )
     while(1) {
         rc = sendto( c->fd, buffer, len, 0, (struct sockaddr*)&c->addr, socklen );
         if( rc < 0 ) {
-            if( (errno == EAGAIN) || (errno == EWOULDBLOCK))
+            if( (errno == EAGAIN) || (errno == EWOULDBLOCK)) {
                 return AGAIN;
-            else if ( errno == EINTR )
+            } else if ( errno == EINTR ) {
                 continue;
-            else
+            } else {
                 return ERROR;
+            }
         }
         return rc;
     };

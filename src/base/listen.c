@@ -27,8 +27,7 @@ static status listen_open( listen_t * listens )
 	listens->server_addr.sin_port 			= htons( (uint16_t)listens->port );
 	listens->server_addr.sin_addr.s_addr 	= htonl( INADDR_ANY );
 
-	do 
-	{
+	do {
 		listens->fd = socket( AF_INET, SOCK_STREAM, 0 );
 		if( -1 == listens->fd )  {
 			err("listen open listen socket failed\n");
@@ -38,14 +37,18 @@ static status listen_open( listen_t * listens )
 			err("listen set socket non blocking failed\n");
 			break;
 		}
+		
 		if( OK != net_socket_reuseaddr( listens->fd ) )	{
 			err("listen set socket reuseaddr failed\n" );
 			break;
 		}
+		
+			
 		/*
             set reuseport flag, socket listen by all process.
             kernel will be process thundering herd 
 		*/
+		
 		if( OK != net_socket_reuseport( listens->fd ) )	{
 			err("listen set socket reuseport failed\n" );
 			break;
@@ -58,11 +61,12 @@ static status listen_open( listen_t * listens )
 			err("listen set socket nodelay failed\n" );
 			break;
 		}
+		
 		if( OK != bind( listens->fd, (struct sockaddr *)&listens->server_addr, sizeof(struct sockaddr) ) ) {
 			err("listen bind failed, [%d]\n", errno );
 			break;
 		}
-		if( OK != listen( listens->fd, 100 ) ) {
+		if( OK != listen( listens->fd, 10 ) ) {
 			err("listen call listen failed\n" );
 			break;
 		}
@@ -125,7 +129,7 @@ status listen_init( void )
         listen_add( config_get()->s5_local_port, socks5_local_accept_cb, L_NOSSL );
     // s5 server listen
     if( config_get()->s5_mode == SOCKS5_SERVER )
-        listen_add( config_get()->s5_serv_port, socks5_server_accept_cb, L_SSL );
+        listen_add( config_get()->s5_serv_port, s5_server_accept_cb, L_SSL );
     // webserver listen
     for( i = 0; i < config_get()->http_num; i ++ )
         listen_add( config_get()->http_arr[i], webser_accept_cb, L_NOSSL );

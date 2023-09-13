@@ -185,7 +185,6 @@ static status mailsender_connect( mailsender_t * sender)
 			err("mailsender_connect, alloc ssl connection failed\n");
 			return ERROR;
 		}
-		memset( sender->ssl, 0, sizeof(ssl_connection_t) );
 
 		if( OK != ssl_load_ctx_certificate( &sender->ssl->session_ctx, L_SSL_CLIENT ) )
 		{

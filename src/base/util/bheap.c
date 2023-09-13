@@ -15,7 +15,6 @@ status heap_create( heap_t ** heap, uint32 size )
 	if( !new_heap )  {
 		return ERROR;
 	}
-	memset( new_heap, 0, alloc_size );
 	
 	new_heap->space = size;
 	new_heap->index = 0;

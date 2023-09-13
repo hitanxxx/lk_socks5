@@ -21,7 +21,6 @@ status mem_page_create( mem_page_t ** page, uint32 size )
         err("mem_page alloc failed, [%d]\n", errno );
         return ERROR;
     }
-    memset( n_page, 0, sizeof(mem_page_t) + size );
 
 	n_page->size		= size;
     n_page->start 	    = n_page->data;

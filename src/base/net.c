@@ -14,8 +14,18 @@ static g_net_t * g_net_ctx = NULL;
 
 status net_socket_nbio( int32 fd )
 {
-	int32 nbio = 1;
-	return ioctl( fd, FIONBIO, &nbio );
+
+	int flags = fcntl( fd, F_GETFL, 0 );
+	if( -1 == flags ) {
+		err("fcntl get failed. [%d]\n", errno );
+		return ERROR;
+	}
+	int rc = fcntl( fd, F_SETFL, flags | O_NONBLOCK );
+	if( -1 == rc ) {
+		err("fcntl set nonblk failed. [%d]\n", errno );
+		return ERROR;
+	} 
+	return OK;
 }
 
 status net_socket_reuseport( int32 fd )
@@ -86,21 +96,18 @@ status net_check_ssl_valid( connection_t * c )
     
     n = recv( c->fd, (char*)&buf, 1, MSG_PEEK );
     if( n <= 0 ) {
-        if( (n < 0) && ( (errno == AGAIN) || (errno == EWOULDBLOCK) ) )
-            return AGAIN;
-		
+        if( (n < 0) && ( (errno == AGAIN) || (errno == EWOULDBLOCK) ) ) {
+			return AGAIN;
+		}	
         err("net check ssl recv failed, [%d: %s]\n", errno, strerror(errno) );
         return ERROR;
     }
     /* 0x80:SSLv2  0x16:SSLv3/TLSv1 */
-    if( !(buf&0x80) && (buf != 0x16) )
-        return ERROR;
+    if( !(buf&0x80) && (buf != 0x16) ) {
+		return ERROR;
+	}
     return OK;
 }
-
-
-
-
 
 status net_connect( connection_t * c, struct sockaddr_in * addr )
 {
@@ -108,12 +115,12 @@ status net_connect( connection_t * c, struct sockaddr_in * addr )
     int ret = ERROR;
     
     // copy s5 server addr to connection's addr
-    if( 0 != memcmp( &c->addr, addr, sizeof(struct sockaddr_in) ) )
-        memcpy( &c->addr, addr, sizeof(struct sockaddr_in) );
+    if( 0 != memcmp( &c->addr, addr, sizeof(struct sockaddr_in) ) ) {
+		memcpy( &c->addr, addr, sizeof(struct sockaddr_in) );
+	}
 
     c->fd = socket( AF_INET, SOCK_STREAM , 0 );
-    do
-    {
+    do {
         if( -1 == c->fd ) {
             err("net connect open socket failed, [%d]\n", errno );
             break;
@@ -127,22 +134,21 @@ status net_connect( connection_t * c, struct sockaddr_in * addr )
             break;
         }
 
-        while(1)
-        {
+        while(1) {
             rc = connect( c->fd, (struct sockaddr*)&c->addr, sizeof(struct sockaddr_in) );
-            if( 0 == rc )
-                ret = OK;
-            else {
-                if ( errno == EINTR )
-                    continue;
-                else if ( (errno == EAGAIN) || (errno == EALREADY) || (errno == EINPROGRESS) )
-                    ret = AGAIN;
-                else
-                    err("net connect failed, [%d]\n", errno );
+            if( 0 == rc ) {
+				ret = OK;
+			} else {
+                if ( errno == EINTR ) {
+					continue;
+				} else if ( (errno == EAGAIN) || (errno == EALREADY) || (errno == EINPROGRESS) ) {
+					ret = AGAIN;
+				} else {
+					err("net connect failed, [%d]\n", errno );
+				}
             }
             break;
         }
-        
     } while(0);
 
     if( ret == ERROR ) {
@@ -164,22 +170,31 @@ status net_connect( connection_t * c, struct sockaddr_in * addr )
 
 status net_accept( event_t * ev )
 {
+   
 	listen_t * listen = ev->data;
 	int32 c_fd;
 	connection_t * c;
-	struct sockaddr_in c_addr;	
 	socklen_t len = sizeof( struct sockaddr_in );
-
+    
 	while( 1 )  {
+		
+        struct sockaddr_in c_addr;
 		memset( &c_addr, 0, len );
 		c_fd = accept( listen->fd, (struct sockaddr *)&c_addr, &len );
-		if( -1 == c_fd )  {
-			if( errno == EWOULDBLOCK || errno == EAGAIN )  {
+
+		if( -1 == c_fd ) {
+			if( errno == EWOULDBLOCK ||
+				errno == EAGAIN ||
+				errno == EINTR ||
+				errno == EPROTO ||
+				errno == ECONNABORTED
+			) {
 				return AGAIN;
 			}
 			err("accept failed, [%d]\n", errno );
 			return ERROR;
 		}
+        
 		if( ERROR == net_alloc( &c ) )  {
 			err("net alloc faield\n");
 			close( c_fd );
@@ -197,7 +212,7 @@ status net_accept( event_t * ev )
 			net_free(c);
 			return ERROR;
 		}
-		if( OK != net_socket_fastopen( c->fd ) ){
+		if( OK != net_socket_fastopen( c->fd ) ) {
 			err("socket set fastopen failed\n");
 		}
 		if( OK != net_socket_lowat_send( c->fd ) ) {
@@ -211,11 +226,14 @@ status net_accept( event_t * ev )
 		c->send = sends;
 		c->recv_chain = NULL;
 		c->send_chain = send_chains;
-		c->ssl_flag 	= (listen->type == L_SSL ) ? 1 : 0;
+		c->ssl_flag = (listen->type == L_SSL ) ? 1 : 0;
+
 		c->event->read_pt = listen->handler;
 		c->event->write_pt = NULL;
+		
 		event_opt( c->event, c->fd, EV_R );
-		c->event->read_pt( c->event );
+
+		event_post_event( c->event ); ///c->event->read_pt( c->event );
 	}
 	return OK;
 }
@@ -225,20 +243,16 @@ static status net_free_cb( event_t * ev )
 {
 	connection_t * c = ev->data;
 	
-	if( c->event )
-	{
+	if( c->event ) {
 		event_free( ev );
 		c->event = NULL;
 	}
-	if( c->page )
-    {
+	if( c->page ) {
         mem_page_free( c->page );
         c->page = NULL;
-		
     }
 	c->meta = NULL;
-	if( c->fd ) 
-	{
+	if( c->fd ) {
 		close( c->fd );
 		c->fd = 0;
 	}
@@ -263,8 +277,7 @@ void net_free_ssl_timeout( void * data )
 {
 	connection_t * c = data;
 
-	if( AGAIN == ssl_shutdown( c->ssl ) )
-	{
+	if( AGAIN == ssl_shutdown( c->ssl ) ) {
 		c->ssl->cb = net_free_cb;
 		timer_set_data( &c->event->timer, c );
         timer_set_pt( &c->event->timer, net_free_ssl_timeout );
@@ -278,15 +291,10 @@ void net_free_ssl_timeout( void * data )
 
 status net_free( connection_t * c )
 {
-	if( c == NULL )
-	{
-		return ERROR;
-	}
+	sys_assert(c!=NULL);
 
-	if( c->ssl && c->ssl_flag )
-	{
-		if( AGAIN == ssl_shutdown( c->ssl ) )
-		{
+	if( c->ssl && c->ssl_flag ) {
+		if( AGAIN == ssl_shutdown( c->ssl ) ) {
 			c->ssl->cb = net_free_cb;
 			timer_set_data( &c->event->timer, c );
 	        timer_set_pt( &c->event->timer, net_free_ssl_timeout );
@@ -295,8 +303,8 @@ status net_free( connection_t * c )
 		}
 	}
 	
-	c->event->write_pt  = NULL;
-	c->event->read_pt   = net_free_cb;
+	c->event->write_pt = NULL;
+	c->event->read_pt = net_free_cb;
 	return c->event->read_pt( c->event );
 }
 
@@ -348,7 +356,6 @@ status net_init( void )
         err("net init malloc pirvate failed, [%d]\n", errno );
         return ERROR;
     }
-    memset( g_net_ctx, 0, sizeof(g_net_t)+(MAX_NET_CON*sizeof(connection_t)) );
 	
 	queue_init( &g_net_ctx->usable );
 	queue_init( &g_net_ctx->use );

@@ -38,29 +38,29 @@ struct http_req
 {
     queue_t                     queue;
     connection_t *              c;
-    uint32                      state;
     http_req_cb					cb;
+    uint32                      state;
 
 	// request line
-	unsigned char*              request_line_start;
-	unsigned char*              request_line_end;
+	unsigned char*              req_line_start;
+	unsigned char*              req_line_end;
 	
 	string_t                    method;
-	string_t                    schema;
+	string_t                    scheme;
 	string_t                    host;
 	string_t                    uri;
 	string_t                    port;
-	string_t                    http_version;
+	string_t                    http_ver;
 
 	// req headers
-	string_t                    header_key;
-	string_t                    header_value;
+	string_t                    header_k;
+	string_t                    header_v;
 	http_req_headers_t       	headers;
 
-	// referenced by extern
+	// user for outer 
 	uint32                      keepalive;
 	uint32                      content_type;
-	uint32                      content_length;
+	uint32                      content_len;
 };
 
 status http_req_have_body(     http_req_t * req);

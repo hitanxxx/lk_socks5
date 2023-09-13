@@ -7,6 +7,7 @@ extern "C"
 #endif
     
 
+/// event options 
 #define EV_NONE         0x0
 #if defined(EVENT_EPOLL)
 #define EV_R            EPOLLIN
@@ -25,15 +26,16 @@ struct l_event
     // every event should have a timer to control network time out
     ev_timer_t      timer;
 	void *          data;
-	int 			trigger_type_previously;
-	char   			f_active;  // the event can disable other events 
-    char            f_pending_eof;
-    
+    /// cache previously event option (EV_R,EV_W,EV_NONE)
+	int 			opt;
+
+    /// listen event yes or not 
     char            f_listen;
-    char            f_post;
-    char            f_read;
-    char            f_write;
-	
+    /// event can disable by other events 
+	char   			f_active;  
+
+    
+
     event_pt        read_pt;
     event_pt        write_pt;
 };
@@ -56,6 +58,9 @@ status event_free( event_t * ev );
 
 status event_init( void );
 status event_end( void );
+
+status event_post_event(  event_t * ev );
+
 
 #ifdef __cplusplus
 }

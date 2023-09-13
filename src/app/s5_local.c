@@ -48,8 +48,8 @@ static status s5_local_auth_recv( event_t * ev )
             break;
         }
 
-        ev->read_pt		= socks5_traffic_transfer;
-        ev->write_pt	= NULL;
+        ev->read_pt	= s5_traffic_process;
+        ev->write_pt = NULL;
         return ev->read_pt( ev );
     } while(0);
 
@@ -126,12 +126,11 @@ static status socks5_local_up_connect_ssl( event_t * ev )
         return ERROR;
     }
     timer_del( &ev->timer );
-    debug("s5 local fd [%d] connect to s5 server ssl success!!!\n", ev->fd );
-
-    up->recv 		= ssl_read;
-    up->send 		= ssl_write;
-    up->recv_chain 	= NULL;
-    up->send_chain 	= ssl_write_chain;
+    
+    up->recv = ssl_read;
+    up->send = ssl_write;
+    up->recv_chain = NULL;
+    up->send_chain = ssl_write_chain;
 
     ev->write_pt = s5_local_auth_build;
     return ev->write_pt( ev );
@@ -143,8 +142,7 @@ static status socks5_local_up_connect_check( event_t * ev )
     socks5_cycle_t * cycle = up->data;
     status rc;
 
-    do
-    {
+    do {
         if( OK != net_socket_check_status( up->fd ) ) {
             err("s5 local connect check status failed\n");
             break;
@@ -152,8 +150,10 @@ static status socks5_local_up_connect_check( event_t * ev )
         timer_del( &ev->timer );
         net_socket_nodelay( up->fd );
         
-        // s5 local use ssl transport with s5 server
+        /// must use ssl connect s5 server !!!
         cycle->up->ssl_flag  = 1;
+
+        
         if( up->ssl_flag ) {
             if( OK != ssl_create_connection( up, L_SSL_CLIENT ) ) {
                 err("s5 local create ssl connection for up failed\n");
@@ -165,7 +165,7 @@ static status socks5_local_up_connect_check( event_t * ev )
                     err("s5 local ssl handshake failed\n");
                     break;
                 }
-                up->ssl->cb 	= socks5_local_up_connect_ssl;
+                up->ssl->cb = socks5_local_up_connect_ssl;
                 timer_set_data( &ev->timer, cycle );
                 timer_set_pt( &ev->timer, s5_timeout_cb );
                 timer_add( &ev->timer, S5_TIMEOUT );
@@ -192,8 +192,8 @@ status socks5_local_accept_cb( event_t * ev )
     socks5_cycle_t * s5 = NULL;
     status rc;
 
-    down->event->read_pt 	= NULL;
-    down->event->write_pt 	= NULL;
+    down->event->read_pt = NULL;
+    down->event->write_pt = NULL;
     // make down event invalidate, wait up connect server success
     event_opt( down->event, down->fd, EV_NONE );
 

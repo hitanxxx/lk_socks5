@@ -70,6 +70,11 @@ extern "C"
 #define 	L_PATH_UOLOAD_FILE			L_PATH_PREFIX"logs/l_upload_temp"
 #define 	L_OPEN_PORT_MAX				64
 
+// 
+#define CR	0xd
+#define LF	0xa
+#define SP	0x20
+
 enum connection_type 
 {
 	TYPE_TCP		       = 0x1,
@@ -96,9 +101,9 @@ enum http_body_type
 
 enum http_body_stat
 {
-	HTTP_BODY_STAT_OK = 1,
-	HTTP_BODY_STAT_DONE_CACHE = 3,
-	HTTP_BODY_STAT_DONE_CACHENO = 5,
+	HTTP_BODY_STAT_OK = 0x1,
+	HTTP_BODY_STAT_DONE_CACHE = 0x2,
+	HTTP_BODY_STAT_DONE_CACHENO = 0x4,
 };
 
 /* webser type */
@@ -146,16 +151,21 @@ typedef struct net_connection_t   connection_t;
 #define l_abs(x)                            (((x)>=0)?(x):(-(x)))
 #define l_unused(x)                         ((void)x)
 #define l_safe_free(x)                      (free(x))
-#define l_safe_malloc(len)                  (malloc((uint32)(len)))
+#define l_safe_malloc(len)                  (calloc(1, (uint32)(len)))
 #define l_strlen(str)                       ((uint32)strlen((char*)str))
 #define l_min(x,y)                          ((x<y)?x:y)
 #define l_max(x,y)                          ((x>y)?x:y)
 #define meta_len(start,end)                 ((uint32)l_max(0,((unsigned char*)end-(unsigned char*)start)))
 
+/// improve compile performance
+#define LIKELY(x)  __builtin_expect(!!(x), 1)
+#define UNLIKELY(x)  __builtin_expect(!!(x), 0)
+
 #define sys_assert( x ) \
 if( !(x) ) \
 { \
-    printf("\""#x"\" false\n");\
+    printf("[assert] %s:%d ", __func__, __LINE__ );\
+    printf("sys assert ->\""#x"\" false\n");\
     abort();\
 }
 

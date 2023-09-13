@@ -74,7 +74,7 @@ status timer_expire( int32 * timer )
 		} else {
 			timer_del( oldest );
 			oldest->f_timeout = 1;
-			if( oldest->timeout_handler )  {
+			if( oldest->timeout_handler ) {
 				oldest->timeout_handler( oldest->data );
 			}
 		}
@@ -85,7 +85,6 @@ status timer_expire( int32 * timer )
 
 status timer_init( void )
 {
-    debug("\n");
 	heap_create( &g_heap, MAX_NET_CON*2 );
 	return OK;
 }
@@ -120,7 +119,7 @@ status timer_alloc( ev_timer_t ** timer )
 		err("safe malloc timer failed\n" );
 		return ERROR;
 	}
-	memset( new, 0, sizeof(ev_timer_t) );
+
 	*timer = new;
 	return OK;
 }

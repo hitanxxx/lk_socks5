@@ -459,7 +459,6 @@ status dns_init( void )
         err("dns init alloc dns pool failed, [%d]\n", errno );
         return ERROR;
     }
-    memset( dns_ctx, 0, sizeof(dns_ctx_t) + sizeof(dns_cycle_t)*MAX_NET_CON );
     
     queue_init(&dns_ctx->usable);
     queue_init(&dns_ctx->use);
