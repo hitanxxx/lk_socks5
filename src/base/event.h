@@ -34,7 +34,9 @@ struct l_event
     /// event can disable by other events 
 	char   			f_active;  
 
-    
+    /// mark readable, writable
+    char    f_read;
+    char    f_write;
 
     event_pt        read_pt;
     event_pt        write_pt;

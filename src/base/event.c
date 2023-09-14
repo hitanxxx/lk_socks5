@@ -76,7 +76,7 @@ static status event_epoll_opt( event_t * ev, int32 fd, int want_opt )
             /// edge trigger
 			evsys.events = EPOLLET|want_opt;
             /// level trigger
-			/// evsys.events = want_opt;
+			///evsys.events = want_opt;
 
 			if( -1 == epoll_ctl( g_event_ctx->event_fd, ( ev->f_active ? EPOLL_CTL_MOD : EPOLL_CTL_ADD ), fd, &evsys ) ) {
 				err("evt epoll_ctl fd [%d] error. want_opt [%x], errno [%d] [%s]\n", fd, want_opt, errno, strerror(errno) );
@@ -113,15 +113,22 @@ status event_epoll_run( time_t msec )
 	}
 
 	for( i = 0; i < act_num; i ++ )  {
-        int evopt = g_event_ctx->events[i].events;
-		event_t * ev = g_event_ctx->events[i].data.ptr;
-		
-        if( ev->f_active ) {
-            if( ev->f_listen ) {
-                g_event_ctx->ev_arr_accept[g_event_ctx->ev_arr_acceptn++] = ev;
+        /// events contains this fd action bit field
+		event_t * act_ev = g_event_ctx->events[i].data.ptr;
+        int act_opt = g_event_ctx->events[i].events;
+        if( act_ev->f_active ) {
+            if( act_ev->f_listen ) {
+                /// listen must be readable
+                if( act_opt & EV_R ) {
+                    g_event_ctx->ev_arr_accept[g_event_ctx->ev_arr_acceptn++] = act_ev;
+                    act_ev->f_read = 1;
+                }
             } else {
-                if( evopt & EV_R || evopt & EV_W ) {
-                    g_event_ctx->ev_arr[g_event_ctx->ev_arrn++] = ev;
+                /// mark action type of event. (EV_R/EV_W/(EV_R & EV_W))
+                if( (act_opt & EV_R) || (act_opt & EV_W) ) {
+                    g_event_ctx->ev_arr[g_event_ctx->ev_arrn++] = act_ev;
+                    if( act_opt & EV_R ) act_ev->f_read = 1;
+                    if( act_opt & EV_W ) act_ev->f_write = 1;
                 }
             }
         }
@@ -254,6 +261,7 @@ status event_select_run( time_t msec )
 		if( p_ev->f_active == 1 ) {
 			if( FD_ISSET( p_ev->fd, &tmp_rfds ) ) {
 				g_event_ctx->ev_arr_accept[g_event_ctx->ev_arr_acceptn++] = p_ev;
+                p_ev->f_read = 1;
 	            actn ++;   
 			}         
 		}
@@ -266,6 +274,8 @@ status event_select_run( time_t msec )
         if( p_ev->f_active == 1 ) {
             if( FD_ISSET( p_ev->fd, &tmp_rfds ) || FD_ISSET( p_ev->fd, &tmp_wfds ) ) {
                 g_event_ctx->ev_arr[g_event_ctx->ev_arrn++] = p_ev;
+                if( FD_ISSET( p_ev->fd, &tmp_rfds ) ) p_ev->f_read = 1;
+                if( FD_ISSET( p_ev->fd, &tmp_wfds ) ) p_ev->f_write = 1;
                 actn ++;
             }
         }
@@ -291,12 +301,11 @@ status event_run( time_t msec )
 	int i = 0;
 	listen_t * listen = NULL;
 
-    /// listen fd use SO_REUSEPORT. don't need do mutex again 
-    /// kernel will do it 
+    /// listen fd use SO_REUSEPORT. don't need do mutex (kernel will do it)
     if( 0 ) {
         /// if process current used event num < all*80%, then try to listen
     	if( g_event_ctx->queue_use_num <= (MAX_NET_CON*80/100) ) {
-    		// try to get listen event lock
+    		/// try to get listen event lock
     		process_lock();
     		if( process_mutex_value_get() == 0 ) {
     			for( i = 0; i < listens->elem_num; i ++ ) {
@@ -321,24 +330,35 @@ status event_run( time_t msec )
 
     for( i = 0; i < g_event_ctx->ev_arr_acceptn; i ++ ) {
         event_t * p_ev = g_event_ctx->ev_arr_accept[i];
-        
         if( p_ev->opt & EV_R ) {
-            if( p_ev->read_pt ) p_ev->read_pt(p_ev);
+            /// listen event don't only check read 
+            if( p_ev->f_read ) {
+                if( p_ev->read_pt ) p_ev->read_pt(p_ev);
+                p_ev->f_read= 0;
+            }
         }
     }
-
+    
     for( i = 0; i < g_event_ctx->ev_arrn; i ++ ) {
         event_t * p_ev = g_event_ctx->ev_arr[i];
-
+        
         if( p_ev->opt & EV_R ) {
-            if( p_ev->read_pt ) p_ev->read_pt(p_ev);
+            /// if f_read has been actived. means fd need read this time
+            if( p_ev->f_read ) {
+                if( p_ev->read_pt ) p_ev->read_pt(p_ev);
+                p_ev->f_read = 0;
+            }
         }
         if( p_ev->opt & EV_W ) {
-            if( p_ev->write_pt ) p_ev->write_pt(p_ev);
+            /// if f_write has been actived. means fd need write this time
+            if( p_ev->f_write ) {
+                if( p_ev->write_pt ) p_ev->write_pt(p_ev);
+                p_ev->f_write = 0;
+            }
         }
     }
 
-    /// listen fd use SO_REUSEPORT. don't need do mutex again 
+    /// listen fd use SO_REUSEPORT. don't need do mutex 
 	if( 0 ) {
 	    process_lock();
     	if( process_mutex_value_get() == proc_pid() ) {
