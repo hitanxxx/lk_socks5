@@ -8,7 +8,7 @@ extern "C"
 
 status socks5_local_init( void );
 status socks5_local_end( void );
-status socks5_local_accept_cb( event_t * ev );
+status s5_local_accept_cb( event_t * ev );
 
 
 

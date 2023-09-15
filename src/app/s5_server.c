@@ -5,11 +5,10 @@
 
 #define S5_USER_NAME_MAX		16
 #define S5_USER_PASSWD_MAX		16
-#define S5_USER_AUTH_FILE_LEN  4096
+#define S5_USER_AUTH_FILE_LEN  (4*1024)
 
 typedef struct s5_user {
-	char		name[S5_USER_NAME_MAX];
-	char 		passwd[S5_USER_PASSWD_MAX];
+	char		auth[32];
 	queue_t		queue;
 } s5_user_t;
 
@@ -43,47 +42,7 @@ status s5_alloc( socks5_cycle_t ** s5 )
 }
 
 
-static status s5_serv_usr_user_find( char * name, s5_user_t ** user )
-{
-	queue_t * q;
-	s5_user_t * t = NULL;
-
-	for( q = queue_head( &g_s5_ctx->g_users ); q != queue_tail( &g_s5_ctx->g_users ); q = queue_next(q) ) {
-		t = ptr_get_struct( q, s5_user_t, queue );
-		if( t && l_strlen(t->name) == strlen(name) && memcmp( t->name, name, strlen(name) ) == 0 ) {
-			if( user ) {
-				*user = t;
-			}
-			return OK;
-		}
-	}
-	return ERROR;
-}
-
-static status s5_serv_usr_user_add( char * name, char * passwd )
-{
-    s5_user_t * user = mem_page_alloc( g_s5_ctx->g_user_mempage, sizeof(s5_user_t) );
-	if( !user ) {
-		err("alloc new user\n");
-		return ERROR;
-	}
-	memset( user, 0, sizeof(s5_user_t) );
-
-	memcpy( user->name, name, strlen(name) );
-	memcpy( user->passwd, passwd, strlen(passwd) );
-	queue_insert_tail( &g_s5_ctx->g_users, &user->queue );
-
-#if(1)
-	// show all users
-	queue_t * q;
-	s5_user_t * t = NULL;
-	for( q = queue_head( &g_s5_ctx->g_users ); q != queue_tail( &g_s5_ctx->g_users ); q = queue_next(q) ) {
-		t = ptr_get_struct( q, s5_user_t, queue );
-		debug("queue show [%s] --- [%s]\n", t->name, t->passwd );
-	}
-#endif
-    return OK;
-}
+static status s5_serv_usr_obj_find( char * auth );
 
 
 status s5_free( socks5_cycle_t * s5 )
@@ -901,8 +860,7 @@ static status s5_server_auth_recv_payload( event_t * ev )
     meta_t * meta = down->meta;
     int err_code = S5_ERR_SUCCESS;
     ssize_t rc = 0;
-    s5_user_t * user = NULL;
-
+    
     while( (meta->last - meta->pos) < sizeof(s5_auth_data_t) ) {
         rc = down->recv( down, meta->last, meta->end - meta->last );
         if( rc < 0 ) {
@@ -923,16 +881,10 @@ static status s5_server_auth_recv_payload( event_t * ev )
     do {
         s5_auth_data_t * payload = (s5_auth_data_t*) meta->pos;
 
-        if( UNLIKELY( OK != s5_serv_usr_user_find( (char*)payload->name, &user ) )) {
+        if(  OK != s5_serv_usr_obj_find( (char*)payload->auth ) ) {
             /// if auth user not find
-		    err("s5 pri, user [%s] not found\n", payload->name );
-		    err_code = S5_ERR_USERNULL;
-		}
-		if( (l_strlen(payload->passwd) != l_strlen(user->passwd)) ||
-			( 0 != memcmp( user->passwd, payload->passwd, l_strlen(payload->passwd)) ) ) {
-            /// if auth user's passwd check failure
-		    err("s5 pri, user [%s] passwd incorrect\n", payload->name );
-		    err_code = S5_ERR_PASSFAIL;
+		    err("s5 pri, auth not found\n", payload->auth );
+		    err_code = S5_ERR_AUTH;
 		}
     } while(0);
 
@@ -946,8 +898,8 @@ static status s5_server_auth_recv_payload( event_t * ev )
     /// fix the meta with s5_auth_info_t for response
     s5_auth_info_t * header = (s5_auth_info_t*)meta->pos;
     header->magic = S5_AUTH_MAGIC_NUM;
-    header->msg_type = S5_MSG_LOGIN_RESP;
-    header->msg_errcode = err_code;
+    header->typ = S5_MSG_LOGIN_RESP;
+    header->code = err_code;
     meta->last += sizeof(s5_auth_info_t);
 
     /// goto send auth resp
@@ -989,12 +941,12 @@ static status s5_server_auth_recv_header( event_t * ev )
         s5_auth_info_t * header = (s5_auth_info_t*)meta->pos;
         if( header->magic != S5_AUTH_MAGIC_NUM ) {
             err("s5 pri, magic [0x%x] incorrect, should be S5_AUTH_MAGIC_NUM [0x%x]\n", header->magic, S5_AUTH_MAGIC_NUM );
-			err_code = S5_ERR_MAGFAIL;
+			err_code = S5_ERR_MAGIC;
         }
 
-		if( header->msg_type != S5_MSG_LOGIN_REQ ) {
-			err("s5 pri, msg type [0x%x] incorrect, should be S5_MSG_LOGIN_REQ [0x%x]\n", header->msg_type, S5_MSG_LOGIN_REQ );
-			err_code = S5_ERR_TYPEFAIL;
+		if( header->typ != S5_MSG_LOGIN_REQ ) {
+			err("s5 pri, msg type [0x%x] incorrect, should be S5_MSG_LOGIN_REQ [0x%x]\n", header->typ, S5_MSG_LOGIN_REQ );
+			err_code = S5_ERR_TYPE;
 		}
     } while(0);
 
@@ -1124,36 +1076,62 @@ status s5_server_accept_cb( event_t * ev )
     return ERROR;
 }
 
-
-static status s5_serv_usr_db_decode( meta_t * meta )
+static status s5_serv_usr_obj_find( char * auth )
 {
-    cJSON * socks5_user_database = NULL;
+	queue_t * q;
+	s5_user_t * t = NULL;
 
-	cJSON * root = cJSON_Parse( (char*)meta->pos );
-	if( root ) {
-		socks5_user_database = cJSON_GetObjectItem( root, "socks5_user_database" );
-		if( socks5_user_database ) {
-			int i = 0;
-			cJSON * obj = NULL;
-			cJSON * username = NULL;
-			cJSON * passwd = NULL;
-			for( i = 0; i < cJSON_GetArraySize( socks5_user_database ); i ++ ) {
-				obj = cJSON_GetArrayItem( socks5_user_database, i );
-				if( obj ) {
-					username = cJSON_GetObjectItem( obj, "username" );
-					passwd = cJSON_GetObjectItem( obj, "passwd" );
-					if( username && passwd ) {
-						s5_serv_usr_user_add( cJSON_GetStringValue(username), cJSON_GetStringValue(passwd) );
-					}
-				}
-			}
+	for( q = queue_head( &g_s5_ctx->g_users ); q != queue_tail( &g_s5_ctx->g_users ); q = queue_next(q) ) {
+		t = ptr_get_struct( q, s5_user_t, queue );
+		if( t && l_strlen(t->auth) == strlen(auth) && memcmp( t->auth, auth, strlen(auth) ) == 0 ) {
+			return OK;
 		}
-		cJSON_Delete( root );
+	}
+	return ERROR;
+}
+
+
+static status s5_serv_usr_obj_add( char * auth )
+{
+    s5_user_t * user = mem_page_alloc( g_s5_ctx->g_user_mempage, sizeof(s5_user_t) );
+	if( !user ) {
+		err("alloc new user\n");
+		return ERROR;
+	}
+	memset( user, 0, sizeof(s5_user_t) );
+
+	memcpy( user->auth, auth, strlen(auth) );
+	queue_insert_tail( &g_s5_ctx->g_users, &user->queue );
+
+#if(1)
+	// show all users
+	queue_t * q;
+	s5_user_t * t = NULL;
+	for( q = queue_head( &g_s5_ctx->g_users ); q != queue_tail( &g_s5_ctx->g_users ); q = queue_next(q) ) {
+		t = ptr_get_struct( q, s5_user_t, queue );
+		debug("queue show ---> [%s]\n", t->auth );
+	}
+#endif
+    return OK;
+}
+
+static status s5_serv_usr_db_parse( meta_t * meta )
+{
+	cJSON * root = cJSON_Parse( (char*)meta->pos );
+	if(root) {
+        /// traversal the array 
+        int i = 0;
+        for( i = 0; i < cJSON_GetArraySize(root); i ++ ) {
+            cJSON * arrobj = cJSON_GetArrayItem( root, i );
+            /// add arrobj into db
+            s5_serv_usr_obj_add( cJSON_GetStringValue(arrobj) );
+        }
+		cJSON_Delete(root);
 	}
     return OK;
 }
 
-static status s5_serv_usr_db_file_load( meta_t * meta )
+static status s5_serv_usr_db_file_read( meta_t * meta )
 {
     ssize_t size = 0;
     
@@ -1184,11 +1162,11 @@ static status s5_serv_usr_db_init( )
             err("usmgr auth databse alloc meta failed\n");
             break;
         }
-        if( OK != s5_serv_usr_db_file_load( meta ) ) {
+        if( OK != s5_serv_usr_db_file_read( meta ) ) {
             err("usmgr auth file load failed\n");
             break;
         }
-        if( OK != s5_serv_usr_db_decode( meta ) ) {
+        if( OK != s5_serv_usr_db_parse( meta ) ) {
             err("usmgr auth file decode failed\n");
             break;
         }
@@ -1223,10 +1201,8 @@ status socks5_server_init( void )
         for( i = 0; i < MAX_NET_CON; i++ )
            queue_insert_tail( &g_s5_ctx->usable, &g_s5_ctx->pool[i].queue );
            
-        /// s5 server mode or server screct mode
-        if( config_get()->s5_mode == SOCKS5_SERVER || 
-            config_get()->s5_mode == SOCKS5_SERVER_SECRET ) {
-                
+        if( config_get()->s5_mode > SOCKS5_CLIENT ) {
+            /// s5 server mode or server screct mode                
             queue_init( &g_s5_ctx->g_users );
             if( OK != mem_page_create( &g_s5_ctx->g_user_mempage, sizeof(s5_user_t) ) ) {
                 err("s5 serv alloc user mem page\n");

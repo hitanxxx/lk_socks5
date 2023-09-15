@@ -60,24 +60,27 @@ extern "C"
 #include <openssl/err.h>
 
 
-// file paths
-#define 	L_PATH_PREFIX				"/usr/local/lks5/"
-#define 	L_PATH_PIDFILE				L_PATH_PREFIX"logs/pid"
-#define 	L_PATH_CONFIG				L_PATH_PREFIX"config/config.json"
-#define 	L_PATH_PERFTEMP				L_PATH_PREFIX"logs/l_perf"
-#define 	L_PATH_LOG_MAIN				L_PATH_PREFIX"logs/l_log"
-#define 	L_PATH_LOG_ACCESS			L_PATH_PREFIX"logs/l_access"
-#define 	L_PATH_UOLOAD_FILE			L_PATH_PREFIX"logs/l_upload_temp"
-#define 	L_OPEN_PORT_MAX				64
+#define L_OPEN_PORT_MAX	64
 
-// 
+
+// file paths
+#define S5_PATH                 "/usr/local/s5/"
+#define S5_PATH_LOG_DIR         S5_PATH"logs/"
+#define S5_PATH_LOG_FILE_MAIN   S5_PATH_LOG_DIR"log_main"
+#define S5_PATH_LOG_FILE_ACCESS S5_PATH_LOG_DIR"log_access"
+
+#define S5_PATH_PID             S5_PATH_LOG_DIR"pid"
+#define S5_PATH_CFG             S5_PATH"config/config.json"
+
+
+// ASCII character hex number
 #define CR	0xd
 #define LF	0xa
 #define SP	0x20
 
 enum connection_type 
 {
-	TYPE_TCP		       = 0x1,
+	TYPE_TCP = 0x1,
 	TYPE_UDP,
 };
 

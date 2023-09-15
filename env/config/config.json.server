@@ -3,14 +3,14 @@
         "sys_process":2,
         "sys_log_level":0,
 
-        "ssl_crt_path":"/usr/local/lks5/certificate/2048.crt",
-        "ssl_key_path":"/usr/local/lks5/certificate/2048.key",
+        "ssl_crt_path":"/usr/local/s5/certificate/2048.crt",
+        "ssl_key_path":"/usr/local/s5/certificate/2048.key",
 
         "s5_mode":3,
-        "s5_serv_auth_path":"/usr/local/lks5/config/auth.json",
+        "s5_serv_auth_path":"/usr/local/s5/config/auth.json",
 
         "https_arr":[12345],
-        "http_home":"/usr/local/lks5/www",
+        "http_home":"/usr/local/s5/www",
         "http_index":"index.html"
 
 }

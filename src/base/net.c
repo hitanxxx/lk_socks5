@@ -14,7 +14,6 @@ static g_net_t * g_net_ctx = NULL;
 
 status net_socket_nbio( int32 fd )
 {
-
 	int flags = fcntl( fd, F_GETFL, 0 );
 	if( -1 == flags ) {
 		err("fcntl get failed. [%d]\n", errno );
@@ -42,12 +41,11 @@ status net_socket_reuseaddr( int32 fd )
 
 status net_socket_fastopen( int32 fd )
 {
-	/*
-	some arm platforms do not support this feature
-    */
-	//int  tcp_fastopen = 1;
-	//return setsockopt( fd, IPPROTO_TCP, TCP_FASTOPEN, (const void *) &tcp_fastopen, sizeof(tcp_fastopen));
-	return OK;
+    if(0) {
+        int  tcp_fastopen = 1;
+        return setsockopt( fd, IPPROTO_TCP, TCP_FASTOPEN, (const void *) &tcp_fastopen, sizeof(tcp_fastopen));
+    }
+    return OK;
 }
 
 status net_socket_nodelay(  int32 fd )
@@ -58,19 +56,19 @@ status net_socket_nodelay(  int32 fd )
 
 status net_socket_nopush( int32 fd )
 {
-#if(0)
-    int tcp_cork = 1;
-    return setsockopt( fd, IPPROTO_TCP, TCP_CORK, (const void *) &tcp_cork, sizeof(int));
-#endif
+    if(0) {
+        int tcp_cork = 1;
+        return setsockopt( fd, IPPROTO_TCP, TCP_CORK, (const void *) &tcp_cork, sizeof(int));
+    }
 	return OK;
 }
 
 status net_socket_lowat_send( int32 fd )
 {
-#if(0)
-	int lowat = 0;
-    reutnr setsockopt( fd, SOL_SOCKET, SO_SNDLOWAT, (const void*)&lowat, sizeof(int) );
-#endif
+    if(0) {
+	    int lowat = 0;
+        return setsockopt( fd, SOL_SOCKET, SO_SNDLOWAT, (const void*)&lowat, sizeof(int) );
+    }
 	return OK;
 }
 
@@ -115,10 +113,8 @@ status net_connect( connection_t * c, struct sockaddr_in * addr )
     int ret = ERROR;
     
     // copy s5 server addr to connection's addr
-    if( 0 != memcmp( &c->addr, addr, sizeof(struct sockaddr_in) ) ) {
-		memcpy( &c->addr, addr, sizeof(struct sockaddr_in) );
-	}
-
+	memcpy( &c->addr, addr, sizeof(struct sockaddr_in) );
+    
     c->fd = socket( AF_INET, SOCK_STREAM , 0 );
     do {
         if( -1 == c->fd ) {
@@ -133,7 +129,9 @@ status net_connect( connection_t * c, struct sockaddr_in * addr )
             err("net connect set socket nonblock failed\n" );
             break;
         }
-
+        if( OK != net_socket_fastopen( c->fd ) ) {
+            err("net connect fastopen socket failed\n");
+        }
         while(1) {
             rc = connect( c->fd, (struct sockaddr*)&c->addr, sizeof(struct sockaddr_in) );
             if( 0 == rc ) {
@@ -217,7 +215,6 @@ status net_accept( event_t * ev )
 		}
 		if( OK != net_socket_lowat_send( c->fd ) ) {
 			err("socket set lowat 0 failed\n");
-			net_free(c);
 			return ERROR;
 		}
 		

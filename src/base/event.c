@@ -55,29 +55,22 @@ static status event_epoll_end( )
 
 static status event_epoll_opt( event_t * ev, int32 fd, int want_opt )
 {
-	struct epoll_event evsys;
-	memset( &evsys, 0, sizeof(struct epoll_event) );
-    
 	/// want type not same as record type
 	if( ev->opt != want_opt ) {
 	
 		if( want_opt == EV_NONE ) {
-			if( ev->f_active == 1 ) {
-				if( -1 == epoll_ctl( g_event_ctx->event_fd, EPOLL_CTL_DEL, fd, NULL ) ) {
-					err("evt epoll_ctl fd [%d] error. want_opt [%x], errno [%d] [%s]\n", fd, want_opt, errno, strerror(errno) );
-					return ERROR;
-				}
-				ev->f_active = 0;
-			} else {
-				/// do nothing. event already delete
+			if( -1 == epoll_ctl( g_event_ctx->event_fd, EPOLL_CTL_DEL, fd, NULL ) ) {
+				err("evt epoll_ctl fd [%d] error. want_opt [%x], errno [%d] [%s]\n", fd, want_opt, errno, strerror(errno) );
+				return ERROR;
 			}
+			ev->f_active = 0;
 		} else {
+            struct epoll_event evsys;
+	        memset( &evsys, 0, sizeof(struct epoll_event) );
+        
 			evsys.data.ptr = (void*)ev;
-            /// edge trigger
 			evsys.events = EPOLLET|want_opt;
-            /// level trigger
-			///evsys.events = want_opt;
-
+            
 			if( -1 == epoll_ctl( g_event_ctx->event_fd, ( ev->f_active ? EPOLL_CTL_MOD : EPOLL_CTL_ADD ), fd, &evsys ) ) {
 				err("evt epoll_ctl fd [%d] error. want_opt [%x], errno [%d] [%s]\n", fd, want_opt, errno, strerror(errno) );
 				return ERROR;
@@ -85,9 +78,8 @@ static status event_epoll_opt( event_t * ev, int32 fd, int want_opt )
 			ev->f_active = 1;
 		}
 
-		if( !ev->fd ) {
-            ev->fd = fd;
-        }
+		if( !ev->fd ) ev->fd = fd;
+        
 		ev->opt = want_opt;
 	}
 	return OK;
@@ -112,7 +104,7 @@ status event_epoll_run( time_t msec )
         }
 	}
 
-	for( i = 0; i < act_num; i ++ )  {
+	for( i = 0; i < act_num; i ++ ) {
         /// events contains this fd action bit field
 		event_t * act_ev = g_event_ctx->events[i].data.ptr;
         int act_opt = g_event_ctx->events[i].events;
@@ -187,15 +179,8 @@ static status event_select_opt( event_t * ev, int32 fd, int want_opt )
             }
         }
 
-		if( want_opt == EV_NONE ) {
-			ev->f_active = 0;
-		} else {
-			ev->f_active = 1;           
-		}
-        
-		if( 0 == ev->fd ) {
-            ev->fd = fd;
-        }
+        ev->f_active = ( want_opt == EV_NONE ) ? 0 : 1;
+		if( 0 == ev->fd ) ev->fd = fd;
 		
 		ev->opt = want_opt;
 	}
@@ -204,41 +189,43 @@ static status event_select_opt( event_t * ev, int32 fd, int want_opt )
 
 status event_select_run( time_t msec )
 {
-	struct timeval tv, *p_tv = NULL;
-	int i = 0, fd_max = -1;
+	struct timeval wait_tm;
+	int i = 0, fdmax = -1;
 	int actall = 0, actn = 0;
 	
-	fd_set tmp_rfds;
-	fd_set tmp_wfds;
+	fd_set rfds;
+	fd_set wfds;
 
-	memset( &tv, 0, sizeof(struct timeval) );
-	if( msec != -1 ) {
-		tv.tv_sec 	= msec/1000;
-		tv.tv_usec	= (msec%1000)*1000;
-		p_tv = &tv;
-	}
+	memset( &wait_tm, 0, sizeof(struct timeval) );
+	if( msec > 0 ) {
+		wait_tm.tv_sec 	= msec/1000;
+		wait_tm.tv_usec	= (msec%1000)*1000;
+	} else {
+        wait_tm.tv_sec = 0;
+        wait_tm.tv_usec = (200*1000);
+    }
 	
 	/// find max fd in listen events
 	for( i = 0; i < listens->elem_num; i ++ ) {
 		listen_t * p_listen = mem_arr_get( listens, i + 1 );
 		event_t * p_ev = &p_listen->event;
-		if( (p_ev->f_active == 1) && (p_ev->fd > fd_max) ) {
-			fd_max = p_ev->fd;
+		if( (p_ev->f_active == 1) && (p_ev->fd > fdmax) ) {
+			fdmax = p_ev->fd;
 		}
 	}
-	/// find max fd in pool events 
+	/// find max fd in pool events
 	for( i = 0; i < MAX_NET_CON; i++ ) {
-		if( (g_event_ctx->pool[i].f_active == 1) && (g_event_ctx->pool[i].fd > fd_max) ) {
-			fd_max = g_event_ctx->pool[i].fd;
+		if( (g_event_ctx->pool[i].f_active == 1) && (g_event_ctx->pool[i].fd > fdmax) ) {
+			fdmax = g_event_ctx->pool[i].fd;
 		}
 	}
 
-	// select return will be change read fds and write fds
-	memcpy( &tmp_rfds, &g_event_ctx->rfds, sizeof(fd_set) );
-	memcpy( &tmp_wfds, &g_event_ctx->wfds, sizeof(fd_set) );
+	/// select return will be change read fds and write fds
+	memcpy( &rfds, &g_event_ctx->rfds, sizeof(fd_set) );
+	memcpy( &wfds, &g_event_ctx->wfds, sizeof(fd_set) );
 
 	
-	actall = select( fd_max + 1, &tmp_rfds, &tmp_wfds, NULL, p_tv );
+	actall = select( fdmax + 1, &rfds, &wfds, NULL, &wait_tm );
 	if( actall <= 0 ) {
 		if( actall < 0 ) {
 			if( errno == EINTR ) {
@@ -259,7 +246,7 @@ status event_select_run( time_t msec )
 		listen_t * p_listen = mem_arr_get( listens, i + 1 );
 		event_t * p_ev = &p_listen->event;
 		if( p_ev->f_active == 1 ) {
-			if( FD_ISSET( p_ev->fd, &tmp_rfds ) ) {
+			if( FD_ISSET( p_ev->fd, &rfds ) ) {
 				g_event_ctx->ev_arr_accept[g_event_ctx->ev_arr_acceptn++] = p_ev;
                 p_ev->f_read = 1;
 	            actn ++;   
@@ -269,13 +256,12 @@ status event_select_run( time_t msec )
 	
 	/// loop check all events 
 	for( i = 0; (i < MAX_NET_CON) && (actn < actall); i ++ ) {
-
         event_t * p_ev = &g_event_ctx->pool[i];
         if( p_ev->f_active == 1 ) {
-            if( FD_ISSET( p_ev->fd, &tmp_rfds ) || FD_ISSET( p_ev->fd, &tmp_wfds ) ) {
+            if( FD_ISSET( p_ev->fd, &rfds ) || FD_ISSET( p_ev->fd, &wfds ) ) {
                 g_event_ctx->ev_arr[g_event_ctx->ev_arrn++] = p_ev;
-                if( FD_ISSET( p_ev->fd, &tmp_rfds ) ) p_ev->f_read = 1;
-                if( FD_ISSET( p_ev->fd, &tmp_wfds ) ) p_ev->f_write = 1;
+                if( FD_ISSET( p_ev->fd, &rfds ) ) p_ev->f_read = 1;
+                if( FD_ISSET( p_ev->fd, &wfds ) ) p_ev->f_write = 1;
                 actn ++;
             }
         }
@@ -320,7 +306,7 @@ status event_run( time_t msec )
     	}
     }
 
-    /// clear evt action array
+    /// clear action array
     g_event_ctx->ev_arrn = 0;
     g_event_ctx->ev_arr_acceptn = 0;
     /// event run loop
@@ -399,15 +385,15 @@ status event_free( event_t * ev )
 		if( ev->f_active && ev->opt != EV_NONE )  {
 			event_opt( ev, ev->fd, EV_NONE );
 		}
-		ev->opt = 0;
 		
 		ev->fd = 0;
-		ev->read_pt = NULL;
-		ev->write_pt = NULL;
-		ev->data = NULL;
-		
 		timer_del( &ev->timer );
+		ev->data = NULL;
+		ev->opt = 0;
+        
 		ev->f_active = 0;
+        ev->f_read = ev->f_write = 0;
+		ev->read_pt = ev->write_pt = NULL;
 		
 		queue_remove( &ev->queue );
 		queue_insert_tail( &g_event_ctx->usable, &ev->queue );
@@ -448,9 +434,8 @@ status event_init( void )
 #endif
 
 	// init event, and add listen into event
-	if( g_event_ctx->g_event_handler.init ) {
-		g_event_ctx->g_event_handler.init();
-	}
+    sys_assert( g_event_ctx->g_event_handler.init != NULL );
+	g_event_ctx->g_event_handler.init();
 
     if(1) {
         /// all worker process will be add listen fd into event.

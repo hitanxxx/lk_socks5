@@ -126,7 +126,7 @@ status listen_init( void )
 
     // s5 local listen
     if( config_get()->s5_mode == SOCKS5_CLIENT )
-        listen_add( config_get()->s5_local_port, socks5_local_accept_cb, L_NOSSL );
+        listen_add( config_get()->s5_local_port, s5_local_accept_cb, L_NOSSL );
     // s5 server listen
     if( config_get()->s5_mode == SOCKS5_SERVER )
         listen_add( config_get()->s5_serv_port, s5_server_accept_cb, L_SSL );

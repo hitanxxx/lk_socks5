@@ -60,16 +60,16 @@ static status proc_pid_create(  )
 	char  str[128] = {0};
 	ssize_t rc;
 
-	ffd = open( L_PATH_PIDFILE, O_CREAT|O_RDWR|O_TRUNC, 0644 );
+	ffd = open( S5_PATH_PID, O_CREAT|O_RDWR|O_TRUNC, 0644 );
 	if( ffd == -1 ) {
-		err("pidfile [%s] open failed. [%d]\n", L_PATH_PIDFILE, errno );
+		err("pidfile [%s] open failed. [%d]\n", S5_PATH_PID, errno );
 		return ERROR;
 	}
 	snprintf( str, sizeof(str), "%d", getpid() );
 	rc = write( ffd, str, strlen(str) );
 	close( ffd );
 	if( rc != strlen(str) ) {
-		err("pidfile [%s] writen [%d]. all [%d]\n", L_PATH_PIDFILE, rc, strlen(str) );
+		err("pidfile [%s] writen [%d]. all [%d]\n", S5_PATH_PID, rc, strlen(str) );
 		return ERROR;
 	}
 	return OK;
@@ -79,7 +79,7 @@ static status proc_pid_create(  )
 /// @return 
 static void proc_pid_free(  )
 {
-	unlink( L_PATH_PIDFILE );
+	unlink( S5_PATH_PID );
 }
 
 /// @brief process cmd line params

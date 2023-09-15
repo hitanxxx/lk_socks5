@@ -37,13 +37,13 @@ status proc_pid_form_file( pid_t * pid )
 	int32 fd=  0;
 	char str[128] = {0};
 
-	fd = open( L_PATH_PIDFILE, O_RDONLY );
+	fd = open( S5_PATH_PID, O_RDONLY );
 	if( -1 == fd ) {
-		err("open pid file [%s] failed. [%d]\n", L_PATH_PIDFILE, errno );
+		err("open pid file [%s] failed. [%d]\n", S5_PATH_PID, errno );
 		return ERROR;
 	}
 	if( ERROR == read( fd, str, sizeof(str) ) ) {
-		err("read pid file [%s] failed. [%d]\n", L_PATH_PIDFILE, errno );
+		err("read pid file [%s] failed. [%d]\n", S5_PATH_PID, errno );
 		close( fd );
 		return ERROR;
 	}

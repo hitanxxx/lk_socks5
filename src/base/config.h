@@ -7,7 +7,7 @@ extern "C"
 #endif
     
 
-#define CONF_SETTING_LENGTH		32768
+#define CONF_SETTING_LENGTH (32*1024)  // 32KB size limit
 
 
 typedef struct gobal_conf
@@ -16,25 +16,24 @@ typedef struct gobal_conf
     int 		sys_process_num;
     int 		sys_log_level;
 
-    char 		ssl_crt_path[FILEPATH_LENGTH];
-    char 		ssl_key_path[FILEPATH_LENGTH];
+    char 		ssl_crt_path[FILEPATH_LENGTH+1];
+    char 		ssl_key_path[FILEPATH_LENGTH+1];
 
     int 		s5_mode;
     int 		s5_serv_port;
-    char        s5_serv_auth_path[FILEPATH_LENGTH];
+    char        s5_serv_auth_path[FILEPATH_LENGTH+1];
 
     int			s5_local_port;
     int			s5_local_serv_port;
-    char 		s5_local_serv_ip[IPV4_LENGTH];
-    char		s5_local_usrname[USERNAME_LENGTH];
-    char		s5_local_passwd[PASSWD_LENGTH];
+    char 		s5_local_serv_ip[IPV4_LENGTH+1];
+    char		s5_local_auth[32+1];
 
     int         http_num;
     int         https_num;
     int			http_arr[L_OPEN_PORT_MAX];
     int			https_arr[L_OPEN_PORT_MAX];
-    char		http_home[FILEPATH_LENGTH];
-    char		http_index[FILEPATH_LENGTH];
+    char		http_home[FILEPATH_LENGTH+1];
+    char		http_index[FILEPATH_LENGTH+1];
 	
 }config_t;
 

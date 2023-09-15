@@ -7,18 +7,18 @@ extern "C"
 #endif
 
 
-#define S5_TIMEOUT	        5
-#define S5_AUTH_MAGIC_NUM   0x1000beef
+#define S5_TIMEOUT	 8
+#define S5_AUTH_MAGIC_NUM   0xa000beef
 
 /// used for private authorization
-#define S5_MSG_LOGIN_REQ    0xa1
-#define S5_MSG_LOGIN_RESP   0xa2
+#define S5_MSG_LOGIN_REQ    0x01
+#define S5_MSG_LOGIN_RESP   0x02
 
-#define S5_ERR_SUCCESS      0x0
-#define S5_ERR_MAGFAIL      0x1
-#define S5_ERR_TYPEFAIL     0x2
-#define S5_ERR_USERNULL     0x3
-#define S5_ERR_PASSFAIL     0x4
+#define S5_ERR_SUCCESS   0x0
+#define S5_ERR_MAGIC    0x1
+#define S5_ERR_TYPE     0x2
+#define S5_ERR_AUTH     0x3
+
 
 /// s5 type for rfc reqest
 #define S5_RFC_IPV4         0x1
@@ -32,17 +32,16 @@ extern "C"
 /// @brief  struct of private authorization data. 32 Byte
 typedef struct s5_auth_data_s
 {
-    unsigned char           name[USERNAME_LENGTH];  /// 16 Byte
-    unsigned char           passwd[PASSWD_LENGTH];	/// 16 Byte
+    unsigned char  auth[32];
 } s5_auth_data_t;
 
-/// @brief struct of private authorization. 8 Byte
+/// @brief struct of private authorization. 16 Byte
 typedef struct s5_auth_info_s
 {
-    uint32_t            magic;                  /// 4 Byte
-    unsigned char       msg_type;               /// 1 Byte
-    unsigned char       msg_errcode;            /// 1 Byte
-    unsigned short      reserved;               /// 2 Byte
+    uint32_t   magic; 
+    unsigned char typ; 
+    unsigned char code; 
+    unsigned char reserved[10];
 } s5_auth_info_t;
 
 

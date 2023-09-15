@@ -12,7 +12,7 @@ DEPEND_OBJS     +=      $(PROJDIR)/app/libapp.a
 DEPEND_OBJS     +=      $(PROJDIR)/test/libtest.a
 
 DIR_BIN         +=      .
-APP_BIN         +=      lks5
+APP_BIN         +=      s5
 
 LD_FLAGS 	+= -lcrypto -lssl -lpthread -lm
 

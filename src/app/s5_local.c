@@ -38,13 +38,13 @@ static status s5_local_auth_recv( event_t * ev )
             break;
         }
 
-        if( S5_MSG_LOGIN_RESP != header->msg_type ) {
-            err("s5 auth, msg type [0x%x] incorrect, not S5_MSG_LOGIN_RESP [0x%x]\n", header->msg_type, S5_MSG_LOGIN_RESP );
+        if( S5_MSG_LOGIN_RESP != header->typ ) {
+            err("s5 auth, msg type [0x%x] incorrect, not S5_MSG_LOGIN_RESP [0x%x]\n", header->typ, S5_MSG_LOGIN_RESP );
             break;
         }
 
-        if( S5_ERR_SUCCESS != header->msg_errcode ) {
-            err("s5 auth, msg errcode [0x%x] incorrect. shoud be success [0x%x] %x\n", header->msg_errcode, S5_ERR_SUCCESS );
+        if( S5_ERR_SUCCESS != header->code ) {
+            err("s5 auth, msg errcode [0x%x] incorrect. shoud be success [0x%x] %x\n", header->code, S5_ERR_SUCCESS );
             break;
         }
 
@@ -100,14 +100,13 @@ static status s5_local_auth_build( event_t * ev )
     meta->pos = meta->last = meta->start;
     header = (s5_auth_info_t*)meta->last;
     header->magic = S5_AUTH_MAGIC_NUM;
-    header->msg_type = S5_MSG_LOGIN_REQ;
-    header->msg_errcode = S5_ERR_SUCCESS;
+    header->typ = S5_MSG_LOGIN_REQ;
+    header->code = S5_ERR_SUCCESS;
     meta->last += sizeof(s5_auth_info_t);
 	
     /// fill in s5_auth_data_t
     payload = (s5_auth_data_t*)(meta->last);
-    strncpy( (char*)payload->name, config_get()->s5_local_usrname, sizeof(payload->name) );
-    strncpy( (char*)payload->passwd, config_get()->s5_local_passwd, sizeof(payload->passwd) );
+    strncpy( (char*)payload->auth, config_get()->s5_local_auth, sizeof(payload->auth) );
     meta->last += sizeof(s5_auth_data_t);
 
     /// goto send s5 private authorization login request
@@ -115,7 +114,7 @@ static status s5_local_auth_build( event_t * ev )
     return ev->write_pt( ev );
 }
 
-static status socks5_local_up_connect_ssl( event_t * ev )
+static status s5_local_up_connect_ssl( event_t * ev )
 {
     connection_t* up = ev->data;
     socks5_cycle_t * cycle = up->data;
@@ -136,7 +135,7 @@ static status socks5_local_up_connect_ssl( event_t * ev )
     return ev->write_pt( ev );
 }
 
-static status socks5_local_up_connect_check( event_t * ev )
+static status s5_local_up_connect_check( event_t * ev )
 {
     connection_t* up = ev->data;
     socks5_cycle_t * cycle = up->data;
@@ -165,13 +164,13 @@ static status socks5_local_up_connect_check( event_t * ev )
                     err("s5 local ssl handshake failed\n");
                     break;
                 }
-                up->ssl->cb = socks5_local_up_connect_ssl;
+                up->ssl->cb = s5_local_up_connect_ssl;
                 timer_set_data( &ev->timer, cycle );
                 timer_set_pt( &ev->timer, s5_timeout_cb );
                 timer_add( &ev->timer, S5_TIMEOUT );
                 return AGAIN;
             }
-            return socks5_local_up_connect_ssl( ev );
+            return s5_local_up_connect_ssl( ev );
         }
         ev->write_pt	= s5_local_auth_build;
         return ev->write_pt( ev );
@@ -181,12 +180,12 @@ static status socks5_local_up_connect_check( event_t * ev )
     return ERROR;
 }
 
-static inline void socks5_local_up_addr_get( struct sockaddr_in * addr )
+static inline void s5_local_up_addr_get( struct sockaddr_in * addr )
 {
 	memcpy( addr, &s5_serv_addr, sizeof(struct sockaddr_in) );
 }
 
-status socks5_local_accept_cb( event_t * ev )
+status s5_local_accept_cb( event_t * ev )
 {
     connection_t * down = ev->data;
     socks5_cycle_t * s5 = NULL;
@@ -224,16 +223,16 @@ status socks5_local_accept_cb( event_t * ev )
             err("cycle up alloc failed\n");
             break;
         }
-        s5->up->data		= s5;
+        s5->up->data = s5;
 
-        socks5_local_up_addr_get( &s5->up->addr );
+        s5_local_up_addr_get( &s5->up->addr );
         rc = net_connect( s5->up, &s5->up->addr );
         if( rc == ERROR ) {
             err("cycle up connect failed\n");
             break;
         }
         s5->up->event->read_pt	= NULL;
-        s5->up->event->write_pt	= socks5_local_up_connect_check;
+        s5->up->event->write_pt	= s5_local_up_connect_check;
         event_opt( s5->up->event, s5->up->fd, EV_W );
         if( rc == AGAIN ) {
             timer_set_data( &s5->up->event->timer, s5 );

@@ -24,79 +24,93 @@ static status config_parse( char * str )
         cJSON * s5_local_port = cJSON_GetObjectItem( root, "s5_local_port" );
         cJSON * s5_local_serv_port = cJSON_GetObjectItem( root, "s5_local_serv_port" );
         cJSON * s5_local_serv_ip = cJSON_GetObjectItem( root, "s5_local_serv_ip" );
-        cJSON * s5_local_usrname = cJSON_GetObjectItem( root, "s5_local_usrname" );
-        cJSON * s5_local_passwd = cJSON_GetObjectItem( root, "s5_local_passwd" );
+        cJSON * s5_local_auth = cJSON_GetObjectItem( root, "s5_local_auth" );
 
         cJSON * http_arr = cJSON_GetObjectItem( root, "http_arr" );
         cJSON * https_arr = cJSON_GetObjectItem( root, "https_arr" );
         cJSON * http_home = cJSON_GetObjectItem( root, "http_home" );
         cJSON * http_index = cJSON_GetObjectItem( root, "http_index" );
 
-        if( sys_daemon )
+        if( sys_daemon ) {
             g_config.sys_daemon = sys_daemon->valueint;
-        if( sys_process )
+        }
+        if( sys_process ) {
             g_config.sys_process_num = sys_process->valueint;
-        if( sys_loglevel )
+        }
+        if( sys_loglevel ) {
             g_config.sys_log_level = sys_loglevel->valueint;
+        }
         pdbg("sys_daemon [%d]\n", g_config.sys_daemon );
         pdbg("sys_process [%d]\n", g_config.sys_process_num);
         pdbg("sys_log_level [%d]\n", g_config.sys_log_level);
 
 
-        if( ssl_crt_path )
+        if( ssl_crt_path ) {
             strncpy( g_config.ssl_crt_path, cJSON_GetStringValue(ssl_crt_path), sizeof(g_config.ssl_crt_path)-1 );
-        if( ssl_key_path )
+        }
+        if( ssl_key_path ) {
             strncpy( g_config.ssl_key_path, cJSON_GetStringValue(ssl_key_path), sizeof(g_config.ssl_key_path)-1 );
+        }
         pdbg("ssl_crt_path [%s]\n", g_config.ssl_crt_path );
         pdbg("ssl_key_path [%s]\n", g_config.ssl_key_path);
 
 
-        if(s5_mode)
-            g_config.s5_mode	= s5_mode->valueint;
-        if(s5_serv_port)
-            g_config.s5_serv_port	= s5_serv_port->valueint;
-        if(s5_serv_auth_path)
+        if(s5_mode) {
+            g_config.s5_mode = s5_mode->valueint;
+        }
+        if(s5_serv_port) {
+            g_config.s5_serv_port = s5_serv_port->valueint;
+        }
+        if(s5_serv_auth_path) {
             strncpy( g_config.s5_serv_auth_path, cJSON_GetStringValue(s5_serv_auth_path), sizeof(g_config.s5_serv_auth_path)-1 );
+        }
         pdbg("s5_mode [%d]\n", g_config.s5_mode );
         pdbg("s5_serv_port [%d]\n", g_config.s5_serv_port);
         pdbg("s5_serv_auth_path [%s]\n", g_config.s5_serv_auth_path);
 
 
-        if( s5_local_port )
+        if( s5_local_port ) {
             g_config.s5_local_port = s5_local_port->valueint;
-        if(s5_local_serv_port)
+        }
+        if(s5_local_serv_port) {
             g_config.s5_local_serv_port = s5_local_serv_port->valueint;
-        if(s5_local_serv_ip)
+        }
+        if(s5_local_serv_ip) {
             strncpy( g_config.s5_local_serv_ip, cJSON_GetStringValue(s5_local_serv_ip), sizeof(g_config.s5_local_serv_ip)-1 );
-        if(s5_local_usrname)
-            strncpy( g_config.s5_local_usrname, cJSON_GetStringValue(s5_local_usrname), sizeof(g_config.s5_local_usrname)-1 );
-        if(s5_local_passwd)
-            strncpy( g_config.s5_local_passwd, cJSON_GetStringValue(s5_local_passwd), sizeof(g_config.s5_local_passwd)-1 );
+        }
+        if(s5_local_auth) {
+            strncpy( g_config.s5_local_auth, cJSON_GetStringValue(s5_local_auth), sizeof(g_config.s5_local_auth)-1 );
+        }
         pdbg("s5_local_port [%d]\n", g_config.s5_local_port );
         pdbg("s5_local_serv_port [%d]\n", g_config.s5_local_serv_port );
         pdbg("s5_local_serv_ip [%s]\n", g_config.s5_local_serv_ip );
-        pdbg("s5_local_usrname [%s]\n", g_config.s5_local_usrname );
-        pdbg("s5_local_passwd [%s]\n", g_config.s5_local_passwd );
+        pdbg("s5_local_auth [%s]\n", g_config.s5_local_auth );
 
 
         if(http_arr) {
-            for(i = 0; i < cJSON_GetArraySize(http_arr); i ++)
-                g_config.http_arr[i]   = cJSON_GetArrayItem(http_arr, i)->valueint;
+            for(i = 0; i < cJSON_GetArraySize(http_arr); i ++) {
+                g_config.http_arr[i] = cJSON_GetArrayItem(http_arr, i)->valueint;
+            }
         }
         if(https_arr) {
-            for(i = 0; i < cJSON_GetArraySize(https_arr); i ++)
-                g_config.https_arr[i]   = cJSON_GetArrayItem(https_arr, i)->valueint;
+            for(i = 0; i < cJSON_GetArraySize(https_arr); i ++) {
+                g_config.https_arr[i] = cJSON_GetArrayItem(https_arr, i)->valueint;
+            }
         }
-        if(http_home)
+        if(http_home) {
             strncpy( g_config.http_home, cJSON_GetStringValue(http_home), sizeof(g_config.http_home)-1 );
-        if(http_index)
+        }
+        if(http_index) {
             strncpy( g_config.http_index, cJSON_GetStringValue(http_index), sizeof(g_config.http_index)-1 );
-        g_config.http_num   = cJSON_GetArraySize(http_arr);
-        for(i = 0; i < g_config.http_num; i ++)
+        }
+        g_config.http_num = cJSON_GetArraySize(http_arr);
+        for(i = 0; i < g_config.http_num; i ++) {
             pdbg("[%d]\n", g_config.http_arr[i] );
-        g_config.https_num   = cJSON_GetArraySize(https_arr);
-        for(i = 0; i < g_config.https_num; i ++)
+        }
+        g_config.https_num = cJSON_GetArraySize(https_arr);
+        for(i = 0; i < g_config.https_num; i ++) {
             pdbg("[%d]\n", g_config.https_arr[i] );
+        }
         pdbg("http_home [%s]\n", g_config.http_home );
         pdbg("http_index [%s]\n", g_config.http_index );
         
@@ -108,7 +122,7 @@ static status config_parse( char * str )
     return OK;
 }
 
-config_t * config_get(  )
+inline config_t * config_get(  )
 {
     return &g_config;
 }
@@ -128,7 +142,7 @@ status config_init ( void )
 
     memset( &fstat, 0, sizeof(struct stat) );
     do {
-        if( stat( L_PATH_CONFIG, &fstat ) < 0 ) {
+        if( stat( S5_PATH_CFG, &fstat ) < 0 ) {
             err("config stat file failed. [%d]\n", errno );
             break;
         }
@@ -138,7 +152,7 @@ status config_init ( void )
             pdbg("config alloc meta to storge failed. [%d]\n", errno );
             break;
         }
-        ffd = open( L_PATH_CONFIG, O_RDONLY );
+        ffd = open( S5_PATH_CFG, O_RDONLY );
         if( ffd <= 0 ) {
             pdbg("config open file failed. [%d]\n", errno );
             break;

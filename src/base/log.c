@@ -120,14 +120,14 @@ status log_init( void )
             break;
         }
 
-        log_ctx->log_fd_main = open( L_PATH_LOG_MAIN, O_CREAT|O_RDWR|O_APPEND, 0644 );
+        log_ctx->log_fd_main = open( S5_PATH_LOG_FILE_MAIN, O_CREAT|O_RDWR|O_APPEND, 0644 );
         if( log_ctx->log_fd_main <= 0 ) {
-            err( "open logfile [%s] failed, [%d]\n", L_PATH_LOG_MAIN, errno );
+            err( "open logfile [%s] failed, [%d]\n", S5_PATH_LOG_FILE_MAIN, errno );
             break;
         }
-        log_ctx->log_fd_access = open( L_PATH_LOG_ACCESS, O_CREAT|O_RDWR|O_APPEND, 0644 );
+        log_ctx->log_fd_access = open( S5_PATH_LOG_FILE_ACCESS, O_CREAT|O_RDWR|O_APPEND, 0644 );
         if( log_ctx->log_fd_access <= 0 ) {
-            err( "open logfile [%s] failed, [%d]\n", L_PATH_LOG_ACCESS, errno );
+            err( "open logfile [%s] failed, [%d]\n", S5_PATH_LOG_FILE_ACCESS, errno );
             break;
         }
         return OK;
