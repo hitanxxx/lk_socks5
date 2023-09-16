@@ -7,8 +7,7 @@ extern "C"
 #endif
 
 #if __linux__
-// default use select, not use epoll
-//#define EVENT_EPOLL
+#define EVENT_EPOLL
 #endif
 
 #include <stdio.h>
