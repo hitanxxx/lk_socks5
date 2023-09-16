@@ -20,7 +20,6 @@ typedef struct dns_ctx_s
 static dns_ctx_t * dns_ctx = NULL;
 
 
-
 static status dns_record_add( char * query, char * addr, int msec )
 {
     dns_cache_t * rdns = calloc(1, sizeof(dns_cache_t));
@@ -36,7 +35,7 @@ static status dns_record_add( char * query, char * addr, int msec )
     rdns->addr[3] = addr[3];
     rdns->expire_msec = systime_msec() + msec;
     queue_insert_tail( &dns_ctx->record_mng, &rdns->queue );
-    debug("dns cache add [%s]\n", query );
+    ///debug("dns cache add entry: [%s]. ttl [%d] msec\n", query, msec );
     return OK;
 }
 
@@ -45,33 +44,38 @@ status dns_record_find( char * query, char * out_addr )
     queue_t * q = queue_head( &dns_ctx->record_mng );
     queue_t * n = NULL;
     dns_cache_t * rdns = NULL;
-    int f_found = 0;
+    int found = 0;
     long long current_msec = systime_msec();
-    int ncache = 0;
-
-    if( queue_empty( &dns_ctx->record_mng ) ) return ERROR;
-    while( q != queue_tail(&dns_ctx->record_mng) ) {
     
+    if( queue_empty( &dns_ctx->record_mng ) ) {
+        return ERROR;
+    }
+
+    while( q != queue_tail(&dns_ctx->record_mng) ) {
         n = queue_next(q);
         
         rdns = ptr_get_struct( q, dns_cache_t, queue );
         if( current_msec < rdns->expire_msec ) {
+            /// not timeout, goto compare string      
     	    if( strcmp( rdns->query, query ) == 0 ) {	         
-                	out_addr[0] = rdns->addr[0];
+                if( out_addr ) {
+                    out_addr[0] = rdns->addr[0];
                 	out_addr[1] = rdns->addr[1];
                 	out_addr[2] = rdns->addr[2];
                 	out_addr[3] = rdns->addr[3];
-                	f_found = 1;
+                }
+            	found = 1;
     	    }
         } else {
+            /// find the list and delete timeout cache entry 
+            ///debug("dns cache del entry: [%s]\n", rdns->query );
             queue_remove( q );
             free(rdns);
         }
         
         q = n;
-	ncache ++;
     }
-    return ( f_found == 1 ? OK : ERROR );
+    return ( found == 1 ? OK : ERROR );
 }
 
 inline static char * dns_get_serv( )
@@ -163,8 +167,9 @@ static void dns_stop( dns_cycle_t * cycle, status rc )
 	}
 	
 	cycle->dns_status = rc;
-	if( cycle->cb )
-		cycle->cb( cycle->cb_data );
+	if( cycle->cb ) {
+        cycle->cb( cycle->cb_data );
+    }
 }
 
 inline static void dns_cycle_timeout( void * data )
@@ -242,16 +247,26 @@ status dns_response_process( dns_cycle_t * cycle )
 			cur++;
 			if( cur >= state_len ) {
 
+                unsigned int rttl = ntohl(cycle->answer.rdata->ttl);
+                unsigned short rtyp = ntohs( cycle->answer.rdata->type );
+                unsigned short rdatan = ntohs(cycle->answer.rdata->data_len);
+
 			    /// if this answer is a A TYPE answer (IPV4), return ok
-			    if( ntohs( cycle->answer.rdata->type ) == 0x0001 ) {
-			        dns_record_add( (char*)cycle->query, (char*)cycle->answer.rdata_data, systime_msec() + (1000*cycle->answer.rdata->ttl) );
+			    if( rtyp == 0x0001 ) {
+                    if( OK == dns_record_find( (char*)cycle->query, NULL ) ) {
+                        /// do nothing, record already in cache 
+                    } else {
+                        if( rttl > 0 && rdatan > 0 ) {
+        			        dns_record_add( (char*)cycle->query, (char*)cycle->answer.rdata_data, 1000*rttl );
+                        }
+                    }
 					return OK;
-				} else if ( ntohs( cycle->answer.rdata->type ) == 0x0005 ) {
-				    debug("dns answer type CNAME, ignore\n");
-				} else if ( ntohs( cycle->answer.rdata->type ) == 0x0002 ) {
-                    debug("dns answer type NAME SERVER, ignore\n");
-				} else if ( ntohs( cycle->answer.rdata->type ) == 0x000f ) {
-                    debug("dns answer type MAIL SERVER, ignore\n");
+				} else if ( rtyp == 0x0005 ) {
+				    ///debug("dns answer type CNAME, ignore\n");
+				} else if ( rtyp == 0x0002 ) {
+                    ///debug("dns answer type NAME SERVER, ignore\n");
+				} else if ( rtyp == 0x000f ) {
+                    ///debug("dns answer type MAIL SERVER, ignore\n");
 				}
 				state = STATE_NAME_START;
 				cur = 0;
@@ -389,12 +404,12 @@ static status dns_request_prepare( event_t * ev )
 
     /// fill in dns packet header 
     header = (dns_header_t*)meta->last;
-    header->id              = (unsigned short) htons( 0xbeef );
-    header->flag            = htons(0x100);
-    header->question_count  = htons(1);
-    header->answer_count    = 0;
-    header->auth_count      = 0;
-    header->add_count       = 0;
+    header->id = (unsigned short) htons( 0xbeef );
+    header->flag = htons(0x100);
+    header->question_count = htons(1);
+    header->answer_count = 0;
+    header->auth_count = 0;
+    header->add_count = 0;
     meta->last += sizeof(dns_header_t);
 
 	/// convert www.google.com -> 3www6google3com0
@@ -404,8 +419,8 @@ static status dns_request_prepare( event_t * ev )
 	
     qinfo = (dns_question_t*)meta->last;
     /// question type is IPV4
-    qinfo->qtype    = htons(0x0001);
-    qinfo->qclass   = htons(0x0001);
+    qinfo->qtype = htons(0x0001);
+    qinfo->qclass = htons(0x0001);
     meta->last += sizeof(dns_question_t);
 
 	event_opt( c->event, c->fd, EV_W );

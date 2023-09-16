@@ -106,7 +106,7 @@ static status s5_local_auth_build( event_t * ev )
 	
     /// fill in s5_auth_data_t
     payload = (s5_auth_data_t*)(meta->last);
-    strncpy( (char*)payload->auth, config_get()->s5_local_auth, sizeof(payload->auth) );
+    memcpy( (char*)payload->auth, config_get()->s5_local_auth, sizeof(payload->auth) );
     meta->last += sizeof(s5_auth_data_t);
 
     /// goto send s5 private authorization login request

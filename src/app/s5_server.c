@@ -118,7 +118,7 @@ static status s5_traffic_recv( event_t * ev )
     /// if meta remain data, goto send the data to up stream
 	if( down->meta->last > down->meta->pos ) {
 		event_opt( down->event, down->fd, down->event->opt & ~EV_R );
-		event_opt( up->event, up->fd, up->event->opt | EV_W );
+		event_opt( up->event, up->fd, up->event->opt|EV_W );
 		return up->event->write_pt( up->event );
 	}
 	return AGAIN;
@@ -162,7 +162,7 @@ static int s5_traffic_send( event_t * ev )
 
 	down->meta->last = down->meta->pos = down->meta->start;
 
-	event_opt( down->event, down->fd, down->event->opt | EV_R );
+	event_opt( down->event, down->fd, down->event->opt|EV_R );
 	event_opt( up->event, up->fd, up->event->opt & ~EV_W );
 	return down->event->read_pt( down->event );
 }
@@ -188,6 +188,7 @@ static status s5_traffic_back_recv( event_t * ev )
 			    err("s5 up recv error\n");
 				s5->recv_up_err = 1;
 			}
+			/// again
 			break;
 		}
 		up->meta->last += recvn;
@@ -203,7 +204,7 @@ static status s5_traffic_back_recv( event_t * ev )
 
 	if( up->meta->last > up->meta->pos ) {
 		event_opt( up->event, up->fd, up->event->opt & ~EV_R );
-		event_opt( down->event, down->fd, down->event->opt | EV_W );
+		event_opt( down->event, down->fd, down->event->opt|EV_W );
 		return down->event->write_pt( down->event );
 	}
 	return AGAIN;
@@ -247,7 +248,7 @@ static int s5_traffic_back_send( event_t * ev )
 	up->meta->last = up->meta->pos = up->meta->start;
 
 	event_opt( down->event, down->fd, down->event->opt & ~EV_W );
-	event_opt( up->event, up->fd, up->event->opt | EV_R );
+	event_opt( up->event, up->fd, up->event->opt|EV_R );
 	return up->event->read_pt( up->event );
 }
 
