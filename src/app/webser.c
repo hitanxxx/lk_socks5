@@ -801,7 +801,7 @@ static status webser_transfer_to_s5( event_t * ev )
     do {
         s5_auth_info_t * header = (s5_auth_info_t*)meta->pos;
         
-        if( S5_AUTH_MAGIC_NUM != header->magic ) {
+        if( S5_AUTH_MAGIC_NUM != ntohl( header->magic ) ) {
             // magic number not match, goto http/https process
             break;
         }

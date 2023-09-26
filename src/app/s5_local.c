@@ -6,56 +6,6 @@
 static struct sockaddr_in s5_serv_addr;
 
 
-static status s5_local_auth_recv( event_t * ev )
-{
-    connection_t* up = ev->data;
-    socks5_cycle_t * s5 = up->data;
-    meta_t * meta = s5->down->meta;
-    ssize_t rc = 0;
-
-    while( meta_len( meta->pos, meta->last ) < sizeof(s5_auth_info_t) ) {
-        rc = up->recv( up, meta->last, meta_len( meta->last, meta->end ) );
-        if( rc < 0 ) {
-            if( rc == ERROR ) {
-                err("s5 local authorization recv failed\n");
-                s5_free( s5 );
-                return ERROR;
-            }
-            timer_set_data( &ev->timer, s5 );
-            timer_set_pt(&ev->timer, s5_timeout_cb );
-            timer_add( &ev->timer, S5_TIMEOUT );
-            return AGAIN;
-        }
-        meta->last += rc;
-    }
-    timer_del( &ev->timer );
-
-	do {
-        s5_auth_info_t * header = (s5_auth_info_t*) meta->pos;
-
-        if( S5_AUTH_MAGIC_NUM != header->magic ) {
-            err("s5 auth, magic [0x%x] incorrect, should be [0x%x]\n", header->magic, S5_AUTH_MAGIC_NUM );
-            break;
-        }
-
-        if( S5_MSG_LOGIN_RESP != header->typ ) {
-            err("s5 auth, msg type [0x%x] incorrect, not S5_MSG_LOGIN_RESP [0x%x]\n", header->typ, S5_MSG_LOGIN_RESP );
-            break;
-        }
-
-        if( S5_ERR_SUCCESS != header->code ) {
-            err("s5 auth, msg errcode [0x%x] incorrect. shoud be success [0x%x] %x\n", header->code, S5_ERR_SUCCESS );
-            break;
-        }
-
-        ev->read_pt	= s5_traffic_process;
-        ev->write_pt = NULL;
-        return ev->read_pt( ev );
-    } while(0);
-
-   	s5_free( s5 );
-    return ERROR;
-}
 
 static status s5_local_auth_send( event_t * ev )
 {
@@ -81,9 +31,9 @@ static status s5_local_auth_send( event_t * ev )
     /// reset the meta
     meta->pos = meta->last = meta->start;
 
+    /// goto start s5 transport
+    ev->read_pt	= s5_traffic_process;
     ev->write_pt = NULL;
-    ev->read_pt = s5_local_auth_recv;
-    event_opt( ev, up->fd, EV_R );
     return ev->read_pt( ev );
 }
 
@@ -99,13 +49,14 @@ static status s5_local_auth_build( event_t * ev )
     /// fill in s5_auth_info_t
     meta->pos = meta->last = meta->start;
     header = (s5_auth_info_t*)meta->last;
-    header->magic = S5_AUTH_MAGIC_NUM;
+    header->magic = htonl(S5_AUTH_MAGIC_NUM);
     header->typ = S5_MSG_LOGIN_REQ;
     header->code = S5_ERR_SUCCESS;
     meta->last += sizeof(s5_auth_info_t);
 	
     /// fill in s5_auth_data_t
     payload = (s5_auth_data_t*)(meta->last);
+    memset( payload->auth, 0, sizeof(payload->auth) );
     memcpy( (char*)payload->auth, config_get()->s5_local_auth, sizeof(payload->auth) );
     meta->last += sizeof(s5_auth_data_t);
 

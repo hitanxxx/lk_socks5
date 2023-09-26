@@ -26,40 +26,37 @@ extern "C"
 #define S5_RFC_DOMAIN       0x3
 
 
-/// struct 1-Byte alignment
-#pragma pack(push,1)
-
 /// @brief  struct of private authorization data. 32 Byte
-typedef struct s5_auth_data_s
+typedef struct __attribute__((packed)) s5_auth_data_s
 {
     unsigned char  auth[32];
-} s5_auth_data_t;
+} s5_auth_data_t ;
 
 /// @brief struct of private authorization. 16 Byte
-typedef struct s5_auth_info_s
+typedef struct __attribute__((packed)) s5_auth_info_s
 {
     uint32_t   magic; 
     unsigned char typ; 
     unsigned char code; 
     unsigned char reserved[10];
-} s5_auth_info_t;
+} s5_auth_info_t ;
 
 
-typedef struct s5_rfc_phase1_req_s
+typedef struct __attribute__((packed)) s5_rfc_phase1_req_s
 {
     unsigned char       ver;
     unsigned char       methods_n;
     unsigned char       methods_cnt;
     unsigned char       methods[255];
-} s5_rfc_phase1_req_t;
+} s5_rfc_phase1_req_t ;
 
-typedef struct s5_rfc_phase1_resp_s
+typedef struct __attribute__((packed)) s5_rfc_phase1_resp_s
 {
     unsigned char       ver;
     unsigned char       method;
-} s5_rfc_phase1_resp_t;
+} s5_rfc_phase1_resp_t ;
 
-typedef struct s5_rfc_phase2_req_s
+typedef struct __attribute__((packed)) s5_rfc_phase2_req_s
 {
     unsigned char       ver;
     unsigned char       cmd;
@@ -69,9 +66,9 @@ typedef struct s5_rfc_phase2_req_s
     unsigned char       dst_addr_cnt;
     unsigned char       dst_addr[DOMAIN_LENGTH];
     unsigned char       dst_port[2];
-} s5_rfc_phase2_req_t;
+} s5_rfc_phase2_req_t ;
 
-typedef struct s5_rfc_phase2_resp_s
+typedef struct __attribute__((packed)) s5_rfc_phase2_resp_s
 {
     unsigned char       ver;
     unsigned char       rep;
@@ -79,9 +76,8 @@ typedef struct s5_rfc_phase2_resp_s
     unsigned char       atyp;
     unsigned int        bnd_addr;
     unsigned short      bnd_port;
-} s5_rfc_phase2_resp_t;
+} s5_rfc_phase2_resp_t ;
 
-#pragma pack(pop)
 
 
 typedef struct 

@@ -93,7 +93,8 @@ static status s5_traffic_recv( event_t * ev )
     timer_set_pt( &ev->timer, s5_timeout_cb );
     timer_add( &ev->timer, S5_TIMEOUT );
 
-    /// try to recv down stream data unit meta full
+
+	/// try recv if have space
 	while( down->meta->end > down->meta->last ) {
 		recvn = down->recv( down, down->meta->last, down->meta->end - down->meta->last );
 		if( recvn < 0 ) {
@@ -101,27 +102,23 @@ static status s5_traffic_recv( event_t * ev )
 			    err("s5 down recv error\n");
 				s5->recv_down_err = 1;
 			}
-            /// again
+            /// means again
 			break;
 		}
 		down->meta->last += recvn;
 	}
 
-    /// if meta is empty and down recv error happend, then goto stop the s5 transport
-	if( down->meta->pos == down->meta->last && s5->recv_down_err == 1 ) {
-	    err("s5 down error. meta clear. goto free\n");
-	    event_opt( down->event, down->fd, EV_NONE );
-        event_opt( up->event, up->fd, EV_NONE );
-		s5_free(s5);
-		return ERROR;
-	}
-    /// if meta remain data, goto send the data to up stream
 	if( down->meta->last > down->meta->pos ) {
 		event_opt( down->event, down->fd, down->event->opt & ~EV_R );
 		event_opt( up->event, up->fd, up->event->opt|EV_W );
-		return up->event->write_pt( up->event );
+		return up->event->write_pt(up->event);
+	} else {
+		if( s5->recv_down_err == 1 ) {
+			s5_free(s5);
+			return ERROR;
+		}
+		return AGAIN;
 	}
-	return AGAIN;
 }
 
 
@@ -152,19 +149,15 @@ static int s5_traffic_send( event_t * ev )
 	}
 
 	if( s5->recv_down_err == 1 ) {
-	    err("s5 free, down already error, close down and up event.\n");
-        
-        event_opt( down->event, down->fd, EV_NONE );
-        event_opt( up->event, up->fd, EV_NONE );
+	    err("s5 up send, down already error\n");
 		s5_free(s5);
 		return ERROR;
+	} else {
+		down->meta->last = down->meta->pos = down->meta->start;
+		event_opt( up->event, up->fd, up->event->opt & ~EV_W );
+		event_opt( down->event, down->fd, down->event->opt|EV_R );
+		return down->event->read_pt( down->event );			
 	}
-
-	down->meta->last = down->meta->pos = down->meta->start;
-
-	event_opt( down->event, down->fd, down->event->opt|EV_R );
-	event_opt( up->event, up->fd, up->event->opt & ~EV_W );
-	return down->event->read_pt( down->event );
 }
 
 
@@ -188,26 +181,22 @@ static status s5_traffic_back_recv( event_t * ev )
 			    err("s5 up recv error\n");
 				s5->recv_up_err = 1;
 			}
-			/// again
 			break;
 		}
 		up->meta->last += recvn;
-	}
-
-	if( up->meta->pos == up->meta->last && s5->recv_up_err == 1 ) {
-	    err("s5 up error. meta clear. goto free\n");
-	    event_opt( down->event, down->fd, EV_NONE );
-        event_opt( up->event, up->fd, EV_NONE );
-		s5_free(s5);
-		return ERROR;
 	}
 
 	if( up->meta->last > up->meta->pos ) {
 		event_opt( up->event, up->fd, up->event->opt & ~EV_R );
 		event_opt( down->event, down->fd, down->event->opt|EV_W );
 		return down->event->write_pt( down->event );
+	} else {
+		if( s5->recv_up_err == 1 ) {
+			s5_free(s5);
+			return ERROR;
+		}
+		return AGAIN;
 	}
-	return AGAIN;
 }
 
 static int s5_traffic_back_send( event_t * ev )
@@ -238,18 +227,15 @@ static int s5_traffic_back_send( event_t * ev )
 	}
 
 	if( s5->recv_up_err == 1 ) {
-	    err("s5 free, up already error. close down and up event.\n");
-        event_opt( down->event, down->fd, EV_NONE );
-        event_opt( up->event, up->fd, EV_NONE );
+	    err("s5 down send, up already error\n");
 		s5_free(s5);
 		return ERROR;
+	} else {
+		up->meta->last = up->meta->pos = up->meta->start;		
+		event_opt( down->event, down->fd, down->event->opt & ~EV_W );
+		event_opt( up->event, up->fd, up->event->opt|EV_R );
+		return up->event->read_pt( up->event );
 	}
-
-	up->meta->last = up->meta->pos = up->meta->start;
-
-	event_opt( down->event, down->fd, down->event->opt & ~EV_W );
-	event_opt( up->event, up->fd, up->event->opt|EV_R );
-	return up->event->read_pt( up->event );
 }
 
 
@@ -728,6 +714,9 @@ static status s5_server_rfc_phase1_send( event_t * ev )
 	            s5_free(s5);
 	            return ERROR;
 	        }
+            if( ev->opt != EV_W ) {
+                event_opt( ev, down->fd, EV_W );
+            }
 	        timer_set_data( &ev->timer, down );
 	        timer_set_pt( &ev->timer, s5_timeout_cb );
 	        timer_add( &ev->timer, S5_TIMEOUT );
@@ -742,7 +731,6 @@ static status s5_server_rfc_phase1_send( event_t * ev )
 	/// goto recv phase2 request
     ev->read_pt	= s5_server_rfc_phase2_recv;
     ev->write_pt = NULL;
-    event_opt( ev, down->fd, EV_R );
     return ev->read_pt( ev );
 }
 
@@ -796,14 +784,16 @@ static status s5_server_rfc_phase1_recv( event_t * ev )
                 continue;
             }
             if( s5->state == s_methods ) {
-                s5->phase1.methods[(int)s5->phase1.methods_cnt++] = *p;
+                s5->phase1.methods[s5->phase1.methods_cnt++] = *p;
                 if( s5->phase1.methods_n == s5->phase1.methods_cnt ) {
                     /// rfc2918 socks5 protocol phase1 request packet recv finish
                     timer_del( &ev->timer );
-                    /// reset the meta
-					meta->pos = meta->last = meta->start;
+
                     /// reset the state 
                     s5->state = 0;
+                    /// reset the meta
+					meta->pos = meta->last = meta->start;
+                    
                     /// build the phase1 response
 					s5_rfc_phase1_resp_t * resp = ( s5_rfc_phase1_resp_t* ) meta->pos;
 					resp->ver = 0x05;
@@ -813,7 +803,6 @@ static status s5_server_rfc_phase1_recv( event_t * ev )
 					/// goto send phase1 response
                     ev->read_pt = NULL;
 				    ev->write_pt = s5_server_rfc_phase1_send;
-				    event_opt( ev, down->fd, EV_W );
 				    return ev->write_pt( ev );
                 }
             }
@@ -821,52 +810,18 @@ static status s5_server_rfc_phase1_recv( event_t * ev )
     }
 }
 
-static status s5_server_auth_send( event_t * ev )
-{
-    connection_t * down = ev->data;
-    socks5_cycle_t * s5 = down->data;
-    status rc;
-	meta_t * meta = down->meta;
- 
-	while( meta->last - meta->pos > 0 ) {
-		rc = down->send( down, meta->pos, meta->last - meta->pos );
-		if( rc < 0 ) {
-	        if( rc == ERROR ) {
-	            err("s5 server auth resp send failed\n");
-	            s5_free(s5);
-	            return ERROR;
-	        }
-	        timer_set_data( &ev->timer, down );
-	        timer_set_pt( &ev->timer, s5_timeout_cb );
-	        timer_add( &ev->timer, S5_TIMEOUT );
-	        return AGAIN;
-	    }
-		meta->pos += rc;
-	}
-    timer_del( &ev->timer );
-    /// send auth resp finish, reset the meta
-	meta->pos = meta->last = meta->start;
-    /// goto recv the packet addording to the RFC1928 socks5 protocol
-	
-	ev->write_pt = NULL;
-	ev->read_pt = s5_server_rfc_phase1_recv;
-  	event_opt( ev, down->fd, EV_R );
-    return ev->read_pt( ev );
-}
-
 static status s5_server_auth_recv_payload( event_t * ev )
 {
     connection_t * down = ev->data;
     socks5_cycle_t * s5 = down->data;
     meta_t * meta = down->meta;
-    int err_code = S5_ERR_SUCCESS;
     ssize_t rc = 0;
     
     while( (meta->last - meta->pos) < sizeof(s5_auth_data_t) ) {
         rc = down->recv( down, meta->last, meta->end - meta->last );
         if( rc < 0 ) {
             if( ERROR == rc ) {
-                err("s5 server authorizaton check header recv failed\n");
+                err("s5 auth check header recv failed\n");
                 s5_free(s5);
                 return ERROR;
             }
@@ -879,36 +834,19 @@ static status s5_server_auth_recv_payload( event_t * ev )
     }
     timer_del( &ev->timer );
 
-    do {
-        s5_auth_data_t * payload = (s5_auth_data_t*) meta->pos;
-
-        if(  OK != s5_serv_usr_obj_find( (char*)payload->auth ) ) {
-            /// if auth user not find
-		    err("s5 pri, auth not found\n", payload->auth );
-		    err_code = S5_ERR_AUTH;
-		}
-    } while(0);
-
-    if( err_code != S5_ERR_SUCCESS ) {
-        err("s5 auth check payload failed\n");
-        s5_free( s5 );
-        return ERROR;
+    /// check auto data
+    s5_auth_data_t * auth_payload = (s5_auth_data_t*) meta->pos;
+    if( OK != s5_serv_usr_obj_find( (char*)auth_payload->auth ) ) {
+        err("s5 auth check authdata failed. not found\n");
+        s5_free(s5);
     }
+
     /// reset the meta 
     meta->pos = meta->last = meta->start;
-    /// fix the meta with s5_auth_info_t for response
-    s5_auth_info_t * header = (s5_auth_info_t*)meta->pos;
-    header->magic = S5_AUTH_MAGIC_NUM;
-    header->typ = S5_MSG_LOGIN_RESP;
-    header->code = err_code;
-    meta->last += sizeof(s5_auth_info_t);
-
-    /// goto send auth resp
-    
-    ev->read_pt = NULL;
-    ev->write_pt = s5_server_auth_send;
-    event_opt( ev, down->fd, EV_W );
-    return ev->write_pt( ev );
+    ev->write_pt = NULL;
+	ev->read_pt = s5_server_rfc_phase1_recv;
+  	event_opt( ev, down->fd, EV_R );
+    return ev->read_pt( ev );
 }
 
 static status s5_server_auth_recv_header( event_t * ev )
@@ -940,7 +878,7 @@ static status s5_server_auth_recv_header( event_t * ev )
 	// check the auth header
     do {
         s5_auth_info_t * header = (s5_auth_info_t*)meta->pos;
-        if( header->magic != S5_AUTH_MAGIC_NUM ) {
+        if( ntohl( header->magic ) != S5_AUTH_MAGIC_NUM ) {
             err("s5 pri, magic [0x%x] incorrect, should be S5_AUTH_MAGIC_NUM [0x%x]\n", header->magic, S5_AUTH_MAGIC_NUM );
 			err_code = S5_ERR_MAGIC;
         }
