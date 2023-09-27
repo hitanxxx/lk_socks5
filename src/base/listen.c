@@ -8,7 +8,7 @@
 
 mem_arr_t * listens = NULL;
 
-static status listen_add( uint32 port, listen_pt handler, uint32 type )
+static status listen_add( unsigned short port, listen_pt handler, unsigned char type )
 {
 	listen_t *  p = mem_arr_push( listens );
 	if( !p )  {
@@ -23,9 +23,10 @@ static status listen_add( uint32 port, listen_pt handler, uint32 type )
 
 static status listen_open( listen_t * listens )
 {
-	listens->server_addr.sin_family 		= AF_INET;
-	listens->server_addr.sin_port 			= htons( (uint16_t)listens->port );
-	listens->server_addr.sin_addr.s_addr 	= htonl( INADDR_ANY );
+    /// listen must be tcp
+	listens->server_addr.sin_family = AF_INET;
+	listens->server_addr.sin_port = htons( listens->port );
+	listens->server_addr.sin_addr.s_addr = htonl( INADDR_ANY );
 
 	do {
 		listens->fd = socket( AF_INET, SOCK_STREAM, 0 );
@@ -125,17 +126,21 @@ status listen_init( void )
     }
 
     // s5 local listen
-    if( config_get()->s5_mode == SOCKS5_CLIENT )
-        listen_add( config_get()->s5_local_port, s5_local_accept_cb, L_NOSSL );
+    if( config_get()->s5_mode == SOCKS5_CLIENT ) {
+        listen_add( config_get()->s5_local_port, s5_local_accept_cb, S5_SSL );
+    }
     // s5 server listen
-    if( config_get()->s5_mode == SOCKS5_SERVER )
-        listen_add( config_get()->s5_serv_port, s5_server_accept_cb, L_SSL );
+    if( config_get()->s5_mode == SOCKS5_SERVER ) {
+        listen_add( config_get()->s5_serv_port, s5_server_accept_cb, S5_SSL );
+    }
     // webserver listen
-    for( i = 0; i < config_get()->http_num; i ++ )
-        listen_add( config_get()->http_arr[i], webser_accept_cb, L_NOSSL );
+    for( i = 0; i < config_get()->http_num; i ++ ) {
+        listen_add( config_get()->http_arr[i], webser_accept_cb, S5_NOSSL );
+    }
     // webserver ssl listen
-    for( i = 0; i < config_get()->https_num; i ++ )
-        listen_add( config_get()->https_arr[i], webser_accept_cb_ssl, L_SSL );
+    for( i = 0; i < config_get()->https_num; i ++ ) {
+        listen_add( config_get()->https_arr[i], webser_accept_cb_ssl, S5_SSL );
+    }
 
     if( OK != listen_start() ) {
 		err("listen start failed\n");

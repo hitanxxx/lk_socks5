@@ -65,7 +65,7 @@ static status config_parse( char * str )
             strncpy( g_config.s5_serv_auth_path, cJSON_GetStringValue(s5_serv_auth_path), sizeof(g_config.s5_serv_auth_path)-1 );
         }
         pdbg("s5_mode [%d]\n", g_config.s5_mode );
-        pdbg("s5_serv_port [%d]\n", g_config.s5_serv_port);
+        pdbg("s5_serv_port [%hd]\n", g_config.s5_serv_port);
         pdbg("s5_serv_auth_path [%s]\n", g_config.s5_serv_auth_path);
 
 
@@ -81,8 +81,8 @@ static status config_parse( char * str )
         if(s5_local_auth) {
             strncpy( g_config.s5_local_auth, cJSON_GetStringValue(s5_local_auth), sizeof(g_config.s5_local_auth)-1 );
         }
-        pdbg("s5_local_port [%d]\n", g_config.s5_local_port );
-        pdbg("s5_local_serv_port [%d]\n", g_config.s5_local_serv_port );
+        pdbg("s5_local_port [%hd]\n", g_config.s5_local_port );
+        pdbg("s5_local_serv_port [%hd]\n", g_config.s5_local_serv_port );
         pdbg("s5_local_serv_ip [%s]\n", g_config.s5_local_serv_ip );
         pdbg("s5_local_auth [%s]\n", g_config.s5_local_auth );
 
@@ -105,11 +105,11 @@ static status config_parse( char * str )
         }
         g_config.http_num = cJSON_GetArraySize(http_arr);
         for(i = 0; i < g_config.http_num; i ++) {
-            pdbg("[%d]\n", g_config.http_arr[i] );
+            pdbg("[%hd]\n", g_config.http_arr[i] );
         }
         g_config.https_num = cJSON_GetArraySize(https_arr);
         for(i = 0; i < g_config.https_num; i ++) {
-            pdbg("[%d]\n", g_config.https_arr[i] );
+            pdbg("[%hd]\n", g_config.https_arr[i] );
         }
         pdbg("http_home [%s]\n", g_config.http_home );
         pdbg("http_index [%s]\n", g_config.http_index );

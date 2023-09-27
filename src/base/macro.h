@@ -78,6 +78,11 @@ extern "C"
 #define LF	0xa
 #define SP	0x20
 
+
+#define S5_SSL		0x1
+#define S5_NOSSL    0x2
+
+
 enum connection_type 
 {
 	TYPE_TCP = 0x1,

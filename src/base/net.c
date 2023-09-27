@@ -223,7 +223,7 @@ status net_accept( event_t * ev )
 		c->send = sends;
 		c->recv_chain = NULL;
 		c->send_chain = send_chains;
-		c->ssl_flag = (listen->type == L_SSL ) ? 1 : 0;
+		c->ssl_flag = ( listen->type == S5_SSL ) ? 1 : 0;
 
 		c->event->read_pt = listen->handler;
 		c->event->write_pt = NULL;
@@ -248,6 +248,7 @@ static status net_free_cb( event_t * ev )
         mem_page_free( c->page );
         c->page = NULL;
     }
+    /// meta memory form page 
 	c->meta = NULL;
 	if( c->fd ) {
 		close( c->fd );

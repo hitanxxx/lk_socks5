@@ -84,6 +84,8 @@ typedef struct
 {
     queue_t  queue;
     int state;
+    char typ;   // client, server, server screct
+    
     s5_rfc_phase1_req_t phase1;
     s5_rfc_phase2_req_t phase2;
 

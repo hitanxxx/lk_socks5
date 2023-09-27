@@ -7,8 +7,6 @@ extern "C"
 #endif
     
 
-#define L_SSL		0x01
-#define L_NOSSL		0x02
 
 extern mem_arr_t * listens;
 
@@ -17,8 +15,8 @@ typedef struct listen_t {
 	queue_t				queue;
 	int32				fd;
 	
-	uint32 				port;
-	uint32				type;
+	unsigned short 				port;
+	unsigned char				type;
 
 	listen_pt			handler;
 

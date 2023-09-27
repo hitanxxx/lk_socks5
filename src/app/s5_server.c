@@ -3,8 +3,6 @@
 #include "s5_local.h"
 #include "s5_server.h"
 
-#define S5_USER_NAME_MAX		16
-#define S5_USER_PASSWD_MAX		16
 #define S5_USER_AUTH_FILE_LEN  (4*1024)
 
 typedef struct s5_user {
@@ -241,21 +239,10 @@ static int s5_traffic_back_send( event_t * ev )
 
 status s5_traffic_process( event_t * ev )
 {
-	/*
-	 when client mode, connection means upstream
-	 when server mode, connection means downstream 
-	*/
-
     connection_t * c = ev->data;
     socks5_cycle_t * s5 = c->data;
 	connection_t * down = s5->down;
 	connection_t * up = s5->up;
-
-    s5->down->event->read_pt = s5_traffic_recv;
-	s5->up->event->write_pt	= s5_traffic_send;
-	
-    s5->up->event->read_pt = s5_traffic_back_recv;
-	s5->down->event->write_pt = s5_traffic_back_send;
 
 	// init down stream traffic buffer
 	if( !down->page ) {
@@ -290,13 +277,18 @@ status s5_traffic_process( event_t * ev )
         }
 	}
 
-	// init cache buffer
-	down->meta->pos = down->meta->last = down->meta->start;
+    /// only clear up meta buffer
 	up->meta->pos = up->meta->last = up->meta->start;
-	/// set down stream to read, up stream to read
+
+    /// set read&write callbacks 
+	s5->down->event->read_pt = s5_traffic_recv;
+	s5->up->event->write_pt	= s5_traffic_send;
+	
+    s5->up->event->read_pt = s5_traffic_back_recv;
+	s5->down->event->write_pt = s5_traffic_back_send;
+    
     event_opt( s5->up->event, s5->up->fd, EV_R );	
     event_opt( s5->down->event, s5->down->fd, EV_R );
-	
     return s5->down->event->read_pt( s5->down->event );
 }
 
@@ -911,8 +903,8 @@ static status s5_server_start( event_t * ev )
         net_free( down );
         return ERROR;
     }
-    s5->down 	= down;
-    down->data  = s5;
+    s5->down = down;
+    down->data = s5;
 
 	if( !down->page ) {
         if( OK != mem_page_create(&down->page, L_PAGE_DEFAULT_SIZE) ) {

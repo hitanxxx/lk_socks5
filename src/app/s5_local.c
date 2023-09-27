@@ -11,7 +11,7 @@ static status s5_local_auth_send( event_t * ev )
 {
     connection_t* up = ev->data;
     socks5_cycle_t * s5 = up->data;
-    meta_t * meta = s5->down->meta;
+    meta_t * meta = s5->up->meta;
     status rc = 0;
 
     rc = up->send_chain( up, meta );
@@ -31,17 +31,16 @@ static status s5_local_auth_send( event_t * ev )
     /// reset the meta
     meta->pos = meta->last = meta->start;
 
-    /// goto start s5 transport
-    ev->read_pt	= s5_traffic_process;
-    ev->write_pt = NULL;
-    return ev->read_pt( ev );
+    s5->down->event->read_pt = s5_traffic_process;
+    s5->down->event->write_pt = NULL;
+    return s5->down->event->read_pt( s5->down->event );
 }
 
 static status s5_local_auth_build( event_t * ev )
 {
     connection_t* up = ev->data;
     socks5_cycle_t * s5 = up->data;
-    meta_t * meta = s5->down->meta;
+    meta_t * meta = s5->up->meta;
 
     s5_auth_info_t * header = NULL;
     s5_auth_data_t * payload = NULL;
@@ -64,6 +63,12 @@ static status s5_local_auth_build( event_t * ev )
     ev->write_pt = s5_local_auth_send;
     return ev->write_pt( ev );
 }
+
+static inline void s5_local_up_addr_get( struct sockaddr_in * addr )
+{
+	memcpy( addr, &s5_serv_addr, sizeof(struct sockaddr_in) );
+}
+
 
 static status s5_local_up_connect_ssl( event_t * ev )
 {
@@ -101,9 +106,7 @@ static status s5_local_up_connect_check( event_t * ev )
         net_socket_nodelay( up->fd );
         
         /// must use ssl connect s5 server !!!
-        cycle->up->ssl_flag  = 1;
-
-        
+        up->ssl_flag = 1;        
         if( up->ssl_flag ) {
             if( OK != ssl_create_connection( up, L_SSL_CLIENT ) ) {
                 err("s5 local create ssl connection for up failed\n");
@@ -123,7 +126,7 @@ static status s5_local_up_connect_check( event_t * ev )
             }
             return s5_local_up_connect_ssl( ev );
         }
-        ev->write_pt	= s5_local_auth_build;
+        ev->write_pt = s5_local_auth_build;
         return ev->write_pt( ev );
     } while(0);
 
@@ -131,9 +134,38 @@ static status s5_local_up_connect_check( event_t * ev )
     return ERROR;
 }
 
-static inline void s5_local_up_addr_get( struct sockaddr_in * addr )
+static status s5_local_down_recv( event_t * ev )
 {
-	memcpy( addr, &s5_serv_addr, sizeof(struct sockaddr_in) );
+    /// cache read data
+    connection_t * down = ev->data;
+    socks5_cycle_t * s5 = down->data;
+    meta_t * meta = down->meta;
+    int readn = 0;
+
+    while( 1 ) {
+
+        /// check meta remain space
+        if( meta->end <= meta->last ) {
+            err("s5 local down recv cache data too much\n");
+            s5_free(s5);
+            return ERROR;
+        }
+
+        /// cache read data
+        readn = down->recv( down, meta->last, meta->end - meta->last );
+        if( readn < 0 ) {
+            if( readn == ERROR ) {
+                err("s5 local down recv failed\n");
+                s5_free(s5);
+                return ERROR;
+            }
+            timer_set_data( &s5->up->event->timer, s5 );
+            timer_set_pt( &s5->up->event->timer, s5_timeout_cb );
+            timer_add( &s5->up->event->timer, S5_TIMEOUT );
+            return AGAIN;
+        }
+        meta->last += readn;
+    }
 }
 
 status s5_local_accept_cb( event_t * ev )
@@ -142,39 +174,54 @@ status s5_local_accept_cb( event_t * ev )
     socks5_cycle_t * s5 = NULL;
     status rc;
 
-    down->event->read_pt = NULL;
+    down->event->read_pt = s5_local_down_recv;
     down->event->write_pt = NULL;
-    // make down event invalidate, wait up connect server success
-    event_opt( down->event, down->fd, EV_NONE );
+    event_opt( down->event, down->fd, EV_R );
 
     do {
-        if( OK != s5_alloc( &s5 ) ) {
-            err("s5 local alloc cycle failed\n");
-            net_free( down );
-            return ERROR;
-        }
-        down->data 	= s5;
-        s5->down = down;
-
+        /// alloc down mem and meta
         if( !down->page ) {
             if( OK != mem_page_create(&down->page, L_PAGE_DEFAULT_SIZE) ) {
-                err("webser c page create failed\n");
+                err("s5 down page alloc failed\n");
                 break;
             }
         }
 
         if( !down->meta ) {
             if( OK != meta_alloc_form_mempage( down->page, 4096, &down->meta ) ) {
-                err("s5 alloc down meta failed\n");
+                err("s5 down meta alloc failed\n");
+                break;
+            }
+        }
+    
+        /// alloc up and goto connect
+        if( OK != s5_alloc( &s5 ) ) {
+            err("s5 cycle alloc failed\n");
+            net_free( down );
+            return ERROR;
+        }
+        s5->typ = SOCKS5_CLIENT;
+        if( OK != net_alloc( &s5->up ) ) {
+            err("s5 up alloc failed\n");
+            break;
+        }
+        s5->up->data = s5;
+        s5->down = down;
+        s5->down->data = s5;
+        
+        if( !s5->up->page ) {
+            if( OK != mem_page_create(&s5->up->page, L_PAGE_DEFAULT_SIZE) ) {
+                err("s5 up page alloc failed\n");
                 break;
             }
         }
 
-        if( OK != net_alloc( &s5->up ) ) {
-            err("cycle up alloc failed\n");
-            break;
+        if( !s5->up->meta ) {
+            if( OK != meta_alloc_form_mempage( s5->up->page, 4096, &s5->up->meta ) ) {
+                err("s5 up meta alloc failed\n");
+                break;
+            }
         }
-        s5->up->data = s5;
 
         s5_local_up_addr_get( &s5->up->addr );
         rc = net_connect( s5->up, &s5->up->addr );
@@ -184,8 +231,10 @@ status s5_local_accept_cb( event_t * ev )
         }
         s5->up->event->read_pt	= NULL;
         s5->up->event->write_pt	= s5_local_up_connect_check;
-        event_opt( s5->up->event, s5->up->fd, EV_W );
         if( rc == AGAIN ) {
+            if( s5->up->event->opt != EV_W ) {
+                event_opt( s5->up->event, s5->up->fd, EV_W );
+            }
             timer_set_data( &s5->up->event->timer, s5 );
             timer_set_pt( &s5->up->event->timer, s5_timeout_cb );
             timer_add( &s5->up->event->timer, S5_TIMEOUT );
@@ -203,9 +252,8 @@ status socks5_local_init( void )
 	// init s5 server add for use
 	memset( &s5_serv_addr, 0, sizeof(struct sockaddr_in) );
 	s5_serv_addr.sin_family = AF_INET;
-    s5_serv_addr.sin_port = htons( (uint16_t)config_get()->s5_local_serv_port );
-    s5_serv_addr.sin_addr.s_addr = inet_addr( (char*)config_get()->s5_local_serv_ip );
-	
+    s5_serv_addr.sin_port = htons( config_get()->s5_local_serv_port );
+    s5_serv_addr.sin_addr.s_addr = inet_addr( config_get()->s5_local_serv_ip );
 	return OK;
 }
 
