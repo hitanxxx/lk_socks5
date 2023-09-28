@@ -123,6 +123,8 @@ static status webser_alloc( webser_t ** webser )
 
 static status webser_free( webser_t * webser )
 {
+    net_free( webser->c );
+
     webser->data = NULL;
     webser->type = 0;
 
@@ -158,12 +160,6 @@ static status webser_free( webser_t * webser )
     return OK;
 }
 
-static status webser_over( webser_t * webser )
-{
-    net_free( webser->c );
-    webser_free( webser );
-    return OK;
-}
 
 inline static void webser_timeout_con( void * data )
 {
@@ -172,7 +168,7 @@ inline static void webser_timeout_con( void * data )
 
 inline static void webser_timeout_cycle( void * data )
 {
-	webser_over( (webser_t*)data );
+	webser_free( (webser_t*)data );
 }
 
 static status webser_keepalive( event_t * ev )
@@ -264,7 +260,7 @@ static status webser_rsp_send_body_api( event_t * ev )
 	    if( rc < 0 )  {
 	        if( rc == ERROR ) {
 	            err("webser send resp body failed\n");
-	            webser_over( webser );
+	            webser_free( webser );
 	            return ERROR;
 	        }
 	        timer_set_data( &ev->timer, webser );
@@ -279,7 +275,9 @@ static status webser_rsp_send_body_api( event_t * ev )
         ev->write_pt = webser_keepalive;
         return ev->write_pt( ev );
     }
-    return webser_over( webser );
+
+    webser_free( webser );
+    return OK;
 }
 
 static status webser_rsp_send_body_file( event_t * ev )
@@ -295,7 +293,7 @@ static status webser_rsp_send_body_file( event_t * ev )
         if( rc < 0 ) {
             if( rc == ERROR ) {
                 err("webser send resp body failed\n");
-                webser_over( webser );
+                webser_free( webser );
                 return ERROR;
             }
             timer_set_data( &ev->timer, webser );
@@ -318,7 +316,7 @@ static status webser_rsp_send_body_file( event_t * ev )
 		fread = read( webser->ffd, webser->http_rsp_body_meta->last, fpartn );
         if( fread <= 0 ) {
             err("webser read file, errno [%d]\n", errno );
-            webser_over( webser );
+            webser_free( webser );
             return ERROR;
         }
 		webser->http_rsp_body_meta->last += fread;
@@ -330,7 +328,8 @@ static status webser_rsp_send_body_file( event_t * ev )
         ev->write_pt = webser_keepalive;
         return ev->write_pt( ev );
     } 
-    return webser_over( webser );
+    webser_free( webser );
+    return OK;
 }
 
 
@@ -350,13 +349,13 @@ static status webser_rsp_send_body( event_t * ev )
         fpartn = ( fremain >= WEBSER_BODY_META_LENGTH ? WEBSER_BODY_META_LENGTH : fremain );
         if( OK != meta_alloc_form_mempage( webser->c->page, fpartn, &webser->http_rsp_body_meta ) ) {
             err("webser rsp body meta alloc failed\n");
-            webser_over(webser);
+            webser_free(webser);
             return ERROR;
         }
         fread = read( webser->ffd, webser->http_rsp_body_meta->last, fpartn );
         if( fread <= 0 ) {
             err("webser rsp body read file failed. [%d]\n", errno );
-            webser_over(webser);
+            webser_free(webser);
             return ERROR;
         }
         webser->http_rsp_body_meta->last += fread;
@@ -382,7 +381,7 @@ static status webser_rsp_send_header( event_t * ev )
     if( rc < 0 ) {
         if( rc == ERROR ) {
             err("webser resp head send failed\n");
-            webser_over( webser );
+            webser_free( webser );
             return ERROR;
         }
         timer_set_data( &ev->timer, webser );
@@ -399,7 +398,8 @@ static status webser_rsp_send_header( event_t * ev )
 	        ev->write_pt = webser_keepalive;
 	        return ev->write_pt( ev );
 	    }
-	    return webser_over( webser );	
+        webser_free( webser );
+	    return OK;
 	}
 
     ev->write_pt = webser_rsp_send_body;
@@ -425,8 +425,7 @@ static status webser_try_read( event_t * ev  )
     return OK;
 closed:
 	err("webser try read failed\n");
-    webser_over( webser );
-    
+    webser_free( webser );
     return ERROR;
 }
 
@@ -497,7 +496,7 @@ static status webser_rsp_header_build( webser_t * webser )
 	if( webser->http_rsp_headern > 0 ) {
 		if( OK != meta_alloc_form_mempage( webser->c->page, webser->http_rsp_headern, &webser->http_rsp_header_meta ) ) {
 			err("webser page alloc resp header meta failed\n");
-			webser_over( webser );
+			webser_free( webser );
 	        return ERROR;
 		}
 		cur = webser->http_rsp_header_list;
@@ -579,7 +578,7 @@ static status webser_req_file ( event_t * ev )
 	
     if( OK != webser_rsp_header_build( webser ) ) {
         err("webser resp head build failed\n");
-        webser_over( webser );
+        webser_free( webser );
         return ERROR;
     }
 	
@@ -610,7 +609,7 @@ status webser_req_api( event_t * ev )
 	if( webser->http_rsp_bodyn > 0 ) {
 		if( OK != meta_alloc_form_mempage( c->page, webser->http_rsp_bodyn, &webser->http_rsp_body_meta ) ) {
 			err("webser page alloc resp body meta failed\n");
-			webser_over( webser );
+			webser_free( webser );
 	        return ERROR;
 		}
 		cur = webser->http_rsp_body_list;
@@ -624,7 +623,7 @@ status webser_req_api( event_t * ev )
 	/// build http rsp header
     if( OK != webser_rsp_header_build( webser ) ) {
         err("webser response head build failed\n");
-        webser_over( webser );
+        webser_free( webser );
         return ERROR;
     }
     ev->read_pt = webser_rsp_send_start;
@@ -660,7 +659,7 @@ static status webser_req_body( event_t * ev )
     if( rc < 0 ) {
         if( rc == ERROR ) {
             err("webser process body failed\n");
-            webser_over(webser);
+            webser_free(webser);
             return ERROR;
         }
         timer_set_data( &ev->timer, webser );
@@ -685,7 +684,7 @@ static status webser_req_header( event_t * ev )
     if( rc < 0 ) {
         if( rc == ERROR ) {
             err("webser process request header failed\n");
-            webser_over( webser );
+            webser_free( webser );
             return ERROR;
         }
         timer_set_data( &ev->timer, webser );
@@ -699,7 +698,7 @@ static status webser_req_header( event_t * ev )
 	if( http_req_have_body( webser->http_req ) ) {
 		if( OK != http_body_create( webser->c, &webser->http_req_body, 0 ) ) {
             err("http_body_create failed\n");
-            webser_over( webser );
+            webser_free( webser );
             return ERROR;
         }
 		webser->http_req_body->body_type = webser->http_req->content_type;
@@ -745,7 +744,7 @@ static status webser_start( event_t * ev )
 	/// start http request parse, try to read http request form socket and parse it 
     if( OK != http_req_create( c, &webser->http_req ) ) {
         err("webser alloc req failed\n");
-        webser_over( webser );
+        webser_free( webser );
         return ERROR;
     }
     ev->write_pt = NULL;

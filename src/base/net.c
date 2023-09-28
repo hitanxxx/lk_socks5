@@ -56,10 +56,11 @@ status net_socket_nodelay(  int32 fd )
 
 status net_socket_nopush( int32 fd )
 {
-    if(0) {
-        int tcp_cork = 1;
-        return setsockopt( fd, IPPROTO_TCP, TCP_CORK, (const void *) &tcp_cork, sizeof(int));
-    }
+#if(0)
+    /// will be compile error in macintosh
+    int tcp_cork = 1;
+    return setsockopt( fd, IPPROTO_TCP, TCP_CORK, (const void *) &tcp_cork, sizeof(int));
+#endif
 	return OK;
 }
 

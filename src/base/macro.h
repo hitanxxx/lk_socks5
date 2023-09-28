@@ -53,15 +53,17 @@ extern "C"
 #include <sched.h>
 #include <sys/resource.h>
 #include <arpa/inet.h>
-#include <sys/prctl.h>
 
 #include <openssl/ssl.h>
 #include <openssl/evp.h>
 #include <openssl/err.h>
 
 
-#define L_OPEN_PORT_MAX	64
+/// for ahead tips
+#define ahead_dbg(format, ...) printf( "[Ahead tips]-%s:%d "format, __func__, __LINE__, ##__VA_ARGS__)
 
+/// open port limit
+#define L_OPEN_PORT_MAX	64
 
 // file paths
 #define S5_PATH                 "/usr/local/s5/"

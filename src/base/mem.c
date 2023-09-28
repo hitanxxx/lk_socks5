@@ -1,44 +1,42 @@
 #include "common.h"
 
 
-/*
-	mamanger memory chain, easy to free
-*/
-
+/// @brief alloc a memory page chain
+/// @param page 
+/// @param size 
+/// @return 
 status mem_page_create( mem_page_t ** page, uint32 size )
 {
-    mem_page_t * n_page = NULL;
+    mem_page_t * page_new = NULL;
 
     size = ( size < L_PAGE_DEFAULT_SIZE ? L_PAGE_DEFAULT_SIZE : size );
-
-	if( !page ) {
-		err("mem_page create alloc struct NULL\n");
-		return ERROR;
-	}
-
-    n_page = (mem_page_t*)l_safe_malloc( sizeof(mem_page_t) + size );
-    if( NULL == n_page ) {
-        err("mem_page alloc failed, [%d]\n", errno );
+    page_new = (mem_page_t*)l_safe_malloc( sizeof(mem_page_t) + size );
+    if( !page_new ) {
+        err("mem_page create failed, [%d]. [%s]\n", errno, strerror(errno) );
         return ERROR;
     }
 
-	n_page->size		= size;
-    n_page->start 	    = n_page->data;
-    n_page->end 		= n_page->start + n_page->size;
-    n_page->next 		= NULL;
-	
-    *page = n_page;
+	page_new->size = size;
+    page_new->start = page_new->data;
+    page_new->end = page_new->start + page_new->size;
+
+    page_new->next = NULL;
+    *page = page_new;
     return OK;
 }
 
+/// @brief free a memory page chain
+/// @param page 
+/// @return 
 status mem_page_free( mem_page_t * page )
 {
-    mem_page_t *cur = NULL, *next = NULL;
+    mem_page_t *cur = page;
+	mem_page_t *next= NULL;
 
-	if( !page )
+	if( !page ) {
 		return OK;
+	}
 
-	cur = page;
     while( cur ) {
         next = cur->next;
         l_safe_free( cur );
@@ -47,19 +45,28 @@ status mem_page_free( mem_page_t * page )
     return OK;
 }
 
+/// @brief alloc memory object form memory page chain
+/// @param page 
+/// @param size 
+/// @return 
 void * mem_page_alloc( mem_page_t * page, uint32 size )
 {
-    mem_page_t *cur = NULL, *next = NULL, *last = NULL;
-    mem_page_t *n_page = NULL;
+    mem_page_t *cur = page;
+	mem_page_t *next = NULL;
+	mem_page_t *last = NULL;
+	
+    mem_page_t *page_new = NULL;
 
-	if( !page )
+	if( !page ) {
 		return NULL;
-
-	// loop page chain find space
-	cur = page;
+	}
+		
+	/// traversal chain find remain space 
 	while( cur ) {
+
         last = cur;
 		next = cur->next;
+
 		if( cur->end - cur->start >= size ) {
 			cur->start += size;
 			return cur->start - size;
@@ -68,13 +75,15 @@ void * mem_page_alloc( mem_page_t * page, uint32 size )
 	}
 
 	// alloc new page 
-	if( OK != mem_page_create( &n_page, size ) ) {
+	if( OK != mem_page_create( &page_new, size ) ) {
 		err("alloc new page failed\n");
 		return NULL;
 	}
     
-	last->next = n_page;
+	/// add new page into chain
+	last->next = page_new;
 
-	n_page->start += size;
-	return n_page->start - size;
+	/// return memory addr
+	page_new->start += size;
+	return page_new->start - size;
 }

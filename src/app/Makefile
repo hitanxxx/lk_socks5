@@ -13,4 +13,3 @@ INC_DIR += $(PROJDIR)/app
 include $(PROJDIR)/build.mk
 
 
-all:lib

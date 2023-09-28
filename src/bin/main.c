@@ -134,10 +134,11 @@ int32 main( int argc, char ** argv )
 {
 	int32 rc = ERROR;	
 
-	printf("[S5] compile date [%s %s]\n", __DATE__, __TIME__ );
+	ahead_dbg("=======================\n");
+	ahead_dbg("== weclome to use S5 ==\n");
+	ahead_dbg("=======================\n");
+	ahead_dbg("compile date [%s %s]\n", __DATE__, __TIME__ );
 
-    /// change process name to 's5'
-	prctl(PR_SET_NAME, "s5");
 	/// set higiest process priority
 	setpriority(PRIO_PROCESS, 0, -20 );
 	/// refresh system time info

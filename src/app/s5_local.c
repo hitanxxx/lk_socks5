@@ -181,14 +181,14 @@ status s5_local_accept_cb( event_t * ev )
     do {
         /// alloc down mem and meta
         if( !down->page ) {
-            if( OK != mem_page_create(&down->page, L_PAGE_DEFAULT_SIZE) ) {
+            if( OK != mem_page_create(&down->page, 8192 ) ) {
                 err("s5 down page alloc failed\n");
                 break;
             }
         }
 
         if( !down->meta ) {
-            if( OK != meta_alloc_form_mempage( down->page, 4096, &down->meta ) ) {
+            if( OK != meta_alloc_form_mempage( down->page, 8192, &down->meta ) ) {
                 err("s5 down meta alloc failed\n");
                 break;
             }
@@ -210,14 +210,14 @@ status s5_local_accept_cb( event_t * ev )
         s5->down->data = s5;
         
         if( !s5->up->page ) {
-            if( OK != mem_page_create(&s5->up->page, L_PAGE_DEFAULT_SIZE) ) {
+            if( OK != mem_page_create(&s5->up->page, 8192 ) ) {
                 err("s5 up page alloc failed\n");
                 break;
             }
         }
 
         if( !s5->up->meta ) {
-            if( OK != meta_alloc_form_mempage( s5->up->page, 4096, &s5->up->meta ) ) {
+            if( OK != meta_alloc_form_mempage( s5->up->page, 8192, &s5->up->meta ) ) {
                 err("s5 up meta alloc failed\n");
                 break;
             }

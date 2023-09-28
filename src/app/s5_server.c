@@ -246,14 +246,14 @@ status s5_traffic_process( event_t * ev )
 
 	// init down stream traffic buffer
 	if( !down->page ) {
-        if( OK != mem_page_create(&down->page, L_PAGE_DEFAULT_SIZE) ) {
+        if( OK != mem_page_create(&down->page, 8192 ) ) {
             err("webser down page create failed\n");
             s5_free(s5);
             return ERROR;
         }
     }
     if( !down->meta ) {
-		if( OK != meta_alloc_form_mempage( down->page, 4096, &down->meta ) ) {
+		if( OK != meta_alloc_form_mempage( down->page, 8192, &down->meta ) ) {
             err("s5 alloc down meta failed\n");
             s5_free(s5);
             return ERROR;
@@ -263,14 +263,14 @@ status s5_traffic_process( event_t * ev )
 
 	// init up stream traffic buffer
 	if( !up->page ) {
-        if( OK != mem_page_create(&up->page, L_PAGE_DEFAULT_SIZE) ) {
+        if( OK != mem_page_create(&up->page, 8192 ) ) {
             err("webser up page create failed\n");
             s5_free(s5);
             return ERROR;
         }
     }
     if( !up->meta ) {
-		if( OK != meta_alloc_form_mempage( up->page, 4096, &up->meta ) ) {
+		if( OK != meta_alloc_form_mempage( up->page, 8192, &up->meta ) ) {
             err("s5 alloc up meta failed\n");
             s5_free(s5);
             return ERROR;
@@ -907,7 +907,7 @@ static status s5_server_start( event_t * ev )
     down->data = s5;
 
 	if( !down->page ) {
-        if( OK != mem_page_create(&down->page, L_PAGE_DEFAULT_SIZE) ) {
+        if( OK != mem_page_create(&down->page, 8192 ) ) {
             err("webser c page create failed\n");
             s5_free(s5);
             return ERROR;
@@ -915,7 +915,7 @@ static status s5_server_start( event_t * ev )
     }
 
     if( !down->meta ) {
-		if( OK != meta_alloc_form_mempage( down->page, 4096, &down->meta ) ) {
+		if( OK != meta_alloc_form_mempage( down->page, 8192, &down->meta ) ) {
             err("s5 alloc down meta failed\n");
             s5_free(s5);
             return ERROR;

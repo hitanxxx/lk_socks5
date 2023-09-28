@@ -1,15 +1,15 @@
-CC 		:= gcc
+CC 		:= clang
 AR		:= ar
-STRIP		:= strip
+STRIP   := strip
 
 
 INC_FLAGS 	+= $(addprefix -I, $(INC_DIR))
 
 SRC_FILES 	+= $(wildcard *.c)
 SRC_FILES 	+= $(foreach dir, $(SRC_DIR), $(wildcard $(dir)/*.c))
-SRC_FILES       += $(foreach dir, $(SRC_DIR), $(wildcard $(dir)/*.cpp))
-SRC_FILES       += $(foreach dir, $(SRC_DIR), $(wildcard $(dir)/*.cc))
-SRC_OBJS        += $(patsubst %.c, %.o, $(patsubst %.cpp, %.o, $(patsubst %.cc, %.o, $(SRC_FILES) ) ) )
+SRC_FILES   += $(foreach dir, $(SRC_DIR), $(wildcard $(dir)/*.cpp))
+SRC_FILES   += $(foreach dir, $(SRC_DIR), $(wildcard $(dir)/*.cc))
+SRC_OBJS    += $(patsubst %.c, %.o, $(patsubst %.cpp, %.o, $(patsubst %.cc, %.o, $(SRC_FILES) ) ) )
 
 STATIC_LIB	+= lib$(TARGET).a
 APP_BIN		+= $(TARGET)

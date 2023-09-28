@@ -2,7 +2,6 @@
 
 static config_t g_config;
 
-#define pdbg(format, ...) printf( "[%u]-%s:%d "format, (unsigned)time(NULL), __func__, __LINE__, ##__VA_ARGS__)
 
 
 static status config_parse( char * str )
@@ -40,9 +39,9 @@ static status config_parse( char * str )
         if( sys_loglevel ) {
             g_config.sys_log_level = sys_loglevel->valueint;
         }
-        pdbg("sys_daemon [%d]\n", g_config.sys_daemon );
-        pdbg("sys_process [%d]\n", g_config.sys_process_num);
-        pdbg("sys_log_level [%d]\n", g_config.sys_log_level);
+        ahead_dbg("sys_daemon: [%d]\n", g_config.sys_daemon );
+        ahead_dbg("sys_process: [%d]\n", g_config.sys_process_num);
+        ahead_dbg("sys_log_level: [%d]\n", g_config.sys_log_level);
 
 
         if( ssl_crt_path ) {
@@ -51,8 +50,8 @@ static status config_parse( char * str )
         if( ssl_key_path ) {
             strncpy( g_config.ssl_key_path, cJSON_GetStringValue(ssl_key_path), sizeof(g_config.ssl_key_path)-1 );
         }
-        pdbg("ssl_crt_path [%s]\n", g_config.ssl_crt_path );
-        pdbg("ssl_key_path [%s]\n", g_config.ssl_key_path);
+        ahead_dbg("ssl_crt_path: [%s]\n", g_config.ssl_crt_path );
+        ahead_dbg("ssl_key_path: [%s]\n", g_config.ssl_key_path);
 
 
         if(s5_mode) {
@@ -64,9 +63,9 @@ static status config_parse( char * str )
         if(s5_serv_auth_path) {
             strncpy( g_config.s5_serv_auth_path, cJSON_GetStringValue(s5_serv_auth_path), sizeof(g_config.s5_serv_auth_path)-1 );
         }
-        pdbg("s5_mode [%d]\n", g_config.s5_mode );
-        pdbg("s5_serv_port [%hd]\n", g_config.s5_serv_port);
-        pdbg("s5_serv_auth_path [%s]\n", g_config.s5_serv_auth_path);
+        ahead_dbg("s5_mode: [%d]\n", g_config.s5_mode );
+        ahead_dbg("s5_serv_port: [%hd]\n", g_config.s5_serv_port);
+        ahead_dbg("s5_serv_auth_path: [%s]\n", g_config.s5_serv_auth_path);
 
 
         if( s5_local_port ) {
@@ -81,10 +80,10 @@ static status config_parse( char * str )
         if(s5_local_auth) {
             strncpy( g_config.s5_local_auth, cJSON_GetStringValue(s5_local_auth), sizeof(g_config.s5_local_auth)-1 );
         }
-        pdbg("s5_local_port [%hd]\n", g_config.s5_local_port );
-        pdbg("s5_local_serv_port [%hd]\n", g_config.s5_local_serv_port );
-        pdbg("s5_local_serv_ip [%s]\n", g_config.s5_local_serv_ip );
-        pdbg("s5_local_auth [%s]\n", g_config.s5_local_auth );
+        ahead_dbg("s5_local_port: [%hd]\n", g_config.s5_local_port );
+        ahead_dbg("s5_local_serv_port: [%hd]\n", g_config.s5_local_serv_port );
+        ahead_dbg("s5_local_serv_ip: [%s]\n", g_config.s5_local_serv_ip );
+        ahead_dbg("s5_local_auth: [%s]\n", g_config.s5_local_auth );
 
 
         if(http_arr) {
@@ -105,14 +104,14 @@ static status config_parse( char * str )
         }
         g_config.http_num = cJSON_GetArraySize(http_arr);
         for(i = 0; i < g_config.http_num; i ++) {
-            pdbg("[%hd]\n", g_config.http_arr[i] );
+            ahead_dbg("[%hd] \n", g_config.http_arr[i] );
         }
         g_config.https_num = cJSON_GetArraySize(https_arr);
         for(i = 0; i < g_config.https_num; i ++) {
-            pdbg("[%hd]\n", g_config.https_arr[i] );
+            ahead_dbg("[%hd] \n", g_config.https_arr[i] );
         }
-        pdbg("http_home [%s]\n", g_config.http_home );
-        pdbg("http_index [%s]\n", g_config.http_index );
+        ahead_dbg("http_home: [%s]\n", g_config.http_home );
+        ahead_dbg("http_index: [%s]\n", g_config.http_index );
         
         cJSON_Delete(root);
     } else {
@@ -149,29 +148,28 @@ status config_init ( void )
         fsz = (int)fstat.st_size;
         /// need to fsz+1 to storge '\0'
         if( OK != meta_alloc( &fmeta, fsz+1 ) ) {
-            pdbg("config alloc meta to storge failed. [%d]\n", errno );
+            ahead_dbg("config alloc meta to storge failed. [%d]\n", errno );
             break;
         }
         ffd = open( S5_PATH_CFG, O_RDONLY );
         if( ffd <= 0 ) {
-            pdbg("config open file failed. [%d]\n", errno );
+            ahead_dbg("config open file failed. [%d]\n", errno );
             break;
         }
 
         while( fmeta->last - fmeta->pos < fsz ) {
             rc = read( ffd, fmeta->last, fmeta->end - fmeta->last );
             if( rc <= 0 ) {
-                pdbg("config read file failed. [%d]\n", errno );
+                ahead_dbg("config read file failed. [%d]\n", errno );
                 break;
             }
             fmeta->last += rc;
         }while(0);
 
-        pdbg("===== config start =====\n");
-        pdbg("%s", fmeta->pos );
-        pdbg("===== config end =====\n");
+        ahead_dbg("config string:\n");
+        ahead_dbg("%s", fmeta->pos );
         if( OK != config_parse( (char*)fmeta->pos ) ) {
-            pdbg("config parse failed\n");
+            ahead_dbg("config parse failed\n");
             break;
         }
 
