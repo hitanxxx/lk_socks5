@@ -260,6 +260,41 @@ static status http_body_content( http_body_t * bd )
 	}
 }
 
+status http_body_dump( http_body_t * bd, meta_t ** dumpmeta )
+{
+    connection_t * c = bd->c;
+
+    if( bd->body_len <= 0 ) {
+        return ERROR;
+    }
+
+    meta_t * cur = NULL;
+    meta_t * meta = NULL;
+
+    /// alloc meta form connection's page. meta will be free when connection free
+    if( OK != meta_alloc_form_mempage( c->page, bd->body_len, &meta ) ) {
+        err("http body dump alloc meta failed\n");
+        return ERROR;
+    }
+
+    /// copy data form body chain into dumo meta
+    cur = bd->body_head;
+    while( cur ) {
+        memcpy( meta->last, cur->pos, cur->last - cur->pos );
+        meta->last += (cur->last - cur->pos);
+        cur = cur->next;
+    }
+
+    /// check length
+    if( meta->last - meta->pos != bd->body_len ) {
+        err("meta datan [%d] != bodylen [%d]\n", meta->last - meta->pos, bd->body_len );
+        return ERROR;
+    } else {
+        *dumpmeta = meta;
+        return OK;
+    }
+}
+
 static status http_body_start( http_body_t * bd )
 {
 	/// get remian body data in the connection meta
@@ -277,7 +312,6 @@ static status http_body_start( http_body_t * bd )
         }
         bd->body_last = bd->body_head;
 
-		
         if( bd->body_type == HTTP_BODY_TYPE_CONTENT ) {
 			/// content length type http body
 			if( body_remain_len > 0 ) {
@@ -289,8 +323,8 @@ static status http_body_start( http_body_t * bd )
 				bd->c->meta->pos += body_remain_len;
 				bd->content_recvd += body_remain_len;
 
-                
 				if( bd->content_recvd >= bd->content_len ) {
+                    bd->body_len = bd->content_len;
 	                bd->body_type |= ( bd->body_cache ? HTTP_BODY_STAT_DONE_CACHE : HTTP_BODY_STAT_DONE_CACHENO);
 	                return DONE;
 	            }

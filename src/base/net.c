@@ -1,6 +1,5 @@
 #include "common.h"
 
-
 typedef struct 
 {
     queue_t         usable;

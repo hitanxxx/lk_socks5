@@ -62,6 +62,7 @@ status event_init( void );
 status event_end( void );
 
 status event_post_event( event_t * ev );
+status event_post_backevent( event_t * ev ) ;
 
 
 #ifdef __cplusplus

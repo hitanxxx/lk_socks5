@@ -58,6 +58,7 @@ struct http_req
 	http_req_headers_t       	headers;
 
 	// user for outer 
+	enum http_process_status  method_type;
 	uint32                      keepalive;
 	uint32                      content_type;
 	uint32                      content_len;

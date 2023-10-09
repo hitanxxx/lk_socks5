@@ -6,11 +6,6 @@
 #include "http_body.h"
 #include "webser.h"
 
-typedef struct 
-{
-	string_t 			key;
-	event_pt			handler;
-} webser_api_t;
 
 typedef struct
 {
@@ -44,31 +39,39 @@ static mime_type_t mimetype_table[] =
 
 static status webser_start( event_t * ev );
 
-static status webser_api_find( string_t * key, event_pt * handler )
+static status webser_api_find( webser_t * web )
 {
     uint32 i = 0;
-	webser_api_t *s = NULL;
+	webser_api_t *api_entry = NULL;
 
 	if( !g_web_ctx->g_api_list ) {
 		return ERROR;
 	}
 	for( i = 0; i < g_web_ctx->g_api_list->elem_num; i ++ ) {
-		s = mem_arr_get( g_web_ctx->g_api_list, i + 1 );
-		if( s == NULL ) {
+		api_entry = mem_arr_get( g_web_ctx->g_api_list, i + 1 );
+		if( api_entry == NULL ) {
 			continue;
         }
-        
-		if( (s->key.len == key->len) && (OK == strncasecmp( (char*)s->key.data, (char*)key->data, key->len ) ) )  {
-			if( handler ) {
-				*handler = s->handler;
-			}
-			return OK;
-		}
+
+        /// compare key 
+        if( api_entry->key.len != web->http_req->uri.len ) {
+            continue;
+        }
+        if( 0 != strncmp( (char*)api_entry->key.data, (char*)web->http_req->uri.data, web->http_req->uri.len ) ) {
+            continue;
+        }
+        /// compare method
+        if( web->http_req->method_type != api_entry->method ) {
+            continue;
+        }
+
+        web->api = api_entry;
+        return OK;
 	}
 	return ERROR;
 }
 
-status webser_api_reg( char * key, event_pt cb )
+status webser_api_reg( char * key, event_pt cb, enum http_process_status method_type, char http_req_body_need )
 {
     webser_api_t * p = mem_arr_push( g_web_ctx->g_api_list );
     if( !p ) {
@@ -84,6 +87,8 @@ status webser_api_reg( char * key, event_pt cb )
 	}
 	memcpy( p->key.data, key, p->key.len );
 	p->handler = cb;
+    p->method = method_type;
+    p->body_need = http_req_body_need;
 	return OK;
 }
 
@@ -121,6 +126,46 @@ static status webser_alloc( webser_t ** webser )
     return OK;
 }
 
+static status webser_over( webser_t * webser )
+{
+    /// different with webser_free -> not free connection
+    /// used for http keepalive. free webser but not free conection
+
+    webser->data = NULL;
+    webser->type = 0;
+
+    /// memory list will be free when connection free
+	webser->http_rsp_body_list = NULL;
+    webser->http_rsp_header_list = NULL;
+    
+    if( webser->http_req ) {
+        http_req_free( webser->http_req );
+		webser->http_req = NULL;
+    }
+    if( webser->http_req_body ) {
+        http_body_free( webser->http_req_body );
+		webser->http_req_body = NULL;
+    }
+	webser->api = NULL;
+	
+    if( webser->ffd ) {
+        close( webser->ffd );
+        webser->ffd = 0;
+    }
+    webser->fsize = 0;
+    webser->fsend = 0;
+
+    webser->http_rsp_mime = NULL;
+	webser->http_rsp_bodyn = 0;
+	webser->http_rsp_code = 0;
+    webser->http_rsp_header_meta = NULL;
+    webser->http_rsp_body_meta = NULL;
+
+    queue_remove( &webser->queue );
+    queue_insert_tail( &g_web_ctx->g_queue_usable, &webser->queue );
+    return OK;
+}
+
 static status webser_free( webser_t * webser )
 {
     net_free( webser->c );
@@ -140,7 +185,7 @@ static status webser_free( webser_t * webser )
         http_body_free( webser->http_req_body );
 		webser->http_req_body = NULL;
     }
-	webser->webapi_handler 	= NULL;
+	webser->api = NULL;
 	
     if( webser->ffd ) {
         close( webser->ffd );
@@ -183,7 +228,7 @@ static status webser_keepalive( event_t * ev )
     c->meta->pos    = c->meta->start;
     c->meta->last   = c->meta->pos + remain;
     
-    webser_free( webser );
+    webser_over( webser );
 
     ev->write_pt = NULL;
     ev->read_pt = webser_start;
@@ -269,8 +314,8 @@ static status webser_rsp_send_body_api( event_t * ev )
 	        return AGAIN;
 	    }
 	}
-
 	timer_del( &ev->timer );
+    
     if( webser->http_rsp_code == 200 && webser->http_req->keepalive == 1 ) {
         ev->write_pt = webser_keepalive;
         return ev->write_pt( ev );
@@ -322,8 +367,8 @@ static status webser_rsp_send_body_file( event_t * ev )
 		webser->http_rsp_body_meta->last += fread;
         webser->fsend += fread;
 	} while(1);
-
 	timer_del( &ev->timer );
+
     if( webser->http_rsp_code == 200 && webser->http_req->keepalive == 1 ) {
         ev->write_pt = webser_keepalive;
         return ev->write_pt( ev );
@@ -393,7 +438,6 @@ static status webser_rsp_send_header( event_t * ev )
 
     /// if no http rsp payload
 	if( webser->http_rsp_bodyn <= 0 ) {
-		timer_del( &ev->timer );
 	    if( webser->http_rsp_code == 200 && webser->http_req->keepalive == 1 ) {
 	        ev->write_pt = webser_keepalive;
 	        return ev->write_pt( ev );
@@ -471,12 +515,10 @@ static status webser_rsp_header_build( webser_t * webser )
 		webser->http_rsp_mime = webser_get_mimetype( NULL, 0 );
 	} 
 	webser_rsp_header_push_str( webser, webser->http_rsp_mime );
-	
-    if( webser->http_rsp_bodyn > 0 ) {
-        char content_len_str[64] = {0};
-        snprintf( content_len_str, sizeof(content_len_str)-1, "Content-Length: %d\r\n", webser->http_rsp_bodyn );
-		webser_rsp_header_push_str( webser, content_len_str );
-    }
+
+    char content_len_str[64] = {0};
+    snprintf( content_len_str, sizeof(content_len_str)-1, "Content-Length: %d\r\n", webser->http_rsp_bodyn );
+	webser_rsp_header_push_str( webser, content_len_str );
 	
     if( webser->http_req->headers.connection && ((uint32)webser->http_req->headers.connection->len > l_strlen("close")) ) {
 		webser_rsp_header_push_str( webser, "Connection: keep-alive\r\n" );
@@ -593,7 +635,7 @@ status webser_req_api( event_t * ev )
     webser_t * webser = c->data;
 
 	/// goto do resiger api function 
-    resp_code = webser->webapi_handler( ev );
+    resp_code = webser->api->handler( ev );
 	
     webser->http_rsp_code = resp_code;
 	webser->http_rsp_bodyn = 0;
@@ -637,40 +679,98 @@ static status webser_req_bypass( event_t * ev )
     status rc = 0;
 
 	/// static file request or api request  
-	rc = webser_api_find( &webser->http_req->uri, &webser->webapi_handler );
+	rc = webser_api_find( webser );
     if( rc == OK ) {
         webser->type = WEBSER_API;
-        ev->read_pt = webser_req_api;
+        /// if api request, goto recv body if api need
+        ev->read_pt = webser_req_body_wait;
     } else {
         webser->type = WEBSER_FILE;
-        ev->read_pt	= webser_req_file;
+        /// if static file request, client still send body.
+        /// just recvd it but not cache 
+        ev->read_pt = webser_req_body_wait;
     }
     return ev->read_pt( ev );
 }
 
-static status webser_req_body( event_t * ev )
+static status webser_req_body_recv( event_t * ev )
 {
 	connection_t * c = ev->data;
-    webser_t * webser = c->data;
+    webser_t * web = c->data;
     status rc = 0;
 
     /// goto parse http body, content-length or chunk
-    rc = webser->http_req_body->cb( webser->http_req_body );
+    rc = web->http_req_body->cb( web->http_req_body );
     if( rc < 0 ) {
         if( rc == ERROR ) {
             err("webser process body failed\n");
-            webser_free(webser);
+            webser_free(web);
             return ERROR;
         }
-        timer_set_data( &ev->timer, webser );
+        timer_set_data( &ev->timer, web );
         timer_set_pt( &ev->timer, webser_timeout_cycle );
         timer_add( &ev->timer, WEBSER_TIMEOUT );
         return AGAIN;
     }
-
     timer_del( &ev->timer );
-    ev->read_pt	= webser_req_bypass;
-    return ev->read_pt( ev );	
+
+    if( web->type == WEBSER_FILE ) {
+        /// file 
+        ev->read_pt = webser_req_file;
+        return ev->read_pt(ev);
+    } else {
+        /// api
+        /// set read cb to api
+        ev->read_pt	= webser_req_api;
+        return ev->read_pt( ev );
+    }
+}
+
+status webser_req_body_wait( event_t * ev )
+{
+    connection_t * c = ev->data;
+    webser_t * web = c->data;
+
+    if( web->type == WEBSER_API ) {
+        /// webser api 
+    
+        if( web->http_req->content_type > HTTP_BODY_TYPE_NULL ) {
+            /// web->api->body_need means api need process body or not 
+            if( OK != http_body_create( c, &web->http_req_body, (web->api->body_need == 1) ? 0 : 1 ) ) {
+                err("http_body_create failed\n");
+                webser_free( web );
+                return ERROR;
+            }
+            web->http_req_body->body_type = web->http_req->content_type;
+            if( web->http_req_body->body_type == HTTP_BODY_TYPE_CONTENT ) {
+                web->http_req_body->content_len = web->http_req->content_len;
+            }
+            ev->read_pt	= webser_req_body_recv;
+            return ev->read_pt( ev );
+        } else {
+            /// set read cb to api 
+            ev->read_pt	= webser_req_api;
+            return ev->read_pt( ev );
+        }
+    } else {
+        /// webser file 
+        if( web->http_req->content_type > HTTP_BODY_TYPE_NULL ) {
+            if( OK != http_body_create( c, &web->http_req_body, 1 ) ) {
+                err("http_body_create failed\n");
+                webser_free( web );
+                return ERROR;
+            }
+            web->http_req_body->body_type = web->http_req->content_type;
+            if( web->http_req_body->body_type == HTTP_BODY_TYPE_CONTENT ) {
+                web->http_req_body->content_len = web->http_req->content_len;
+            }
+            ev->read_pt	= webser_req_body_recv;
+            return ev->read_pt( ev );
+        } else {
+            ev->read_pt = webser_req_file;
+            return ev->read_pt(ev);
+        }
+    }
 }
 
 static status webser_req_header( event_t * ev )
@@ -693,19 +793,6 @@ static status webser_req_header( event_t * ev )
         return AGAIN;
     }
     timer_del( &ev->timer );
-
-	/// if http request have body, then goto receive it 
-	if( http_req_have_body( webser->http_req ) ) {
-		if( OK != http_body_create( webser->c, &webser->http_req_body, 0 ) ) {
-            err("http_body_create failed\n");
-            webser_free( webser );
-            return ERROR;
-        }
-		webser->http_req_body->body_type = webser->http_req->content_type;
-        webser->http_req_body->content_len = webser->http_req->content_len;
-		ev->read_pt	= webser_req_body;
-		return ev->read_pt( ev );
-	}
 
 	/// if don't have body, excute down 
 	ev->read_pt	= webser_req_bypass;

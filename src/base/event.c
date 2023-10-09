@@ -3,12 +3,17 @@
 
 typedef struct
 {
-    /// evt action array
-    event_t *       ev_arr[MAX_NET_CON];
-    int             ev_arrn;
     /// accept evt action array
-    event_t *       ev_arr_accept[128];
-    int             ev_arr_acceptn;
+    event_t * ev_arr_accept[128];
+    int ev_arr_acceptn;
+
+    /// evt action array
+    event_t * ev_arr[MAX_NET_CON];
+    int ev_arrn;
+
+    /// event action array for storge evt set by action array object
+    event_t * ev_arr_back[MAX_NET_CON];
+    int ev_arr_backn;
 
 #if defined(EVENT_EPOLL)
     int32           event_fd;
@@ -277,6 +282,12 @@ status event_post_event(  event_t * ev )
 	return OK;
 }
 
+status event_post_backevent( event_t * ev ) 
+{
+    g_event_ctx->ev_arr_back[g_event_ctx->ev_arr_backn++] = ev;
+    return OK;
+}
+
 status event_opt( event_t * event, int32 fd, int want_opt )
 {
 	return g_event_ctx->g_event_handler.opt( event, fd, want_opt );
@@ -309,11 +320,13 @@ status event_run( time_t msec )
     /// clear action array
     g_event_ctx->ev_arrn = 0;
     g_event_ctx->ev_arr_acceptn = 0;
+    g_event_ctx->ev_arr_backn = 0;
     /// event run loop
 	g_event_ctx->g_event_handler.run( msec );
 	/// systime update 
 	systime_update( );
 
+    /// proc ev arr accept 
     for( i = 0; i < g_event_ctx->ev_arr_acceptn; i ++ ) {
         event_t * p_ev = g_event_ctx->ev_arr_accept[i];
         if( p_ev->opt & EV_R ) {
@@ -324,7 +337,7 @@ status event_run( time_t msec )
             }
         }
     }
-    
+    /// proc ev arr
     for( i = 0; i < g_event_ctx->ev_arrn; i ++ ) {
         event_t * p_ev = g_event_ctx->ev_arr[i];
         
@@ -343,6 +356,26 @@ status event_run( time_t msec )
             }
         }
     }
+    /// proc ev arr back
+    for( i = 0; i < g_event_ctx->ev_arr_backn; i ++ ) {
+        event_t * p_ev = g_event_ctx->ev_arr_back[i];
+        
+        if( p_ev->opt & EV_R ) {
+            /// if f_read has been actived. means fd need read this time
+            if( p_ev->f_read ) {
+                if( p_ev->read_pt ) p_ev->read_pt(p_ev);
+                p_ev->f_read = 0;
+            }
+        }
+        if( p_ev->opt & EV_W ) {
+            /// if f_write has been actived. means fd need write this time
+            if( p_ev->f_write ) {
+                if( p_ev->write_pt ) p_ev->write_pt(p_ev);
+                p_ev->f_write = 0;
+            }
+        }
+    }
+    
 
     /// listen fd use SO_REUSEPORT. don't need do mutex 
 	if( 0 ) {
