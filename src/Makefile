@@ -1,18 +1,64 @@
-PROJDIR += $(shell pwd)
-export PROJDIR
+CROSS_PREFIX ?= 
 
-all:
-	make -C test  TARGET=test   lib
-	make -C base  TARGET=base   lib
-	make -C http TARGET=http   lib
-	make -C app TARGET=app   lib
-	make -C bin bin
+CC           = $(CROSS_PREFIX)clang
+CXX          = $(CROSS_PREFIX)g++
+AS           = $(CROSS_PREFIX)as
+AR           = $(CROSS_PREFIX)ar
+LD           = $(CROSS_PREFIX)ld
+OBJDUMP      = $(CROSS_PREFIX)objdump
+OBJCOPY      = $(CROSS_PREFIX)objcopy
+STRIP        = $(CROSS_PREFIX)strip
+SIZE         = $(CROSS_PREFIX)size
+
+### DEF 
+DEFINE += 
+
+
+### INC DIR
+INCLUDE  += -I.
+INCLUDE  += -I./base/util
+INCLUDE  += -I./base
+INCLUDE  += -I./dns
+INCLUDE  += -I./http
+INCLUDE  += -I./app
+INCLUDE  += -I./bin
+INCLUDE  += -I./test
+
+
+### SRC DIR
+SRCDIR  += .
+SRCDIR  += ./base/util
+SRCDIR  += ./base
+SRCDIR  += ./dns
+SRCDIR  += ./http
+SRCDIR  += ./app
+SRCDIR  += ./bin
+SRCDIR  += ./test
+
+CSRCS  += $(foreach d, $(SRCDIR), $(wildcard $d/*.c))
+COBJS += $(patsubst %.c, %.o, $(CSRCS))
+
+### COMPLE FALGS
+LDFLAGS += -lcrypto -lssl -lpthread -lm -ldl
+
+CFLAGS += -Wall -ffunction-sections -fdata-sections $(DEFINE) $(INCLUDE)
+CFLAGS += -O2
+
+%.o:%.c
+	@echo "[compile: $<]"
+	@$(CC) -c $(CFLAGS)  -o $@ $<
+
+
+all: s5
+
+s5: $(COBJS)
+	$(CC) -o $@ $(COBJS) $(LDFLAGS)
+	$(STRIP) $@
+	@md5sum $@
+	@echo "========== build $@ successful ============="
 
 clean:
-	make -C test TARGET=test   clean
-	make -C base TARGET=base   clean
-	make -C http TARGET=http   clean
-	make -C app  TARGET=app    clean
-	make -C bin  clean
+	$(RM) s5
+	$(RM) $(COBJS)
 
-.PHONY: test clean base http app bin
+

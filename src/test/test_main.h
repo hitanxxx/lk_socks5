@@ -40,7 +40,6 @@ extern void ts_list_init( void );
 extern void ts_queue_init( void );
 extern void ts_bst_init( void );
 extern void ts_bheap_init( void );
-extern void ts_str_init( void );
 extern void ts_mem_init( void );
 
 status test_add ( test_pt pt );

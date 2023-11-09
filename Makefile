@@ -6,7 +6,7 @@ all:
 	@echo "===== compile finish ====="
 	@echo "=========================="
 	#copy elf file into env dir
-	-cp -rf ./src/bin/s5 ./env/sbin/
+	-cp -rf ./src/s5 ./env/sbin/
 test:
 	@make -C ./src test
 	

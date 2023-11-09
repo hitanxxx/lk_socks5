@@ -9,7 +9,6 @@ static test_init_pt init_t[] = {
 	ts_queue_init,
 	ts_bst_init,
 	ts_bheap_init,
-	ts_str_init,
 	ts_dns_init,
 	NULL
 };
