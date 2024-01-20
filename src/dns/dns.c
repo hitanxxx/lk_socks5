@@ -376,7 +376,7 @@ int dns_request_host2qname( unsigned char * host, unsigned char * qname )
     while( i < strlen((char*)host) ) {
 
         if( host[i] == '.' ) {
-            qname[qnamen++] = stackn+0x30;    /// int convert to string
+            qname[qnamen++] = stackn;    /// !not need convert to char 
             /// copy stack into qname 
             memcpy( qname+qnamen, stack, stackn );
             qnamen += stackn;
@@ -391,12 +391,12 @@ int dns_request_host2qname( unsigned char * host, unsigned char * qname )
     }
     /// append last part
     if( stackn > 0 ) {
-        qname[qnamen++] = stackn+0x30;    /// int convert to string
+        qname[qnamen++] = stackn;
         memcpy( qname+qnamen, stack, stackn );
         qnamen += stackn;
     }
     
-    qname[qnamen++] = 0x30; /// '0' means end 
+    qname[qnamen++] = 0;
     return qnamen;
 }
 
