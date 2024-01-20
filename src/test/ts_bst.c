@@ -15,13 +15,13 @@ static void ts_bst_add( void )
 	uint32 i = 0;
 
 	memset( arr, 0, sizeof(arr) );
-	arr[0].num = 20;
-	arr[1].num = 18;
-	arr[2].num = 24;
-	arr[3].num = 10;
-	arr[4].num = 19;
-	arr[5].num = 22;
-	arr[6].num = 25;
+	arr[0].num = 1;
+	arr[1].num = 2;
+	arr[2].num = 3;
+	arr[3].num = 4;
+	arr[4].num = 5;
+	arr[5].num = 6;
+	arr[6].num = 7;
 
 	while( i < 7 ) {
 		bst_insert( &tree, &arr[i] );
@@ -29,7 +29,7 @@ static void ts_bst_add( void )
 	}
 	t_assert( 7 == tree.elem_num );
 
-	//bst_travesal_breadth( &tree );
+	bst_travesal_breadth( &tree );
 }
 // -------------------
 static void ts_bst_del( void )

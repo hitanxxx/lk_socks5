@@ -60,7 +60,6 @@ static status wapi_echo_get( event_t * ev )
 
 status webapi_init(  )
 {   
-    /// register webapi functions in here 
     
     webser_api_reg("/echo", wapi_echo_get, HTTP_METHOD_GET, 0 );
     webser_api_reg("/echo", wapi_echo_post, HTTP_METHOD_POST, 1 );

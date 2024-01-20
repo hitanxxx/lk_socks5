@@ -23,6 +23,12 @@ status mem_page_create( mem_page_t ** alloc, uint32 size );
 status mem_page_free( mem_page_t * page );
 void * mem_page_alloc( mem_page_t * page, uint32 size );
 
+
+char * sys_alloc( int size );
+void sys_free(    char * addr );
+
+
+
 #ifdef __cplusplus
 }
 #endif

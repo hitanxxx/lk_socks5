@@ -8,6 +8,7 @@
 
         "s5_mode":3,
         "s5_serv_auth_path":"/usr/local/s5/config/auth.json",
+	"s5_serv_gw":"8.8.8.8",
 
         "https_arr":[12345],
         "http_home":"/usr/local/s5/www",

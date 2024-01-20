@@ -5,15 +5,9 @@
 
 #define S5_USER_AUTH_FILE_LEN  (4*1024)
 
-typedef struct s5_user {
-	char		auth[32];
-	queue_t		queue;
-} s5_user_t;
-
 typedef struct 
 {
-    queue_t g_users;
-    mem_page_t * g_user_mempage;
+    ezhash_t * auth_hash;
 
     queue_t         usable;
     queue_t         use;
@@ -38,9 +32,6 @@ status s5_alloc( socks5_cycle_t ** s5 )
     *s5 = n_s5;
     return OK;
 }
-
-
-static status s5_serv_usr_obj_find( char * auth );
 
 
 status s5_free( socks5_cycle_t * s5 )
@@ -475,7 +466,7 @@ static status s5_server_address_get( event_t * ev )
         
     }  else if ( s5->phase2.atyp == S5_RFC_DOMAIN ) {
         /// domain type request, goto dns resolve the domain
-        if( OK == dns_record_find( (char*)s5->phase2.dst_addr, ipstr ) ) {
+        if( OK == dns_rec_find( (char*)s5->phase2.dst_addr, ipstr ) ) {
             /// dns cache find success, use dns cache  
     		uint16_t addr_port = 0;
             
@@ -828,8 +819,9 @@ static status s5_server_auth_recv_payload( event_t * ev )
 
     /// check auto data
     s5_auth_data_t * auth_payload = (s5_auth_data_t*) meta->pos;
-    if( OK != s5_serv_usr_obj_find( (char*)auth_payload->auth ) ) {
-        err("s5 auth check authdata failed. not found\n");
+
+    if( NULL == ezhash_find( g_s5_ctx->auth_hash, (char*)auth_payload->auth ) ) {
+        err("s5 auth find auth key failed. not found\n");
         s5_free(s5);
     }
 
@@ -1007,44 +999,6 @@ status s5_server_accept_cb( event_t * ev )
     return ERROR;
 }
 
-static status s5_serv_usr_obj_find( char * auth )
-{
-	queue_t * q;
-	s5_user_t * t = NULL;
-
-	for( q = queue_head( &g_s5_ctx->g_users ); q != queue_tail( &g_s5_ctx->g_users ); q = queue_next(q) ) {
-		t = ptr_get_struct( q, s5_user_t, queue );
-		if( t && l_strlen(t->auth) == strlen(auth) && memcmp( t->auth, auth, strlen(auth) ) == 0 ) {
-			return OK;
-		}
-	}
-	return ERROR;
-}
-
-
-static status s5_serv_usr_obj_add( char * auth )
-{
-    s5_user_t * user = mem_page_alloc( g_s5_ctx->g_user_mempage, sizeof(s5_user_t) );
-	if( !user ) {
-		err("alloc new user\n");
-		return ERROR;
-	}
-	memset( user, 0, sizeof(s5_user_t) );
-
-	memcpy( user->auth, auth, strlen(auth) );
-	queue_insert_tail( &g_s5_ctx->g_users, &user->queue );
-
-#if(1)
-	// show all users
-	queue_t * q;
-	s5_user_t * t = NULL;
-	for( q = queue_head( &g_s5_ctx->g_users ); q != queue_tail( &g_s5_ctx->g_users ); q = queue_next(q) ) {
-		t = ptr_get_struct( q, s5_user_t, queue );
-		debug("queue show ---> [%s]\n", t->auth );
-	}
-#endif
-    return OK;
-}
 
 static status s5_serv_usr_db_parse( meta_t * meta )
 {
@@ -1054,8 +1008,9 @@ static status s5_serv_usr_db_parse( meta_t * meta )
         int i = 0;
         for( i = 0; i < cJSON_GetArraySize(root); i ++ ) {
             cJSON * arrobj = cJSON_GetArrayItem( root, i );
-            /// add arrobj into db
-            s5_serv_usr_obj_add( cJSON_GetStringValue(arrobj) );
+            if( 0 != ezhash_add( g_s5_ctx->auth_hash, cJSON_GetStringValue(arrobj), "0" ) ) {
+                err("s5 serve user key [%s] add hash failed\n", cJSON_GetStringValue(arrobj) );
+            }
         }
 		cJSON_Delete(root);
 	}
@@ -1134,11 +1089,11 @@ status socks5_server_init( void )
            
         if( config_get()->s5_mode > SOCKS5_CLIENT ) {
             /// s5 server mode or server screct mode                
-            queue_init( &g_s5_ctx->g_users );
-            if( OK != mem_page_create( &g_s5_ctx->g_user_mempage, sizeof(s5_user_t) ) ) {
-                err("s5 serv alloc user mem page\n");
+            if( OK != ezhash_create( &g_s5_ctx->auth_hash, 64 ) ) {
+                err("s5 serv user hash create failed\n");
                 break;
             }
+            
             if( OK != s5_serv_usr_db_init() ) {
                 err("s5 serv usr db init failed\n");
                 break;
@@ -1150,10 +1105,7 @@ status socks5_server_init( void )
     if( ret == -1 ) {
         if( g_s5_ctx ) {
             if( config_get()->s5_mode > SOCKS5_CLIENT ) {
-                if( g_s5_ctx->g_user_mempage ) {
-                    mem_page_free( g_s5_ctx->g_user_mempage );
-                    g_s5_ctx->g_user_mempage = NULL;
-                }
+                ezhash_free(g_s5_ctx->auth_hash);
             }
             l_safe_free(g_s5_ctx);
             g_s5_ctx = NULL;
@@ -1165,9 +1117,9 @@ status socks5_server_init( void )
 status socks5_server_end( void )
 {
     if( g_s5_ctx ) {
-        if( g_s5_ctx->g_user_mempage ) {
-            mem_page_free( g_s5_ctx->g_user_mempage );
-            g_s5_ctx->g_user_mempage = NULL;
+        if( g_s5_ctx->auth_hash ) {
+            ezhash_free(g_s5_ctx->auth_hash);
+            g_s5_ctx->auth_hash = NULL;
         }
         l_safe_free(g_s5_ctx);
         g_s5_ctx = NULL;

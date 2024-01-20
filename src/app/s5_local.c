@@ -3,9 +3,6 @@
 #include "s5_local.h"
 #include "s5_server.h"
 
-static struct sockaddr_in s5_serv_addr;
-
-
 
 static status s5_local_auth_send( event_t * ev )
 {
@@ -66,7 +63,10 @@ static status s5_local_auth_build( event_t * ev )
 
 static inline void s5_local_up_addr_get( struct sockaddr_in * addr )
 {
-	memcpy( addr, &s5_serv_addr, sizeof(struct sockaddr_in) );
+    memset( addr, 0, sizeof(struct sockaddr_in) );
+	addr->sin_family = AF_INET;
+    addr->sin_port = htons( config_get()->s5_local_serv_port );
+    addr->sin_addr.s_addr = inet_addr( config_get()->s5_local_serv_ip );
 }
 
 
@@ -104,9 +104,13 @@ static status s5_local_up_connect_check( event_t * ev )
         }
         timer_del( &ev->timer );
         net_socket_nodelay( up->fd );
-        
+
+
         /// must use ssl connect s5 server !!!
-        up->ssl_flag = 1;        
+        /// use a ezswtich in here 
+        up->ssl_flag = 1;
+
+        
         if( up->ssl_flag ) {
             if( OK != ssl_create_connection( up, L_SSL_CLIENT ) ) {
                 err("s5 local create ssl connection for up failed\n");
@@ -249,11 +253,6 @@ status s5_local_accept_cb( event_t * ev )
 
 status socks5_local_init( void )
 {
-	// init s5 server add for use
-	memset( &s5_serv_addr, 0, sizeof(struct sockaddr_in) );
-	s5_serv_addr.sin_family = AF_INET;
-    s5_serv_addr.sin_port = htons( config_get()->s5_local_serv_port );
-    s5_serv_addr.sin_addr.s_addr = inet_addr( config_get()->s5_local_serv_ip );
 	return OK;
 }
 

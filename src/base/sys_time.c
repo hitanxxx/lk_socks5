@@ -42,13 +42,13 @@ status systime_update( void )
 		"%s, %02d %s %04d %02d:%02d:%02d GMT",
 		arr_week[gmt.tm_wday],
 		gmt.tm_mday,
-        arr_month[gmt.tm_mon - 1],
+        arr_month[gmt.tm_mon],
 		gmt.tm_year+1900,
 		gmt.tm_hour,
 		gmt.tm_min,
 		gmt.tm_sec
 	);
-	
+    
 	struct tm local;
 	localtime_r( &sec, &local );
 	local.tm_mon ++;

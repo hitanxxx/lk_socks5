@@ -19,6 +19,7 @@ static status config_parse( char * str )
         cJSON * s5_mode = cJSON_GetObjectItem( root, "s5_mode" );
         cJSON * s5_serv_port = cJSON_GetObjectItem( root, "s5_serv_port" );
         cJSON * s5_serv_auth_path = cJSON_GetObjectItem( root, "s5_serv_auth_path" );
+        cJSON * s5_serv_gw = cJSON_GetObjectItem(root, "s5_serv_gw");
 
         cJSON * s5_local_port = cJSON_GetObjectItem( root, "s5_local_port" );
         cJSON * s5_local_serv_port = cJSON_GetObjectItem( root, "s5_local_serv_port" );
@@ -54,19 +55,20 @@ static status config_parse( char * str )
         ahead_dbg("ssl_key_path: [%s]\n", g_config.ssl_key_path);
 
 
-        if(s5_mode) {
+        if(s5_mode)
             g_config.s5_mode = s5_mode->valueint;
-        }
-        if(s5_serv_port) {
+        if(s5_serv_port)
             g_config.s5_serv_port = s5_serv_port->valueint;
-        }
-        if(s5_serv_auth_path) {
+        if(s5_serv_auth_path)
             strncpy( g_config.s5_serv_auth_path, cJSON_GetStringValue(s5_serv_auth_path), sizeof(g_config.s5_serv_auth_path)-1 );
-        }
+        if( s5_serv_gw )
+            strncpy( g_config.s5_serv_gw, cJSON_GetStringValue(s5_serv_gw), sizeof(g_config.s5_serv_gw) );
+        
         ahead_dbg("s5_mode: [%d]\n", g_config.s5_mode );
         ahead_dbg("s5_serv_port: [%hd]\n", g_config.s5_serv_port);
         ahead_dbg("s5_serv_auth_path: [%s]\n", g_config.s5_serv_auth_path);
-
+        ahead_dbg("s5_serv_gw: [%s]\n", g_config.s5_serv_gw );
+        
 
         if( s5_local_port ) {
             g_config.s5_local_port = s5_local_port->valueint;

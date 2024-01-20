@@ -28,12 +28,9 @@ status test_run( void )
 	t_echo ( "=======================\n" );
 	t_echo ( "\ttest start \n" );
 	t_echo ( "=======================\n" );
-	
-	for( i = 0; i < manager.num; i ++ ) 
-	{
+	for( i = 0; i < manager.num; i ++ ) {
 		manager.test[i].pt( );
 	}
-	t_echo ("\n");
 	t_echo ( "=======================\n" );
 	t_echo ( "test uint num [%d]\n", manager.num );
 	t_echo ( "=======================\n" );
@@ -44,8 +41,7 @@ status test_start( void )
 {
 	uint32 i;
 
-	for( i = 0; init_t[i]; i ++ ) 
-	{
+	for( i = 0; init_t[i]; i ++ ) {
 		init_t[i]( );
 	}
 	test_run();

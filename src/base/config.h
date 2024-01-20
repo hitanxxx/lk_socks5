@@ -25,6 +25,7 @@ typedef struct gobal_conf
     
     unsigned short 	s5_serv_port;
     char            s5_serv_auth_path[FILEPATH_LENGTH+1];
+    char            s5_serv_gw[32];
 
     unsigned short		s5_local_port;
     unsigned short		s5_local_serv_port;

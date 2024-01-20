@@ -127,11 +127,11 @@ status listen_init( void )
 
     // s5 local listen
     if( config_get()->s5_mode == SOCKS5_CLIENT ) {
-        listen_add( config_get()->s5_local_port, s5_local_accept_cb, S5_SSL );
+        listen_add( config_get()->s5_local_port, s5_local_accept_cb, S5_NOSSL );    /// local no ssl
     }
     // s5 server listen
     if( config_get()->s5_mode == SOCKS5_SERVER ) {
-        listen_add( config_get()->s5_serv_port, s5_server_accept_cb, S5_SSL );
+        listen_add( config_get()->s5_serv_port, s5_server_accept_cb, S5_SSL );  //// server ssl
     }
     // webserver listen
     for( i = 0; i < config_get()->http_num; i ++ ) {

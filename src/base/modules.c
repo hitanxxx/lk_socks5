@@ -8,69 +8,41 @@
 #include "webser.h"
 #include "mailsender.h"
 
-typedef status ( * module_init_pt )(void);
-typedef status ( * module_end_pt )(void);
-typedef struct
-{
-	module_init_pt	init_pt;
-	module_end_pt	end_pt;
-	char *			module_name;
-}modules_init_t;
 
-modules_init_t core_modules[] =
-{
-	{log_init,                          log_end,                        "log"},
-	{process_init,                      process_end,                    "process"},
-	{listen_init,                       listen_end,                     "listen"},
-	{NULL,	NULL,  NULL}
-};
+/// core module
+// log 
+// process 
+// listen
 
-
-modules_init_t app_modules[] =
-{
-	{ssl_init,                          ssl_end,                        "ssl"},
-    {timer_init,                        timer_end,                      "timer"},
-    {net_init,                          net_end,                        "net"},
-    {event_init,                        event_end,                      "event"},
-	 
-    {socks5_server_init,                socks5_server_end,              "socks5_serv"},
-    {socks5_local_init,                 socks5_local_end,               "socks5_local"},
-
-    {http_req_init_module,     			http_req_end_module,   			"http_req_head"},
-    {http_body_init_module,             http_body_end_module,           "http_body"},
-    {mailsender_init,                   mailsender_exit,                "mailsender"},
-    {webser_init,                       webser_end,                     "http"},
-    {dns_init,                        dns_end,                      "dns"},
-    {NULL,	NULL,  NULL}
-};
+/// process module
+// ssl
+// timer
+// net
+// event
+// scoks5_server
+// socks5_local
+// http_req
+// http_body
+// mailsender
+// webser
+// dns
 
 /// @brief core modules means need by all process include master process and worke process
 /// @param  
 /// @return 
 status modules_core_init( void )
 {
-    int i = 0;
-    while( core_modules[i].init_pt ) {
-        if( OK != core_modules[i].init_pt() ) {
-            err("core modules [%s] init failed\n", core_modules[i].module_name );
-            return ERROR;
-        }
-        i++;
-    }
+    SYS_FUNC_CHK(log_init());
+    SYS_FUNC_CHK(process_init());
+    SYS_FUNC_CHK(listen_init());
     return OK;
 }
 
 status modules_core_exit( void )
 {
-    int i = 0;
-
-    while( core_modules[i].end_pt ) {
-        if( OK != core_modules[i].end_pt() ) {
-            err("core modules [%s] end failed\n", core_modules[i].module_name );
-            return ERROR;
-        }
-        i++;
-    }
+    SYS_FUNC_CHK(log_end());
+    SYS_FUNC_CHK(process_end());
+    SYS_FUNC_CHK(listen_end());
     return OK;
 }
 
@@ -79,28 +51,33 @@ status modules_core_exit( void )
 /// @return 
 status modules_process_init( void )
 {
-    int i = 0;
-    while( app_modules[i].init_pt ) {
-        if( OK != app_modules[i].init_pt() ) {
-            err("modules [%s] init failed\n", app_modules[i].module_name );
-            return ERROR;
-        }
-        i++;
-    }
+    SYS_FUNC_CHK(ssl_init());
+    SYS_FUNC_CHK(timer_init());
+    SYS_FUNC_CHK(net_init());
+    SYS_FUNC_CHK(event_init());
+    SYS_FUNC_CHK(socks5_server_init());
+    SYS_FUNC_CHK(socks5_local_init());
+    SYS_FUNC_CHK(http_req_init_module());
+    SYS_FUNC_CHK(http_body_init_module());
+    SYS_FUNC_CHK(mailsender_init());
+    SYS_FUNC_CHK(webser_init());
+    SYS_FUNC_CHK(dns_init());
     return OK;
 }
 
 status modules_pocess_exit( void )
 {
-    int i = 0;
-
-    while( app_modules[i].end_pt ) {
-        if( OK != app_modules[i].end_pt() ) {
-            err("modules [%s] end failed\n", app_modules[i].module_name );
-            return ERROR;
-        }
-        i++;
-    }
+    SYS_FUNC_CHK(ssl_end());
+    SYS_FUNC_CHK(timer_end());
+    SYS_FUNC_CHK(net_end());
+    SYS_FUNC_CHK(event_end());
+    SYS_FUNC_CHK(socks5_server_end());
+    SYS_FUNC_CHK(socks5_local_end());
+    SYS_FUNC_CHK(http_req_end_module());
+    SYS_FUNC_CHK(http_body_end_module());
+    SYS_FUNC_CHK(mailsender_exit());
+    SYS_FUNC_CHK(webser_end());
+    SYS_FUNC_CHK(dns_end());
     return OK;
 }
 

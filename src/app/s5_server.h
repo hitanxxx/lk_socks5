@@ -7,6 +7,9 @@ extern "C"
 #endif
 
 
+
+
+
 #define S5_TIMEOUT	 8
 #define S5_AUTH_MAGIC_NUM   0xa000beef
 

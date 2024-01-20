@@ -1,5 +1,28 @@
 #include "common.h"
 
+static pthread_mutex_t mem_th_lock = PTHREAD_MUTEX_INITIALIZER;
+
+char * sys_alloc( int size )
+{
+    assert( size > 0 );
+    pthread_mutex_lock( &mem_th_lock );
+    char * addr = calloc( 1, size );
+    pthread_mutex_unlock( &mem_th_lock );
+    if( !addr ) {
+        err("sys alloc failed. [%d]\n", errno );
+        return NULL;
+    }
+    return addr;
+}
+
+void sys_free(   char * addr )
+{
+    if( addr ) {
+        pthread_mutex_lock( &mem_th_lock );
+        sys_free(addr);
+        pthread_mutex_unlock( &mem_th_lock );
+    }
+}
 
 /// @brief alloc a memory page chain
 /// @param page 

@@ -12,30 +12,14 @@ typedef struct
     mem_arr_t *  g_api_list;
     mem_page_t * g_api_page;
 
+    ezhash_t * mime_hash;
+
     queue_t     g_queue_use;
     queue_t     g_queue_usable;
     webser_t    g_pool[0];
 } g_web_t;
 static g_web_t * g_web_ctx = NULL;
 
-static mime_type_t mimetype_table[] =
-{
-    {string(".*"),				string("Content-type: application/octet-stream\r\n")},
-    {string(".html"),			string("Content-type: text/html\r\n")},
-    {string(".js"),             string("Content-type: application/x-javascript\r\n")},
-    {string(".json"),			string("Content-type: application/json\r\n")},
-    {string(".png"),			string("Content-type: image/png\r\n")},
-    {string(".jpg"),			string("Content-type: image/jpeg\r\n")},
-    {string(".jpeg"),			string("Content-type: image/jpeg\r\n")},
-    {string(".gif"),			string("Content-type: image/gif\r\n")},
-    {string(".ico"),			string("Content-type: image/x-icon\r\n")},
-    {string(".css"),			string("Content-type: text/css\r\n")},
-    {string(".txt"),			string("Content-type: text/plain\r\n")},
-    {string(".htm"),			string("Content-type: text/html\r\n")},
-    {string(".mp3"),			string("Content-type: audio/mpeg\r\n")},
-    {string(".m3u8"),			string("Content-type: application/x-mpegURL\r\n")},
-	{string(".ts"),				string("Content-type: video/MP2T\r\n")}
-};
 
 static status webser_start( event_t * ev );
 
@@ -92,22 +76,6 @@ status webser_api_reg( char * key, event_pt cb, enum http_process_status method_
 	return OK;
 }
 
-static char* webser_get_mimetype( unsigned char * str, int len )
-{
-    uint32 i;
-
-	if( !str || len == 0 ) {
-		return (char*)mimetype_table[0].header.data;
-	}
-	
-    for( i =0; i < sizeof(mimetype_table)/sizeof(mime_type_t); i ++ ) {
-        if( NULL != l_find_str( str, len, mimetype_table[i].type.data, mimetype_table[i].type.len ) ) {
-            return (char*)mimetype_table[i].header.data;
-        }
-    }
-    err("webser [%.*s] mimitype find failed, use default\n", len, str );
-    return (char*)mimetype_table[0].header.data;
-}
 
 static status webser_alloc( webser_t ** webser )
 {
@@ -236,9 +204,44 @@ static status webser_keepalive( event_t * ev )
     return ev->read_pt( ev );
 }
 
+
+static int webser_rsp_mime_init( )
+{
+    if( 0 != ezhash_create( &g_web_ctx->mime_hash, 128 ) ) {
+        err("webser create mime hash failed\n");
+        return ERROR;
+    }    
+    
+    ezhash_add( g_web_ctx->mime_hash, ".html",  "Content-type: text/html\r\n" );
+    ezhash_add( g_web_ctx->mime_hash, ".js",    "Content-type: application/x-javascript\r\n" );
+    ezhash_add( g_web_ctx->mime_hash, ".json",  "Content-type: application/json\r\n" );
+    ezhash_add( g_web_ctx->mime_hash, ".png",   "Content-type: image/png\r\n" );
+    ezhash_add( g_web_ctx->mime_hash, ".jpg",   "Content-type: image/jpeg\r\n" );
+    ezhash_add( g_web_ctx->mime_hash, ".jpeg",  "Content-type: image/jpeg\r\n" );
+    ezhash_add( g_web_ctx->mime_hash, ".gif",   "Content-type: image/gif\r\n" );
+    ezhash_add( g_web_ctx->mime_hash, ".ico",   "Content-type: image/x-icon\r\n" );
+    ezhash_add( g_web_ctx->mime_hash, ".css",   "Content-type: text/css\r\n" );
+    ezhash_add( g_web_ctx->mime_hash, ".txt",   "Content-type: text/plain\r\n" );
+    ezhash_add( g_web_ctx->mime_hash, ".htm",   "Content-type: text/html\r\n" );
+    ezhash_add( g_web_ctx->mime_hash, ".mp3",   "Content-type: audio/mpeg\r\n" );
+    ezhash_add( g_web_ctx->mime_hash, ".m3u8",  "Content-type: application/x-mpegURL\r\n" );
+    ezhash_add( g_web_ctx->mime_hash, ".ts",    "Content-type: video/MP2T\r\n" );
+    return OK;
+}
+
+static char* webser_rsp_mime_find( unsigned char * str, int len )
+{
+    if( str == NULL && len == 0 ) {
+        return "Content-type: application/octet-stream\r\n";
+    } else {
+        return ezhash_find( g_web_ctx->mime_hash, (char*)str );
+    }
+}
+
+
 void webser_rsp_mime( webser_t * webser, char * mimetype )
 {
-    webser->http_rsp_mime = webser_get_mimetype( (unsigned char*)mimetype, l_strlen(mimetype) );
+    webser->http_rsp_mime = webser_rsp_mime_find( (unsigned char*)mimetype, l_strlen(mimetype) );
 }
 
 
@@ -247,7 +250,7 @@ void webser_rsp_mime( webser_t * webser, char * mimetype )
 /// @param list 
 /// @param str 
 /// @return 
-static int webser_rsp_list_push_str(mem_page_t * p, mem_list_t ** list, char * str )
+static int webser_list_push_str(mem_page_t * p, mem_list_t ** list, char * str )
 {
     /// alloc memlist append into the list tail
     mem_list_t * l_new = NULL;
@@ -276,7 +279,7 @@ static int webser_rsp_list_push_str(mem_page_t * p, mem_list_t ** list, char * s
 /// @param str 
 void webser_rsp_body_push_str( webser_t * webser, char * str )
 {
-    if( OK != webser_rsp_list_push_str( webser->c->page, &webser->http_rsp_body_list, str ) ) {
+    if( OK != webser_list_push_str( webser->c->page, &webser->http_rsp_body_list, str ) ) {
         err("webser rsp body list push str [%s] failed\n", str );
     }
 	return;	
@@ -287,7 +290,7 @@ void webser_rsp_body_push_str( webser_t * webser, char * str )
 /// @param str 
 void webser_rsp_header_push_str( webser_t * webser, char * str ) 
 {
-    if( OK != webser_rsp_list_push_str( webser->c->page, &webser->http_rsp_header_list, str ) ) {
+    if( OK != webser_list_push_str( webser->c->page, &webser->http_rsp_header_list, str ) ) {
         err("webser rsp header list push str [%s] failed\n", str );
     }
     return;
@@ -512,7 +515,7 @@ static status webser_rsp_header_build( webser_t * webser )
 	webser_rsp_header_push_str( webser, gmt_date_str );
     
 	if( !webser->http_rsp_mime ) {
-		webser->http_rsp_mime = webser_get_mimetype( NULL, 0 );
+		webser->http_rsp_mime = webser_rsp_mime_find( NULL, 0 );
 	} 
 	webser_rsp_header_push_str( webser, webser->http_rsp_mime );
 
@@ -575,9 +578,18 @@ static void webser_req_file_open ( webser_t * webser )
     int code = 200;
     char filepath[WEBSER_LENGTH_PATH_STR] = {0};
 
+    /// rebuild filepath
     webser_req_file_path( webser, filepath, WEBSER_LENGTH_PATH_STR );
-    webser->http_rsp_mime = webser_get_mimetype( (unsigned char*)filepath, strlen(filepath) );
 
+    /// find filename postfix 
+    char * postfix = strrchr( filepath, '.' );
+    if( postfix ) {
+        webser->http_rsp_mime = webser_rsp_mime_find( (unsigned char*)postfix, strlen(postfix) );
+    } else {
+        webser->http_rsp_mime = webser_rsp_mime_find( (unsigned char*)NULL, 0 ); 
+    }
+
+    /// get file status and size if exist
     do {
         if( OK != stat( filepath, &st ) ) {
             err("webser stat check file [%s] failed, [%d]\n", filepath, errno );
@@ -1002,6 +1014,12 @@ status webser_init( void )
         for( i = 0; i < MAX_NET_CON; i ++ ) {
 			queue_insert_tail( &g_web_ctx->g_queue_usable, &g_web_ctx->g_pool[i].queue );
 		}
+
+        /// init mime hash 
+        if( OK != webser_rsp_mime_init( )) {
+            err("webser mime hash init failed\n");
+            return ERROR;
+        }
         
         /// init webserv api data
         if( OK == mem_page_create( &g_web_ctx->g_api_page, L_PAGE_DEFAULT_SIZE ) )  {
@@ -1040,16 +1058,20 @@ status webser_init( void )
 status webser_end( void )
 {
     if( g_web_ctx ) {
+        if( g_web_ctx->mime_hash ) {
+            ezhash_free( g_web_ctx->mime_hash );
+        }
+        
         if( g_web_ctx->g_api_list ) {
-                mem_arr_free( g_web_ctx->g_api_list );
-                g_web_ctx->g_api_list = NULL;
-            }
-            
-            if( g_web_ctx->g_api_page ) {
-                mem_page_free( g_web_ctx->g_api_page );
-                g_web_ctx->g_api_page = NULL;
-            }
-            l_safe_free( g_web_ctx );
+            mem_arr_free( g_web_ctx->g_api_list );
+            g_web_ctx->g_api_list = NULL;
+        }
+        
+        if( g_web_ctx->g_api_page ) {
+            mem_page_free( g_web_ctx->g_api_page );
+            g_web_ctx->g_api_page = NULL;
+        }
+        l_safe_free( g_web_ctx );
     }
     return OK;
 }

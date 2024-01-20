@@ -3,22 +3,22 @@
 
 status meta_alloc_form_mempage ( mem_page_t * page, uint32 size, meta_t ** out )
 {
-	meta_t * new = NULL;
+	meta_t * meta_alloc = NULL;
 
     sys_assert(page != NULL);
     sys_assert(size > 0);
 
-	new = mem_page_alloc( page, sizeof(meta_t)+size );
-	if( !new ) {
+	meta_alloc = mem_page_alloc( page, sizeof(meta_t)+size );
+	if( !meta_alloc ) {
 		err("meta alloc from page failed\n");
 		return ERROR;
 	}
-	memset( new, 0, sizeof(meta_t)+size );
+	memset( meta_alloc, 0, sizeof(meta_t)+size );
 
-	new->start = new->pos = new->last = new->data;
-	new->end = new->start + size;
+	meta_alloc->start = meta_alloc->pos = meta_alloc->last = meta_alloc->data;
+	meta_alloc->end = meta_alloc->start + size;
 
-	*out = new;
+	*out = meta_alloc;
 	return OK;
 }
 

@@ -14,13 +14,14 @@ typedef struct dns_ctx_s
 {
     queue_t     usable;
     queue_t     use;
+    int         recn;
     queue_t     record_mng;
     dns_cycle_t pool[0];
 } dns_ctx_t;
 static dns_ctx_t * dns_ctx = NULL;
 
 
-static status dns_record_add( char * query, char * addr, int msec )
+static status dns_rec_add( char * query, char * addr, int msec )
 {
     dns_cache_t * rdns = calloc(1, sizeof(dns_cache_t));
     if( !rdns ) {
@@ -39,7 +40,7 @@ static status dns_record_add( char * query, char * addr, int msec )
     return OK;
 }
 
-status dns_record_find( char * query, char * out_addr )
+status dns_rec_find( char * query, char * out_addr )
 {   
     queue_t * q = queue_head( &dns_ctx->record_mng );
     queue_t * n = NULL;
@@ -53,11 +54,10 @@ status dns_record_find( char * query, char * out_addr )
 
     while( q != queue_tail(&dns_ctx->record_mng) ) {
         n = queue_next(q);
-        
         rdns = ptr_get_struct( q, dns_cache_t, queue );
+
         if( current_msec < rdns->expire_msec ) {
-            /// not timeout, goto compare string      
-    	    if( strcmp( rdns->query, query ) == 0 ) {	         
+            if( (strlen(rdns->query) == strlen(query)) && (0 == strcmp( rdns->query, query )) ) {  
                 if( out_addr ) {
                     out_addr[0] = rdns->addr[0];
                 	out_addr[1] = rdns->addr[1];
@@ -65,22 +65,33 @@ status dns_record_find( char * query, char * out_addr )
                 	out_addr[3] = rdns->addr[3];
                 }
             	found = 1;
-    	    }
+                if( dns_ctx->recn <= 8 ) {
+                    break;
+                }
+            }
         } else {
-            /// find the list and delete timeout cache entry 
-            ///debug("dns cache del entry: [%s]\n", rdns->query );
             queue_remove( q );
             free(rdns);
         }
         
         q = n;
     }
-    return ( found == 1 ? OK : ERROR );
+
+    if( dns_ctx->recn > 8 ) {
+        dns_ctx->recn = 0;
+    }
+    dns_ctx->recn++;
+    return ( found ? OK : ERROR );
 }
 
 inline static char * dns_get_serv( )
 {
-	return "8.8.8.8";
+    /// try to get gateway 
+    if( strlen(config_get()->s5_serv_gw) > 0 ) {
+        return config_get()->s5_serv_gw;
+    } else {
+        return "8.8.8.8";
+    }
 }
 
 static status dns_alloc( dns_cycle_t ** cycle )
@@ -172,7 +183,7 @@ static void dns_stop( dns_cycle_t * cycle, status rc )
     }
 }
 
-inline static void dns_cycle_timeout( void * data )
+static inline void dns_cycle_timeout( void * data )
 {
 	dns_stop( (dns_cycle_t *)data, ERROR );
 }
@@ -253,11 +264,11 @@ status dns_response_process( dns_cycle_t * cycle )
 
 			    /// if this answer is a A TYPE answer (IPV4), return ok
 			    if( rtyp == 0x0001 ) {
-                    if( OK == dns_record_find( (char*)cycle->query, NULL ) ) {
+                    if( OK == dns_rec_find( (char*)cycle->query, NULL ) ) {
                         /// do nothing, record already in cache 
                     } else {
                         if( rttl > 0 && rdatan > 0 ) {
-        			        dns_record_add( (char*)cycle->query, (char*)cycle->answer.rdata_data, 1000*rttl );
+        			        dns_rec_add( (char*)cycle->query, (char*)cycle->answer.rdata_data, 1000*rttl );
                         }
                     }
 					return OK;
@@ -355,45 +366,42 @@ status dns_request_send( event_t * ev )
 	return ev->read_pt( ev );
 }
 
-uint32_t dns_request_qname_conv( unsigned char * qname, unsigned char * query )
+int dns_request_host2qname( unsigned char * host, unsigned char * qname )
 {
-    unsigned char * host = query;
-    unsigned char * dns = qname;
-    unsigned char * s = host;
-    int32_t i = 0;
-    size_t len = 0;
-    
-    enum
-    {
-        s_str = 0,
-        s_point
-    } state = 0;
-    
-    strcat( (char*)query, "." );
-    while( host < query + l_strlen(query) ) {
-        if( state == s_str ) {
-            if( *host == '.' ) {
-                len = host-s;
-                *dns++ = len;
-                for( i = 0; i < len; i ++ ) {
-                    *(dns+i) = *(s+i);
-                }
-                dns += len;
-                state = s_point;
-            }
-        } else if ( state == s_point ) {
-            s = host;
-            state = s_str;
+    int i = 0;
+    char stack[256] = {0};
+    int stackn = 0;
+    int qnamen = 0;
+
+    while( i < strlen((char*)host) ) {
+
+        if( host[i] == '.' ) {
+            qname[qnamen++] = stackn+0x30;    /// int convert to string
+            /// copy stack into qname 
+            memcpy( qname+qnamen, stack, stackn );
+            qnamen += stackn;
+            /// clear stack
+            memset( stack, 0, sizeof(stack) );
+            stackn = 0;
+        } else {
+            /// push into stack
+            stack[stackn++] = host[i];
         }
-        host++;
+        i ++;
     }
-    *dns++ = '\0';
-    /// recovery query
-    query[strlen((char*)query)-1] = '\0';
-    return meta_len( qname, dns );
+    /// append last part
+    if( stackn > 0 ) {
+        qname[qnamen++] = stackn+0x30;    /// int convert to string
+        memcpy( qname+qnamen, stack, stackn );
+        qnamen += stackn;
+    }
+    
+    qname[qnamen++] = 0x30; /// '0' means end 
+    return qnamen;
 }
 
-static status dns_request_prepare( event_t * ev )
+
+static status dns_request_packet( event_t * ev )
 {
     connection_t * c = ev->data;
     dns_cycle_t * cycle = c->data;
@@ -414,12 +422,11 @@ static status dns_request_prepare( event_t * ev )
 
 	/// convert www.google.com -> 3www6google3com0
     qname = meta->last;
-    cycle->qname_len = dns_request_qname_conv( qname, cycle->query );
+    cycle->qname_len = dns_request_host2qname( cycle->query, qname );
     meta->last += cycle->qname_len;
 	
     qinfo = (dns_question_t*)meta->last;
-    /// question type is IPV4
-    qinfo->qtype = htons(0x0001);
+    qinfo->qtype = htons(0x0001);   /// question type is IPV4
     qinfo->qclass = htons(0x0001);
     meta->last += sizeof(dns_question_t);
 
@@ -433,9 +440,9 @@ status dns_start( dns_cycle_t * cycle )
 	connection_t * c = cycle->c;
 	struct sockaddr_in addr;
 	
-	addr.sin_family 		= AF_INET;
-	addr.sin_port 			= htons( 53 );
-	addr.sin_addr.s_addr 	= inet_addr( dns_get_serv() );
+	addr.sin_family = AF_INET;
+	addr.sin_port = htons( 53 );    /// dns procotol default port 
+	addr.sin_addr.s_addr = inet_addr( dns_get_serv() );
 
     do {
         c->fd = socket(AF_INET, SOCK_DGRAM, 0 );
@@ -453,8 +460,8 @@ status dns_start( dns_cycle_t * cycle )
         }
         
         memcpy( &c->addr, &addr, sizeof(c->addr) );
-        c->event->read_pt       = NULL;
-        c->event->write_pt      = dns_request_prepare;
+        c->event->read_pt = NULL;
+        c->event->write_pt = dns_request_packet;
         return c->event->write_pt( c->event );
     } while(0);
     

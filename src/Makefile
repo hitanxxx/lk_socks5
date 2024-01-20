@@ -35,8 +35,9 @@ SRCDIR  += ./app
 SRCDIR  += ./bin
 SRCDIR  += ./test
 
-CSRCS  += $(foreach d, $(SRCDIR), $(wildcard $d/*.c))
-COBJS += $(patsubst %.c, %.o, $(CSRCS))
+CSRCS += $(foreach d, $(SRCDIR), $(wildcard $d/*.c))
+CSRCS += $(foreach d, $(SRCDIR), $(wildcard $d/*.cpp))
+COBJS += $(patsubst %.c,%.o,$(patsubst %.cpp,%.o,$(CSRCS)))
 
 ### COMPLE FALGS
 LDFLAGS += -lcrypto -lssl -lpthread -lm -ldl
@@ -44,18 +45,23 @@ LDFLAGS += -lcrypto -lssl -lpthread -lm -ldl
 CFLAGS += -Wall -ffunction-sections -fdata-sections $(DEFINE) $(INCLUDE)
 CFLAGS += -O2
 
-%.o:%.c
-	@echo "[compile: $<]"
+.c.o:
+	@echo "> $<"
 	@$(CC) -c $(CFLAGS)  -o $@ $<
+.cpp.o:
+	@echo "> $<"
+	@$(CXX) -c $(CFLAGS)  -o $@ $<
 
 
 all: s5
 
 s5: $(COBJS)
+	@echo "[CC]:($(CC))"
+	@echo "[DEFINE]:($(DEFINE))"
 	$(CC) -o $@ $(COBJS) $(LDFLAGS)
 	$(STRIP) $@
 	@md5sum $@
-	@echo "========== build $@ successful ============="
+	@echo "===== compile finish ====="
 
 clean:
 	$(RM) s5

@@ -135,9 +135,9 @@ int32 main( int argc, char ** argv )
 	int32 rc = ERROR;	
 
 	ahead_dbg("=======================\n");
-	ahead_dbg("== weclome to use S5 ==\n");
+	ahead_dbg("==  welcome to use  ==\n");
 	ahead_dbg("=======================\n");
-	ahead_dbg("compile date [%s %s]\n", __DATE__, __TIME__ );
+	ahead_dbg("[%s %s]\n", __DATE__, __TIME__ );
 
 	/// set higiest process priority
 	setpriority(PRIO_PROCESS, 0, -20 );
@@ -153,12 +153,12 @@ int32 main( int argc, char ** argv )
 	/// reset process name
 	size_t space = 0;
 	int i = 0;
-    for (i = 0; i < argc; i++) {
-        size_t length = strlen(argv[i]);
-        space += length + 1;
-    }
-    memset(argv[0], '\0', space); // wipe existing args
-    strncpy(argv[0], "s5", space - 1); 
+	for (i = 0; i < argc; i++) {
+    	size_t length = strlen(argv[i]);
+    	space += length + 1;
+	}
+	memset(argv[0], '\0', space); // wipe existing args
+	strncpy(argv[0], "s5", space - 1); 
 
 	/// config init 
 	if( OK != config_init() ) {
@@ -175,6 +175,8 @@ int32 main( int argc, char ** argv )
 		err("proc_pid_create failed\n");
 		return -1;
 	}
+
+	//test_start();
 
 	do  {
 		// modules core 

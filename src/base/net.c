@@ -229,8 +229,7 @@ status net_accept( event_t * ev )
 		c->event->write_pt = NULL;
 		
 		event_opt( c->event, c->fd, EV_R );
-
-		event_post_event( c->event ); ///c->event->read_pt( c->event );
+		event_post_event( c->event );
 	}
 	return OK;
 }
@@ -308,7 +307,7 @@ status net_free( connection_t * c )
 
 status net_alloc( connection_t ** c )
 {
-	connection_t * new = NULL;
+	connection_t * new_obj = NULL;
 	queue_t * q = NULL;
 
 	if( queue_empty( &g_net_ctx->usable ) ) {
@@ -319,18 +318,18 @@ status net_alloc( connection_t ** c )
 	q = queue_head( &g_net_ctx->usable );
 	queue_remove( q );
 	queue_insert_tail( &g_net_ctx->use, q );
-	new = ptr_get_struct( q, connection_t, queue );
+	new_obj = ptr_get_struct( q, connection_t, queue );
 
-	if( NULL == new->event ) {
-		if( OK != event_alloc( &new->event ) ) {
+	if( NULL == new_obj->event ) {
+		if( OK != event_alloc( &new_obj->event ) ) {
 			err("net alloc conn event failed\n");
 			queue_remove( q );
 			queue_insert_tail( &g_net_ctx->usable, q );
 			return ERROR;
 		}
-		new->event->data = new;
+		new_obj->event->data = new_obj;
 	}
-	*c = new;
+	*c = new_obj;
 	return OK;
 }
 

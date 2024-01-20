@@ -41,11 +41,10 @@ static void ts_dns_conv_qname( void )
     uint32 len = 0;
     
     strcpy( (char*)host, "www.baidu.com" );
-    len = dns_request_qname_conv( dns, (unsigned char*)host );
+    len = dns_request_host2qname( dns, (unsigned char*)host );
 #if(1)
     int j = 0;
-    for( j = 0; j < len; j ++ )
-    {
+    for( j = 0; j < len; j ++ ){
         t_echo("[%d]\n", dns[j] );
     }
 #endif

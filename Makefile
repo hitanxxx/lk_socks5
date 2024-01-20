@@ -1,12 +1,8 @@
 
 install_path := /usr/local/s5
 all:
-	@make -C ./src
-	@echo "=========================="
-	@echo "===== compile finish ====="
-	@echo "=========================="
-	#copy elf file into env dir
-	-cp -rf ./src/s5 ./env/sbin/
+	@$(MAKE) -C ./src
+	@-cp -rf ./src/s5 ./env/sbin/
 test:
 	@make -C ./src test
 	

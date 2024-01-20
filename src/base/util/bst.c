@@ -104,21 +104,19 @@ status bst_del( bst_t * tree, bst_node_t * node )
 	}
 	del = node;
 	if( !del->left && !del->right ) {
-		( del->type == BST_LEFT ) ? ( del->parent->left = NULL ):
-			( del->parent->right = NULL );
+		( del->type == BST_LEFT ) ? ( del->parent->left = NULL ):( del->parent->right = NULL );
 	} else if ( !del->left && del->right ) {
-		( del->type == BST_LEFT ) ? ( del->parent->left = del->right ):
-			( del->parent->right = del->right );
+		( del->type == BST_LEFT ) ? ( del->parent->left = del->right ):( del->parent->right = del->right );
 		del->right->parent = del->parent;
 		del->right->type = del->type;
 		del->right->level = del->level;
 	} else if ( del->left && !del->right ) {
-		( del->type == BST_LEFT ) ? ( del->parent->left = del->left ):
-			( del->parent->right = del->left );
+		( del->type == BST_LEFT ) ? ( del->parent->left = del->left ): ( del->parent->right = del->left );
 		del->left->parent = del->parent;
 		del->left->type = del->type;
 		del->left->level = del->level;
 	} else if ( del->left && del->right ) {
+        /// find mininum of right child tree
 		if( OK != bst_branch_min( del->right, &min ) ) {
 			return ERROR;
 		}

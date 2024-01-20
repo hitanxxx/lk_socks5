@@ -65,11 +65,13 @@ typedef struct dns_cycle
 status dns_start( dns_cycle_t * cycle );
 status dns_create( dns_cycle_t ** dns_cycle );
 status dns_over( dns_cycle_t * cycle );
-uint32_t dns_request_qname_conv( unsigned char * qname, unsigned char * query );
+int dns_request_host2qname( unsigned char * host, unsigned char * qname );
+
 
 status dns_init( void );
 status dns_end( void );
-status dns_record_find( char * query, char * out_addr );
+
+status dns_rec_find( char * query, char * out_addr );
 
     
 #ifdef __cplusplus

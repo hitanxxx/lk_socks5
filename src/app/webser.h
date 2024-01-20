@@ -51,11 +51,7 @@ typedef struct {
 	
 } webser_t;
 
-typedef struct mime_type_t
-{
-    string_t type;
-    string_t header;
-} mime_type_t;
+
 
 void webser_rsp_body_push_str( webser_t * webser, char * str );
 void webser_rsp_mime(webser_t *webser, char *mimetype);
