@@ -4,7 +4,7 @@
 
 static status proc_daemon( void )
 {
-    int32  fd;
+	int32  fd;
 	status rc = -1;
 
 	if( !config_get()->sys_daemon ) return OK;
@@ -16,40 +16,40 @@ static status proc_daemon( void )
 	} else if ( rc == 0 ) {
 		// child
 		if (setsid() == ERROR )  {
-	        err("setsid\n");
-	        return ERROR;
-	    }
+			err("setsid\n");
+			return ERROR;
+		}
 		umask(0);
 		fd = open("/dev/null", O_RDWR);
-	    if (fd == -1)  {
-	        err("open /dev/null failed, [%d]\n", errno );
-	        return ERROR;
-	    }
-	    if (dup2(fd, STDIN_FILENO) == -1) {
-	        err( "dup2(STDIN) failed, [%d]\n", errno );
-	        return ERROR;
-	    }
-	    if (dup2(fd, STDOUT_FILENO) == -1)  {
-	        err( "dup2(STDOUT) failed. [%d]\n", errno );
-	        return ERROR;
-	    }
+		if (fd == -1)  {
+			err("open /dev/null failed, [%d]\n", errno );
+			return ERROR;
+		}
+		if (dup2(fd, STDIN_FILENO) == -1) {
+			err( "dup2(STDIN) failed, [%d]\n", errno );
+			return ERROR;
+		}
+		if (dup2(fd, STDOUT_FILENO) == -1)  {
+			err( "dup2(STDOUT) failed. [%d]\n", errno );
+			return ERROR;
+		}
 #if 0
-	    if (dup2(fd, STDERR_FILENO) == -1)
+		if (dup2(fd, STDERR_FILENO) == -1)
 		{
-	        err(" dup2(STDERR) failed\n" );
-	        return ERROR;
-	    }
+			err(" dup2(STDERR) failed\n" );
+			return ERROR;
+		}
 #endif
 		if (fd > STDERR_FILENO)  {
-        	if (close(fd) == -1)  {
-            	err( "close() failed. [%d]\n", errno );
-            	return ERROR;
-        	}
-    	}
+			if (close(fd) == -1)  {
+				err( "close() failed. [%d]\n", errno );
+				return ERROR;
+			}
+		}
 	} else if ( rc > 0 ) {
 		exit(EXIT_SUCCESS);
 	}
-    return OK;
+	return OK;
 }
 
 /// @brief storge pid file into file 
@@ -88,19 +88,19 @@ static void proc_pid_free(  )
 /// @return 
 static status proc_cmd_option( int argc, char * argv[] )
 {
-    pid_t pid;
+	pid_t pid;
 	char * opt_string = NULL;
 	int opt_type = -1;
 
-    /// no argv, normal startup
-    if( argc < 2 ) return OK;
-    
-    /// argv process
-    do {
-        if( argc > 2 ) {
-            err("argc [%d] to many, only support 1 parameter\n");
-            break;
-        }
+	/// no argv, normal startup
+	if( argc < 2 ) return OK;
+	
+	/// argv process
+	do {
+		if( argc > 2 ) {
+			err("argc [%d] to many, only support 1 parameter\n");
+			break;
+		}
 
 		opt_string = argv[1];
 		if( strlen("-reload") == strlen(opt_string) &&
@@ -114,19 +114,19 @@ static status proc_cmd_option( int argc, char * argv[] )
 			break;
 		}
 
-        if( OK != proc_pid_form_file( &pid ) ) {
-            err("option get current runing pid failed, [%d]\n", errno );
-            break;
-        }
-        if( OK != proc_signal_send( pid, opt_type ) ) {
-            err("option send signal to pid failed\n");
-            break;
-        }
-    } while(0);
-    
+		if( OK != proc_pid_form_file( &pid ) ) {
+			err("option get current runing pid failed, [%d]\n", errno );
+			break;
+		}
+		if( OK != proc_signal_send( pid, opt_type ) ) {
+			err("option send signal to pid failed\n");
+			break;
+		}
+	} while(0);
+	
 	/// if process cmdline, always exit 
-    exit(EXIT_SUCCESS);
-    return OK;
+	exit(EXIT_SUCCESS);
+	return OK;
 }
 
 
@@ -154,8 +154,8 @@ int32 main( int argc, char ** argv )
 	size_t space = 0;
 	int i = 0;
 	for (i = 0; i < argc; i++) {
-    	size_t length = strlen(argv[i]);
-    	space += length + 1;
+		size_t length = strlen(argv[i]);
+		space += length + 1;
 	}
 	memset(argv[0], '\0', space); // wipe existing args
 	strncpy(argv[0], "s5", space - 1); 

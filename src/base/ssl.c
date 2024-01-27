@@ -46,7 +46,7 @@ status ssl_shutdown_handler( event_t * ev )
     ssl_handshake_pt  callback = c->ssl->cb;
     
     if( ssl_shutdown( c->ssl ) == AGAIN ) {
-    	timer_add( &ev->timer, L_SSL_TIMEOUT );
+        timer_add( &ev->timer, L_SSL_TIMEOUT );
         return AGAIN;
     }
     
@@ -61,8 +61,8 @@ status ssl_shutdown( ssl_connection_t * ssl )
 {
     int32 n, sslerr = 0;
     connection_t * c = ssl->data;
-	int mode = 0;
-	
+    int mode = 0;
+    
     if( SSL_in_init( c->ssl->con ) ) {
         SSL_free( c->ssl->con );
         l_safe_free( c->ssl );
@@ -71,17 +71,17 @@ status ssl_shutdown( ssl_connection_t * ssl )
         return OK;
     }
     
-	if( c->event->timer.f_timeout ) {
-		mode = SSL_RECEIVED_SHUTDOWN|SSL_SENT_SHUTDOWN;
-		SSL_set_quiet_shutdown(c->ssl->con, 1);
-	} else {
-		mode = SSL_get_shutdown(c->ssl->con);
-		mode |= SSL_RECEIVED_SHUTDOWN;
-		mode |= SSL_SENT_SHUTDOWN;
-	}
+    if( c->event->timer.f_timeout ) {
+        mode = SSL_RECEIVED_SHUTDOWN|SSL_SENT_SHUTDOWN;
+        SSL_set_quiet_shutdown(c->ssl->con, 1);
+    } else {
+        mode = SSL_get_shutdown(c->ssl->con);
+        mode |= SSL_RECEIVED_SHUTDOWN;
+        mode |= SSL_SENT_SHUTDOWN;
+    }
     
-	SSL_set_shutdown(c->ssl->con, mode);
-	ssl_clear_error();
+    SSL_set_shutdown(c->ssl->con, mode);
+    ssl_clear_error();
 
     n = SSL_shutdown( c->ssl->con );
     if( n != 1 && ERR_peek_error() ) {
@@ -126,7 +126,7 @@ static status ssl_handshake_handler( event_t * ev )
     
     if( ssl_handshake( c->ssl ) == AGAIN ) {
         timer_add( &ev->timer, L_SSL_TIMEOUT );
-		return AGAIN;
+        return AGAIN;
     }
     
     if( c->ssl->cache_ev_type ) {
@@ -218,8 +218,8 @@ ssize_t ssl_read( connection_t * c, unsigned char * start, uint32 len )
         c->event->write_pt = ssl_write_handler;
         return AGAIN;
     } else if (sslerr == SSL_ERROR_ZERO_RETURN || ERR_peek_error() == 0) {
-		//err("ssl peer closed\n");
-	} else if( sslerr == SSL_ERROR_SYSCALL ) {
+        //err("ssl peer closed\n");
+    } else if( sslerr == SSL_ERROR_SYSCALL ) {
         err("ssl error, syserror [%d]\n", errno );
     } else {
         err("ssl error, [%s]\n", ERR_error_string( ERR_get_error(), g_ssl_ctx->g_err_msg ));
@@ -455,10 +455,10 @@ status ssl_init( void )
     SSL_load_error_strings();
     OpenSSL_add_all_algorithms();
 #else
-	OPENSSL_config(NULL);
-	SSL_library_init();
-	SSL_load_error_strings();
-	OpenSSL_add_all_algorithms();
+    OPENSSL_config(NULL);
+    SSL_library_init();
+    SSL_load_error_strings();
+    OpenSSL_add_all_algorithms();
 #endif
     return OK;
 }
@@ -467,17 +467,17 @@ status ssl_end( void )
 {
     ERR_free_strings();
     EVP_cleanup();
-	if( g_ssl_ctx ) {
-		if( g_ssl_ctx->ctx_client ) {
-			SSL_CTX_free( g_ssl_ctx->ctx_client );
-			g_ssl_ctx->ctx_client = NULL;
-		}
-		if( g_ssl_ctx->ctx_server ) {
-			SSL_CTX_free( g_ssl_ctx->ctx_server );
-			g_ssl_ctx->ctx_server = NULL;
-		}
-		l_safe_free( g_ssl_ctx );
-		g_ssl_ctx = NULL;
-	}
+    if( g_ssl_ctx ) {
+        if( g_ssl_ctx->ctx_client ) {
+            SSL_CTX_free( g_ssl_ctx->ctx_client );
+            g_ssl_ctx->ctx_client = NULL;
+        }
+        if( g_ssl_ctx->ctx_server ) {
+            SSL_CTX_free( g_ssl_ctx->ctx_server );
+            g_ssl_ctx->ctx_server = NULL;
+        }
+        l_safe_free( g_ssl_ctx );
+        g_ssl_ctx = NULL;
+    }
     return OK;
 }

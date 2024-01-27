@@ -49,7 +49,7 @@ static status s5_local_auth_build( event_t * ev )
     header->typ = S5_MSG_LOGIN_REQ;
     header->code = S5_ERR_SUCCESS;
     meta->last += sizeof(s5_auth_info_t);
-	
+    
     /// fill in s5_auth_data_t
     payload = (s5_auth_data_t*)(meta->last);
     memset( payload->auth, 0, sizeof(payload->auth) );
@@ -64,7 +64,7 @@ static status s5_local_auth_build( event_t * ev )
 static inline void s5_local_up_addr_get( struct sockaddr_in * addr )
 {
     memset( addr, 0, sizeof(struct sockaddr_in) );
-	addr->sin_family = AF_INET;
+    addr->sin_family = AF_INET;
     addr->sin_port = htons( config_get()->s5_local_serv_port );
     addr->sin_addr.s_addr = inet_addr( config_get()->s5_local_serv_ip );
 }
@@ -253,12 +253,12 @@ status s5_local_accept_cb( event_t * ev )
 
 status socks5_local_init( void )
 {
-	return OK;
+    return OK;
 }
 
 status socks5_local_end( void )
 {
-	return OK;
+    return OK;
 }
 
 

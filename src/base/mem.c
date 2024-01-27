@@ -39,7 +39,7 @@ status mem_page_create( mem_page_t ** page, uint32 size )
         return ERROR;
     }
 
-	page_new->size = size;
+    page_new->size = size;
     page_new->start = page_new->data;
     page_new->end = page_new->start + page_new->size;
 
@@ -54,11 +54,11 @@ status mem_page_create( mem_page_t ** page, uint32 size )
 status mem_page_free( mem_page_t * page )
 {
     mem_page_t *cur = page;
-	mem_page_t *next= NULL;
+    mem_page_t *next= NULL;
 
-	if( !page ) {
-		return OK;
-	}
+    if( !page ) {
+        return OK;
+    }
 
     while( cur ) {
         next = cur->next;
@@ -75,38 +75,38 @@ status mem_page_free( mem_page_t * page )
 void * mem_page_alloc( mem_page_t * page, uint32 size )
 {
     mem_page_t *cur = page;
-	mem_page_t *next = NULL;
-	mem_page_t *last = NULL;
-	
+    mem_page_t *next = NULL;
+    mem_page_t *last = NULL;
+    
     mem_page_t *page_new = NULL;
 
-	if( !page ) {
-		return NULL;
-	}
-		
-	/// traversal chain find remain space 
-	while( cur ) {
+    if( !page ) {
+        return NULL;
+    }
+        
+    /// traversal chain find remain space 
+    while( cur ) {
 
         last = cur;
-		next = cur->next;
+        next = cur->next;
 
-		if( cur->end - cur->start >= size ) {
-			cur->start += size;
-			return cur->start - size;
-		}
-		cur = next;
-	}
+        if( cur->end - cur->start >= size ) {
+            cur->start += size;
+            return cur->start - size;
+        }
+        cur = next;
+    }
 
-	// alloc new page 
-	if( OK != mem_page_create( &page_new, size ) ) {
-		err("alloc new page failed\n");
-		return NULL;
-	}
+    // alloc new page 
+    if( OK != mem_page_create( &page_new, size ) ) {
+        err("alloc new page failed\n");
+        return NULL;
+    }
     
-	/// add new page into chain
-	last->next = page_new;
+    /// add new page into chain
+    last->next = page_new;
 
-	/// return memory addr
-	page_new->start += size;
-	return page_new->start - size;
+    /// return memory addr
+    page_new->start += size;
+    return page_new->start - size;
 }

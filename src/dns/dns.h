@@ -11,6 +11,8 @@ extern "C"
 #define DNS_BUFFER_LEN      1500
 
 #pragma pack(push,1)
+/// dns format in here
+/// dns_header_t + qname + dns_question_t + (answer domain) + dns_rdata_t + answer_addr
 typedef struct dns_header 
 {
     unsigned short  id;
@@ -23,6 +25,7 @@ typedef struct dns_header
 
 typedef struct dns_question
 {	
+	/// qname 
     unsigned short  qtype;
     unsigned short  qclass;
 }  dns_question_t;
@@ -39,7 +42,7 @@ typedef struct dns_record
 {
     unsigned char * name;
     dns_rdata_t *   rdata;
-    unsigned char * rdata_data;
+ 	unsigned char *	answer_addr;   
 }  dns_record_t;
 #pragma pack(pop)
 
@@ -48,18 +51,18 @@ typedef struct dns_cycle
 {
     queue_t         queue;
     // in && out
-    unsigned char   query[DOMAIN_LENGTH+1];
+    unsigned char   query[DOMAIN_LENGTH+1];	/// stoege dns query host and convert qnam e
     connection_t *  c;
     dns_callback    cb;
     void *          cb_data;
-    status          dns_status; // OK:success 	ERROR:erro
-
-	// private
-    uint32          qname_len;
-    dns_record_t    answer;
+    status          dns_status; // OK:success 	ERROR:error
     
-    meta_t          dns_meta;
+	meta_t          dns_meta;
     unsigned char   dns_buffer[DNS_BUFFER_LEN];
+	
+	// private
+    uint32          qname_len;	/// question qnamelen, qname data storge in query 
+    dns_record_t    answer;	/// dns answer
 } dns_cycle_t;
 
 status dns_start( dns_cycle_t * cycle );

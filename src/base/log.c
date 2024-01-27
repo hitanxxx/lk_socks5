@@ -3,75 +3,75 @@
 
 typedef struct 
 {
-	int 	log_fd_main;
-	int 	log_fd_access;
+    int 	log_fd_main;
+    int 	log_fd_access;
 } log_mgr_t;
 
 log_mgr_t * log_ctx = NULL;
 
 static string_t levels[] = {
-	string("[ERR]"),
-	string("[DBG]"),
-	string("[PRI]")
+    string("[ERR]"),
+    string("[DBG]"),
+    string("[PRI]")
 };
 
 static status log_format_time( log_content_t * ctx )
 {
-	int len = snprintf( ctx->pos, meta_len( ctx->pos, ctx->last )-1, " %s", systime_log() );
-	ctx->pos += len;
-	return OK;
+    int len = snprintf( ctx->pos, meta_len( ctx->pos, ctx->last )-1, " %s", systime_log() );
+    ctx->pos += len;
+    return OK;
 }
 
 static status log_format_level( log_content_t * ctx )
 {
-	int len = snprintf( ctx->pos, meta_len( ctx->pos, ctx->last )-1, "%.*s",levels[ctx->level].len,levels[ctx->level].data);
-	ctx->pos += len;
-	return OK;
+    int len = snprintf( ctx->pos, meta_len( ctx->pos, ctx->last )-1, "%.*s",levels[ctx->level].len,levels[ctx->level].data);
+    ctx->pos += len;
+    return OK;
 }
 
 static status log_format_text( log_content_t * ctx )
 {
-	int32 len = 0;
+    int32 len = 0;
 
-	len = snprintf( ctx->pos, meta_len( ctx->pos, ctx->last )-1, " %s", ctx->func );
-	ctx->pos += len;
-	len = snprintf( ctx->pos, meta_len( ctx->pos, ctx->last )-1, ":%d ", ctx->line );
-	ctx->pos += len;
-	len = vsnprintf( ctx->pos, meta_len( ctx->pos, ctx->last )-1, ctx->args, ctx->args_list );
-	ctx->pos += len;
-	return OK;
+    len = snprintf( ctx->pos, meta_len( ctx->pos, ctx->last )-1, " %s", ctx->func );
+    ctx->pos += len;
+    len = snprintf( ctx->pos, meta_len( ctx->pos, ctx->last )-1, ":%d ", ctx->line );
+    ctx->pos += len;
+    len = vsnprintf( ctx->pos, meta_len( ctx->pos, ctx->last )-1, ctx->args, ctx->args_list );
+    ctx->pos += len;
+    return OK;
 }
 
 static status log_write_stdout( char * str, int32 length )
 {
-	ssize_t rc = write( STDOUT_FILENO, str, (size_t)length );
-	if( rc == ERROR ) 
-		return ERROR;
-	return OK;
+    ssize_t rc = write( STDOUT_FILENO, str, (size_t)length );
+    if( rc == ERROR ) 
+        return ERROR;
+    return OK;
 }
 
 static status log_write_file_main( char * str, int32 length )
 {
-	ssize_t rc;
+    ssize_t rc;
 
-	if( log_ctx && (log_ctx->log_fd_main > 0) ) {
-		rc = write( log_ctx->log_fd_main, str, (size_t)length );
-		if( rc == ERROR ) 
-			return ERROR;
-	}
-	return OK;
+    if( log_ctx && (log_ctx->log_fd_main > 0) ) {
+        rc = write( log_ctx->log_fd_main, str, (size_t)length );
+        if( rc == ERROR ) 
+            return ERROR;
+    }
+    return OK;
 }
 
 static status log_write_file_access( char * str, int32 length )
 {
-	ssize_t rc;
+    ssize_t rc;
 
-	if( log_ctx && (log_ctx->log_fd_access > 0) ) {
-		rc = write( log_ctx->log_fd_access, str, (size_t)length );
-		if( rc == ERROR )
-			return ERROR;
-	}
-	return OK;
+    if( log_ctx && (log_ctx->log_fd_access > 0) ) {
+        rc = write( log_ctx->log_fd_access, str, (size_t)length );
+        if( rc == ERROR )
+            return ERROR;
+    }
+    return OK;
 }
 
 status log_print( uint32 id, uint32 level, const char * func, int line, const char * str, ... )
@@ -104,7 +104,7 @@ status log_print( uint32 id, uint32 level, const char * func, int line, const ch
         
     }
 
-	return OK;
+    return OK;
 }
 
 status log_init( void )
@@ -138,7 +138,7 @@ status log_init( void )
             close(log_ctx->log_fd_main);
         if(log_ctx->log_fd_access)
             close(log_ctx->log_fd_access);
-       l_safe_free(log_ctx);
+    l_safe_free(log_ctx);
     }
 
     return ERROR;

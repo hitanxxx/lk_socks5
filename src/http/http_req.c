@@ -73,10 +73,10 @@ static status http_req_recv( connection_t * c, meta_t * meta )
 	}
 	recvn = c->recv( c, meta->last, meta_len( meta->last, meta->end ) );
 	if( recvn < 0 ) {
-        if( recvn == ERROR ) {
+		if( recvn == ERROR ) {
 			return ERROR;
 		}
-        return AGAIN;
+		return AGAIN;
 	}
 	meta->last += recvn;
 	return OK;
@@ -550,7 +550,7 @@ static status http_req_request_line_analysis( http_req_t * req, meta_t * meta )
 			} else if ( *p == CR ) {
 				req->http_ver.len = p - req->http_ver.data;
 				state = s_end;
-                req->req_line_end = p;
+				req->req_line_end = p;
 				continue;
 			} else {
 				err("http req request line, s_version illegal [%c]\n", *p );
@@ -601,26 +601,26 @@ static status http_req_request_line( http_req_t * req )
 		rc = http_req_request_line_analysis( req, c->meta );
 		if( rc == DONE )  {
 
-            /// convert method 
-            if( req->method.len > 0 ) {
-                if( req->method.len == strlen("GET") && 0 == strncmp( (char*)req->method.data, "GET", req->method.len ) ) {
-                    req->method_type = HTTP_METHOD_GET;
-                } else if ( req->method.len == strlen("POST") && 0 == strncmp( (char*)req->method.data, "POST", req->method.len ) ) {
-                    req->method_type = HTTP_METHOD_POST;
-                } else if ( req->method.len == strlen("PUT") && 0 == strncmp( (char*)req->method.data, "PUT", req->method.len ) ) {
-                    req->method_type = HTTP_METHOD_PUT;
-                } else if ( req->method.len == strlen("DELETE") && 0 == strncmp( (char*)req->method.data, "DELETE", req->method.len ) ) {
-                    req->method_type = HTTP_METHOD_DELETE;
-                } else if ( req->method.len == strlen("CONNECT") && 0 == strncmp( (char*)req->method.data, "CONNECT", req->method.len )) {
-                    req->method_type = HTTP_METHOD_CONNECT;
-                } else if ( req->method.len == strlen("HEAD") && 0 == strncmp( (char*)req->method.data, "HEAD", req->method.len ) ) {
-                    req->method_type = HTTP_METHOD_HEAD;
-                } else {
-                    err("http req method not support. [%.*s]\n", req->method.len, req->method.data );
-                    return ERROR;
-                }
-            }
-        
+			/// convert method 
+			if( req->method.len > 0 ) {
+				if( req->method.len == strlen("GET") && 0 == strncmp( (char*)req->method.data, "GET", req->method.len ) ) {
+					req->method_type = HTTP_METHOD_GET;
+				} else if ( req->method.len == strlen("POST") && 0 == strncmp( (char*)req->method.data, "POST", req->method.len ) ) {
+					req->method_type = HTTP_METHOD_POST;
+				} else if ( req->method.len == strlen("PUT") && 0 == strncmp( (char*)req->method.data, "PUT", req->method.len ) ) {
+					req->method_type = HTTP_METHOD_PUT;
+				} else if ( req->method.len == strlen("DELETE") && 0 == strncmp( (char*)req->method.data, "DELETE", req->method.len ) ) {
+					req->method_type = HTTP_METHOD_DELETE;
+				} else if ( req->method.len == strlen("CONNECT") && 0 == strncmp( (char*)req->method.data, "CONNECT", req->method.len )) {
+					req->method_type = HTTP_METHOD_CONNECT;
+				} else if ( req->method.len == strlen("HEAD") && 0 == strncmp( (char*)req->method.data, "HEAD", req->method.len ) ) {
+					req->method_type = HTTP_METHOD_HEAD;
+				} else {
+					err("http req method not support. [%.*s]\n", req->method.len, req->method.data );
+					return ERROR;
+				}
+			}
+		
 			req->cb = http_req_headers;
 			return req->cb( req );
 		} else if( rc == ERROR )  {
@@ -681,7 +681,7 @@ status http_req_free( http_req_t * req )
 	
 	if( req->headers.list ) {
 		mem_arr_free( req->headers.list );
-        memset( &req->headers, 0, sizeof(http_req_headers_t) );
+		memset( &req->headers, 0, sizeof(http_req_headers_t) );
 	}
 	req->keepalive = 0;
 	req->content_len = 0;

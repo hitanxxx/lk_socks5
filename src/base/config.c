@@ -188,5 +188,5 @@ status config_init ( void )
 
 status config_end ( void )
 {
-	return OK;
+    return OK;
 }

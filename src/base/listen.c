@@ -12,8 +12,8 @@ static status listen_add( unsigned short port, listen_pt handler, unsigned char 
 {
 	listen_t *  p = mem_arr_push( listens );
 	if( !p )  {
-		err("listen arr push failed\n");
-		return ERROR;
+	err("listen arr push failed\n");
+	return ERROR;
 	}
 	p->handler = handler;
 	p->port = port;
@@ -23,7 +23,7 @@ static status listen_add( unsigned short port, listen_pt handler, unsigned char 
 
 static status listen_open( listen_t * listens )
 {
-    /// listen must be tcp
+	/// listen must be tcp
 	listens->server_addr.sin_family = AF_INET;
 	listens->server_addr.sin_port = htons( listens->port );
 	listens->server_addr.sin_addr.s_addr = htonl( INADDR_ANY );
@@ -46,8 +46,8 @@ static status listen_open( listen_t * listens )
 		
 			
 		/*
-            set reuseport flag, socket listen by all process.
-            kernel will be process thundering herd 
+			set reuseport flag, socket listen by all process.
+			kernel will be process thundering herd 
 		*/
 		
 		if( OK != net_socket_reuseport( listens->fd ) )	{
@@ -79,7 +79,7 @@ static status listen_open( listen_t * listens )
 
 status listen_stop( void )
 {
-    int i = 0;
+	int i = 0;
 	for( i = 0; i < listens->elem_num; i ++ )  {
 		listen_t * p = mem_arr_get( listens, i+1 );
 		if( p->fd > 0 )  {
@@ -119,34 +119,34 @@ int listen_num( )
 
 status listen_init( void )
 {	
-    int i = 0;
-    if( OK != mem_arr_create( &listens, sizeof(listen_t) ) )  {
-        err("listens arr create failed\n" );
-        return ERROR;
-    }
+	int i = 0;
+	if( OK != mem_arr_create( &listens, sizeof(listen_t) ) )  {
+		err("listens arr create failed\n" );
+		return ERROR;
+	}
 
-    // s5 local listen
-    if( config_get()->s5_mode == SOCKS5_CLIENT ) {
-        listen_add( config_get()->s5_local_port, s5_local_accept_cb, S5_NOSSL );    /// local no ssl
-    }
-    // s5 server listen
-    if( config_get()->s5_mode == SOCKS5_SERVER ) {
-        listen_add( config_get()->s5_serv_port, s5_server_accept_cb, S5_SSL );  //// server ssl
-    }
-    // webserver listen
-    for( i = 0; i < config_get()->http_num; i ++ ) {
-        listen_add( config_get()->http_arr[i], webser_accept_cb, S5_NOSSL );
-    }
-    // webserver ssl listen
-    for( i = 0; i < config_get()->https_num; i ++ ) {
-        listen_add( config_get()->https_arr[i], webser_accept_cb_ssl, S5_SSL );
-    }
+	// s5 local listen
+	if( config_get()->s5_mode == SOCKS5_CLIENT ) {
+		listen_add( config_get()->s5_local_port, s5_local_accept_cb, S5_NOSSL );    /// local no ssl
+	}
+	// s5 server listen
+	if( config_get()->s5_mode == SOCKS5_SERVER ) {
+		listen_add( config_get()->s5_serv_port, s5_server_accept_cb, S5_SSL );  //// server ssl
+	}
+	// webserver listen
+	for( i = 0; i < config_get()->http_num; i ++ ) {
+		listen_add( config_get()->http_arr[i], webser_accept_cb, S5_NOSSL );
+	}
+	// webserver ssl listen
+	for( i = 0; i < config_get()->https_num; i ++ ) {
+		listen_add( config_get()->https_arr[i], webser_accept_cb_ssl, S5_SSL );
+	}
 
-    if( OK != listen_start() ) {
+	if( OK != listen_start() ) {
 		err("listen start failed\n");
 		return ERROR;
-    }
-    return OK;
+	}
+	return OK;
 }
 
 status listen_end( void )

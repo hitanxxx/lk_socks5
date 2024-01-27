@@ -81,8 +81,8 @@ static status http_body_chunk_analysis( http_body_t * bd )
 		...
 		| data len(0)   |
 		| \r\n          |
-		  END
-	 */
+		END
+	*/
 	
 	state = bd->state;
 	for( p = bd->chunk_pos; p < bd->body_last->last; p ++ ) {
@@ -228,12 +228,12 @@ static status http_body_content( http_body_t * bd )
 	
 	while ( 1 ) {
 		
-        if( meta_len( bd->body_last->last, bd->body_last->end ) <= 0 ) {
+		if( meta_len( bd->body_last->last, bd->body_last->end ) <= 0 ) {
 			if( OK != meta_alloc_form_mempage( bd->c->page, ENTITY_BODY_BUFFER_SIZE, &meta_n ) ){
 				err("http body content alloc append meta failed\n");
 				return ERROR;
 			}
-            bd->body_last->next = meta_n;
+			bd->body_last->next = meta_n;
 			bd->body_last = meta_n;
 		}
 		
@@ -241,7 +241,7 @@ static status http_body_content( http_body_t * bd )
 		if( rc < 0 ) {	
 			if( rc == ERROR ) {
 				err("http body recv failed\n");
-                return ERROR;
+				return ERROR;
 			}
 			return AGAIN;
 		}
@@ -262,37 +262,37 @@ static status http_body_content( http_body_t * bd )
 
 status http_body_dump( http_body_t * bd, meta_t ** dumpmeta )
 {
-    connection_t * c = bd->c;
+	connection_t * c = bd->c;
 
-    if( bd->body_len <= 0 ) {
-        return ERROR;
-    }
+	if( bd->body_len <= 0 ) {
+		return ERROR;
+	}
 
-    meta_t * cur = NULL;
-    meta_t * meta = NULL;
+	meta_t * cur = NULL;
+	meta_t * meta = NULL;
 
-    /// alloc meta form connection's page. meta will be free when connection free
-    if( OK != meta_alloc_form_mempage( c->page, bd->body_len, &meta ) ) {
-        err("http body dump alloc meta failed\n");
-        return ERROR;
-    }
+	/// alloc meta form connection's page. meta will be free when connection free
+	if( OK != meta_alloc_form_mempage( c->page, bd->body_len, &meta ) ) {
+		err("http body dump alloc meta failed\n");
+		return ERROR;
+	}
 
-    /// copy data form body chain into dumo meta
-    cur = bd->body_head;
-    while( cur ) {
-        memcpy( meta->last, cur->pos, cur->last - cur->pos );
-        meta->last += (cur->last - cur->pos);
-        cur = cur->next;
-    }
+	/// copy data form body chain into dumo meta
+	cur = bd->body_head;
+	while( cur ) {
+		memcpy( meta->last, cur->pos, cur->last - cur->pos );
+		meta->last += (cur->last - cur->pos);
+		cur = cur->next;
+	}
 
-    /// check length
-    if( meta->last - meta->pos != bd->body_len ) {
-        err("meta datan [%d] != bodylen [%d]\n", meta->last - meta->pos, bd->body_len );
-        return ERROR;
-    } else {
-        *dumpmeta = meta;
-        return OK;
-    }
+	/// check length
+	if( meta->last - meta->pos != bd->body_len ) {
+		err("meta datan [%d] != bodylen [%d]\n", meta->last - meta->pos, bd->body_len );
+		return ERROR;
+	} else {
+		*dumpmeta = meta;
+		return OK;
+	}
 }
 
 static status http_body_start( http_body_t * bd )
@@ -306,47 +306,47 @@ static status http_body_start( http_body_t * bd )
 	} else if ( bd->body_type == HTTP_BODY_TYPE_CONTENT || bd->body_type == HTTP_BODY_TYPE_CHUNK ) {
 
 		/// alloc frist meta to stroge the content data
-        if( OK != meta_alloc_form_mempage( bd->c->page, body_remain_len + ENTITY_BODY_BUFFER_SIZE, &bd->body_head ) ) {
-            err("http body alloc head failed\n");
-            return ERROR;
-        }
-        bd->body_last = bd->body_head;
+		if( OK != meta_alloc_form_mempage( bd->c->page, body_remain_len + ENTITY_BODY_BUFFER_SIZE, &bd->body_head ) ) {
+			err("http body alloc head failed\n");
+			return ERROR;
+		}
+		bd->body_last = bd->body_head;
 
-        if( bd->body_type == HTTP_BODY_TYPE_CONTENT ) {
+		if( bd->body_type == HTTP_BODY_TYPE_CONTENT ) {
 			/// content length type http body
 			if( body_remain_len > 0 ) {
 				if( bd->body_cache ) {
 					memcpy( bd->body_last->last, bd->c->meta->pos, body_remain_len );
 					bd->body_last->last += body_remain_len;
 				}
-                
+				
 				bd->c->meta->pos += body_remain_len;
 				bd->content_recvd += body_remain_len;
 
 				if( bd->content_recvd >= bd->content_len ) {
-                    bd->body_len = bd->content_len;
-	                bd->body_type |= ( bd->body_cache ? HTTP_BODY_STAT_DONE_CACHE : HTTP_BODY_STAT_DONE_CACHENO);
-	                return DONE;
-	            }
+					bd->body_len = bd->content_len;
+					bd->body_type |= ( bd->body_cache ? HTTP_BODY_STAT_DONE_CACHE : HTTP_BODY_STAT_DONE_CACHENO);
+					return DONE;
+				}
 			}
 
-            bd->cb = http_body_content;
-            return bd->cb( bd );
-        } else {
+			bd->cb = http_body_content;
+			return bd->cb( bd );
+		} else {
 			/// chunked type http body
 		
-            if( body_remain_len > 0 ) {
+			if( body_remain_len > 0 ) {
 				/// whatever body cache enbale, chunked type need to copy the remain data
-                memcpy( bd->body_last->last, bd->c->meta->pos, body_remain_len );
-                bd->body_last->last += body_remain_len;
-            }
-            bd->c->meta->pos += body_remain_len;
-            bd->chunk_pos = bd->body_last->pos;
-            bd->cb = http_body_chunk;
-            return bd->cb( bd );
-        }
-    } else {
-	    err("http body not support this type [%d]\n", bd->body_type );
+				memcpy( bd->body_last->last, bd->c->meta->pos, body_remain_len );
+				bd->body_last->last += body_remain_len;
+			}
+			bd->c->meta->pos += body_remain_len;
+			bd->chunk_pos = bd->body_last->pos;
+			bd->cb = http_body_chunk;
+			return bd->cb( bd );
+		}
+	} else {
+		err("http body not support this type [%d]\n", bd->body_type );
 		return ERROR;
 	}
 }
@@ -371,7 +371,7 @@ status http_body_create( connection_t * c, http_body_t ** body, int discard )
 status http_body_init_module( void )
 {
 	uint32 i;
-    
+	
 	g_pool = (http_body_t*)l_safe_malloc( sizeof(http_body_t)*MAX_NET_CON );
 	if( !g_pool ) {
 		err("http body malloc g_pool\n" );

@@ -13,7 +13,7 @@ typedef struct process_ctx
 #if __linux__
 	sem_t		*sem;
 #elif __APPLE__
-    dispatch_semaphore_t  sem;
+	dispatch_semaphore_t  sem;
 #endif
 	
 
@@ -47,7 +47,7 @@ status proc_pid_form_file( pid_t * pid )
 		close( fd );
 		return ERROR;
 	}
-    *pid = strtol( str, NULL, 10 );
+	*pid = strtol( str, NULL, 10 );
 	return OK;
 }
 
@@ -104,10 +104,10 @@ static status proc_fork( process_t * process )
 		err("fork child failed, [%d]\n", errno );
 		return ERROR;
 	} else if ( pid == 0 ) {
-        g_proc_ctx->id = process->sequence_num;
-        proc_worker_run();
+		g_proc_ctx->id = process->sequence_num;
+		proc_worker_run();
 	} else if ( pid > 0 ) {
-	    process->pid = pid;
+		process->pid = pid;
 	}
 	return OK;
 }
@@ -119,25 +119,25 @@ void proc_master_run( void )
 
 	/// blocking this kind of signals
 	/// which signal will be reprocess when blocking is remove
-    sigemptyset( &set );
-    sigaddset( &set, SIGCHLD );
-    sigaddset( &set, SIGINT );
+	sigemptyset( &set );
+	sigaddset( &set, SIGCHLD );
+	sigaddset( &set, SIGINT );
 	sigaddset( &set, SIGUSR1 );
 	sigaddset( &set, SIGUSR2 );
-    if( sigprocmask( SIG_BLOCK, &set, NULL ) == ERROR ) {
+	if( sigprocmask( SIG_BLOCK, &set, NULL ) == ERROR ) {
 		err("master blcok signal set failed, [%d]\n", errno );
 		return;
-    }
+	}
 
 	/// start worker process
 	for( i = 0; i < config_get()->sys_process_num; i ++ ) {
-	    if( ERROR == proc_fork( &g_proc_ctx->arr[i] ) ) {
-            err("process spawn number [%d] child failed, errno [%d]\n", i, errno );
+		if( ERROR == proc_fork( &g_proc_ctx->arr[i] ) ) {
+			err("process spawn number [%d] child failed, errno [%d]\n", i, errno );
 			return;
-	    }
+		}
 
 		if( g_proc_ctx->id != L_PROCESS_MASTER ) {
-		    return;
+			return;
 		}   
 	}
 	
@@ -152,59 +152,59 @@ void proc_master_run( void )
 		systime_update( );
 		err("master received signal [%d]\n", g_proc_ctx->signal );
 
-        if( g_proc_ctx->sig_quit == 1 ) {
+		if( g_proc_ctx->sig_quit == 1 ) {
 			/// master recvied a sigint, stop all child frist, then do exit
-            proc_signal_bcast( SIGINT );
-            int alive = 0;
-            for( i = 0; i < config_get()->sys_process_num; i ++ ) {
-                if( g_proc_ctx->arr[i].exited != 1 ) {
-                    alive ++;
-                }
-            }
-            if( alive == 0 ) {
-                break;
-            }
-        }
+			proc_signal_bcast( SIGINT );
+			int alive = 0;
+			for( i = 0; i < config_get()->sys_process_num; i ++ ) {
+				if( g_proc_ctx->arr[i].exited != 1 ) {
+					alive ++;
+				}
+			}
+			if( alive == 0 ) {
+				break;
+			}
+		}
 
-        if( g_proc_ctx->sig_reap == 1 ) {
+		if( g_proc_ctx->sig_reap == 1 ) {
 			/// if master process know some child dead
-            for( i = 0; i < config_get()->sys_process_num; i ++ ) {
-                if( g_proc_ctx->arr[i].exited == 1 ) {
-                
-                    /// listen fd use SO_REUSEPORT. don't need do mutex again 
-                    if (0) {
-                        /// clear child event mutex value
-                        process_lock();
-                    	if( process_mutex_value_get() == g_proc_ctx->arr[i].pid ) {
-                    		process_mutex_value_set(0);
-                    	}
-                    	process_unlock();
-                    }
+			for( i = 0; i < config_get()->sys_process_num; i ++ ) {
+				if( g_proc_ctx->arr[i].exited == 1 ) {
+				
+					/// listen fd use SO_REUSEPORT. don't need do mutex again 
+					if (0) {
+						/// clear child event mutex value
+						process_lock();
+						if( process_mutex_value_get() == g_proc_ctx->arr[i].pid ) {
+							process_mutex_value_set(0);
+						}
+						process_unlock();
+					}
 	
 					/// if master not recived sigint, just to restart the child process
-                    if( g_proc_ctx->sig_quit != 1 ) {
-                        if( ERROR == proc_fork( &g_proc_ctx->arr[i] ) ) {
-        					err("proc_fork index [%d] failed, [%d]\n", i, errno );
-        					continue;
-        				}
+					if( g_proc_ctx->sig_quit != 1 ) {
+						if( ERROR == proc_fork( &g_proc_ctx->arr[i] ) ) {
+							err("proc_fork index [%d] failed, [%d]\n", i, errno );
+							continue;
+						}
 
-        				if( g_proc_ctx->id != L_PROCESS_MASTER ) {
-                		    return;   
-        				} else {
-        				    g_proc_ctx->arr[i].exited = 0;
-        				}
-                    }
-                }
-            }
-            g_proc_ctx->sig_reap = 0;
-        }
-        
-        if( g_proc_ctx->sig_reload == 1 ) {
+						if( g_proc_ctx->id != L_PROCESS_MASTER ) {
+							return;   
+						} else {
+							g_proc_ctx->arr[i].exited = 0;
+						}
+					}
+				}
+			}
+			g_proc_ctx->sig_reap = 0;
+		}
+		
+		if( g_proc_ctx->sig_reload == 1 ) {
 			/// master recived sigreload, just stop all child process.
 			/// child process will be auto restart
-            proc_signal_bcast( SIGINT );
-            g_proc_ctx->sig_reload = 0;
-        }
+			proc_signal_bcast( SIGINT );
+			g_proc_ctx->sig_reload = 0;
+		}
 	}
 }
 
@@ -213,21 +213,21 @@ void proc_waitpid( )
 	int32 i; 
 
 	while(1) {
-	    /// wait to get anyone child dead pid and no block
+		/// wait to get anyone child dead pid and no block
 		pid_t dead_child_pid = waitpid( -1, NULL, WNOHANG );
 		if( dead_child_pid == 0 ) {
-		    /// no any child dead. (some error happen)
-		    return;
+			/// no any child dead. (some error happen)
+			return;
 		} else if( dead_child_pid == -1 ) {
-            if( errno == EINTR ) {
-                /// interrupt by signal, continue
-                continue;
-            }
-            return;
+			if( errno == EINTR ) {
+				/// interrupt by signal, continue
+				continue;
+			}
+			return;
 		}
 
 		for( i = 0; i < config_get()->sys_process_num; i ++ ) {
- 			if( dead_child_pid == g_proc_ctx->arr[i].pid ) {
+			if( dead_child_pid == g_proc_ctx->arr[i].pid ) {
 				g_proc_ctx->arr[i].exited = 1;
 				break;
 			}
@@ -238,7 +238,7 @@ void proc_waitpid( )
 
 void proc_signal_cb( int32 signal )
 {
-    /// record sys errno 
+	/// record sys errno 
 	int errno_cache = errno;
 	
 	g_proc_ctx->signal = signal;
@@ -294,12 +294,12 @@ status proc_signal_init()
 void process_lock( )
 {	
 #if __linux__
-    int ret = 0;
-    do {
-        ret = sem_wait( g_proc_ctx->sem );
-    } while( ret == -1 );
+	int ret = 0;
+	do {
+		ret = sem_wait( g_proc_ctx->sem );
+	} while( ret == -1 );
 #elif __APPLE__
-    dispatch_semaphore_wait( g_proc_ctx->sem, DISPATCH_TIME_FOREVER);
+	dispatch_semaphore_wait( g_proc_ctx->sem, DISPATCH_TIME_FOREVER);
 #endif
 }
 
@@ -308,7 +308,7 @@ void process_unlock( )
 #if __linux__
 	sem_post( g_proc_ctx->sem );
 #elif __APPLE__
-    dispatch_semaphore_signal(g_proc_ctx->sem);
+	dispatch_semaphore_signal(g_proc_ctx->sem);
 #endif
 }
 
@@ -327,7 +327,7 @@ status process_init( void )
 {
 	uint32 sequence = 0;
 
-    if( g_proc_ctx ) {
+	if( g_proc_ctx ) {
 		err("process ctx not empty\n");
 		return -1;
 	}
@@ -347,10 +347,10 @@ status process_init( void )
 	g_proc_ctx->id = L_PROCESS_MASTER;
 
 	/// init shm 
-    g_proc_ctx->shm.size += (config_get()->sys_process_num * sizeof(process_t) );
-    g_proc_ctx->shm.size += sizeof(int);
+	g_proc_ctx->shm.size += (config_get()->sys_process_num * sizeof(process_t) );
+	g_proc_ctx->shm.size += sizeof(int);
 #if __linux__
-    g_proc_ctx->shm.size += sizeof(sem_t);
+	g_proc_ctx->shm.size += sizeof(sem_t);
 #endif
 	if( OK != sys_shm_alloc( &g_proc_ctx->shm, g_proc_ctx->shm.size ) ) {
 		err("process shm memory alloc failed\n" );
@@ -371,11 +371,11 @@ status process_init( void )
 		return ERROR;
 	}
 #elif __APPLE__
-    g_proc_ctx->sem = dispatch_semaphore_create( 1 );
-    if( g_proc_ctx->sem == NULL ) {
-        err("dispatch_semaphore_create failed. [%d]\n", errno );
-        return ERROR;
-    }
+	g_proc_ctx->sem = dispatch_semaphore_create( 1 );
+	if( g_proc_ctx->sem == NULL ) {
+		err("dispatch_semaphore_create failed. [%d]\n", errno );
+		return ERROR;
+	}
 #endif
 	return OK;
 }
