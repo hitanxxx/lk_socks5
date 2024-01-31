@@ -27,7 +27,6 @@ static status s5_local_auth_send( event_t * ev )
     /// s5 auth request send finish, goto recv the response
     /// reset the meta
     meta->pos = meta->last = meta->start;
-
     s5->down->event->read_pt = s5_traffic_process;
     s5->down->event->write_pt = NULL;
     return s5->down->event->read_pt( s5->down->event );
@@ -56,6 +55,20 @@ static status s5_local_auth_build( event_t * ev )
     memcpy( (char*)payload->auth, config_get()->s5_local_auth, sizeof(payload->auth) );
     meta->last += sizeof(s5_auth_data_t);
 
+#ifndef S5_OVER_TLS
+    if( !s5->cipher_enc ) {
+        if( 0 != sys_cipher_ctx_init( &s5->cipher_enc, 0 ) ) {
+            err("s5 local cipher enc init failed\n");
+            s5_free(s5);
+            return ERROR;
+        }
+    }
+    if( (sizeof(s5_auth_info_t) + sizeof(s5_auth_data_t)) != sys_cipher_conv( s5->cipher_enc, meta->pos, (sizeof(s5_auth_info_t) + sizeof(s5_auth_data_t)) ) ) {
+        err("s5 local cipher enc meta failed\n");
+        s5_free(s5);
+        return ERROR;
+    }
+#endif
     /// goto send s5 private authorization login request
     ev->write_pt = s5_local_auth_send;
     return ev->write_pt( ev );
@@ -68,7 +81,6 @@ static inline void s5_local_up_addr_get( struct sockaddr_in * addr )
     addr->sin_port = htons( config_get()->s5_local_serv_port );
     addr->sin_addr.s_addr = inet_addr( config_get()->s5_local_serv_ip );
 }
-
 
 static status s5_local_up_connect_ssl( event_t * ev )
 {
@@ -107,10 +119,11 @@ static status s5_local_up_connect_check( event_t * ev )
 
 
         /// must use ssl connect s5 server !!!
-        /// use a ezswtich in here 
+        /// use a ezswtich in here   
         up->ssl_flag = 1;
-
-        
+#ifndef S5_OVER_TLS
+        up->ssl_flag = 0;
+#endif
         if( up->ssl_flag ) {
             if( OK != ssl_create_connection( up, L_SSL_CLIENT ) ) {
                 err("s5 local create ssl connection for up failed\n");
@@ -187,17 +200,17 @@ status s5_local_accept_cb( event_t * ev )
         if( !down->page ) {
             if( OK != mem_page_create(&down->page, 8192 ) ) {
                 err("s5 down page alloc failed\n");
-                break;
+                net_free(down);
+                return ERROR;
             }
         }
-
         if( !down->meta ) {
             if( OK != meta_alloc_form_mempage( down->page, 8192, &down->meta ) ) {
                 err("s5 down meta alloc failed\n");
-                break;
+                net_free(down);
+                return ERROR;
             }
         }
-    
         /// alloc up and goto connect
         if( OK != s5_alloc( &s5 ) ) {
             err("s5 cycle alloc failed\n");
@@ -205,21 +218,20 @@ status s5_local_accept_cb( event_t * ev )
             return ERROR;
         }
         s5->typ = SOCKS5_CLIENT;
+        s5->down = down;
+        down->data = s5;
+        
         if( OK != net_alloc( &s5->up ) ) {
             err("s5 up alloc failed\n");
             break;
         }
         s5->up->data = s5;
-        s5->down = down;
-        s5->down->data = s5;
-        
         if( !s5->up->page ) {
             if( OK != mem_page_create(&s5->up->page, 8192 ) ) {
                 err("s5 up page alloc failed\n");
                 break;
             }
         }
-
         if( !s5->up->meta ) {
             if( OK != meta_alloc_form_mempage( s5->up->page, 8192, &s5->up->meta ) ) {
                 err("s5 up meta alloc failed\n");

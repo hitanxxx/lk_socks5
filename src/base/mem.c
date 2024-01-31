@@ -19,7 +19,7 @@ void sys_free(   char * addr )
 {
     if( addr ) {
         pthread_mutex_lock( &mem_th_lock );
-        sys_free(addr);
+        free(addr);
         pthread_mutex_unlock( &mem_th_lock );
     }
 }

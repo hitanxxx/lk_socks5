@@ -188,7 +188,7 @@ static inline void dns_cycle_timeout( void * data )
     dns_stop( (dns_cycle_t *)data, ERROR );
 }
 
-status dns_response_process( dns_cycle_t * cycle )
+status dns_response_analyze( dns_cycle_t * cycle )
 {
     unsigned char * p = NULL;
     int state_len = 0, cur = 0;
@@ -206,7 +206,7 @@ status dns_response_process( dns_cycle_t * cycle )
     p = meta->pos + sizeof(dns_header_t) + cycle->qname_len + sizeof(dns_question_t);
     /*
         parse dns answer
-        */
+    */
     for( ; p < meta->last; p++ ) {
         if( state == ANSWER_DOMAIN ) {
             
@@ -252,7 +252,7 @@ status dns_response_process( dns_cycle_t * cycle )
         if( state == ANSWER_ADDR ) {
             cur++;
             if( cur >= state_len ) {
-                /// ansert address finish. check address in here
+                /// answer address finish. check address in here
                 unsigned int rttl = ntohl(cycle->answer.rdata->ttl);
                 unsigned short rtyp = ntohs( cycle->answer.rdata->type );
                 unsigned short rdatan = ntohs(cycle->answer.rdata->data_len);
@@ -325,7 +325,7 @@ status dns_response_recv( event_t * ev )
     }
 
     // make dns connection event invalidate
-    rc = dns_response_process( cycle );
+    rc = dns_response_analyze( cycle );
     dns_stop( cycle, rc );
     return rc;
 }
@@ -403,7 +403,6 @@ static status dns_request_packet( event_t * ev )
     /*
         header + question
     */
-
     connection_t * c = ev->data;
     dns_cycle_t * cycle = c->data;
     dns_header_t * header   = NULL;

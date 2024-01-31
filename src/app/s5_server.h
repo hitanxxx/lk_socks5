@@ -45,7 +45,7 @@ typedef struct __attribute__((packed)) s5_auth_info_s
 } s5_auth_info_t ;
 
 
-typedef struct __attribute__((packed)) s5_rfc_phase1_req_s
+typedef struct s5_rfc_phase1_req_s
 {
     unsigned char       ver;
     unsigned char       methods_n;
@@ -59,7 +59,7 @@ typedef struct __attribute__((packed)) s5_rfc_phase1_resp_s
     unsigned char       method;
 } s5_rfc_phase1_resp_t ;
 
-typedef struct __attribute__((packed)) s5_rfc_phase2_req_s
+typedef struct s5_rfc_phase2_req_s
 {
     unsigned char       ver;
     unsigned char       cmd;
@@ -96,6 +96,11 @@ typedef struct
     connection_t * up;
     dns_cycle_t * dns_cycle;
 
+#ifndef S5_OVER_TLS
+    sys_cipher_t * cipher_enc;  /// cipher ctx for encrypt data
+    sys_cipher_t * cipher_dec;  /// cipher ctx for decrypt data
+#endif
+    
 	char		recv_down_err;
 	char		recv_up_err;
 } socks5_cycle_t;

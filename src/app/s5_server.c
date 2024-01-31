@@ -41,6 +41,17 @@ status s5_free( socks5_cycle_t * s5 )
     memset( &s5->phase1, 0x0, sizeof(s5_rfc_phase1_req_t) );
     memset( &s5->phase2, 0x0, sizeof(s5_rfc_phase2_req_t) );
 
+#ifndef S5_OVER_TLS
+    if( s5->cipher_enc ) {
+        sys_cipher_ctx_deinit(s5->cipher_enc);
+        s5->cipher_enc = NULL;
+    }
+    if( s5->cipher_dec ) {
+        sys_cipher_ctx_deinit(s5->cipher_dec);
+        s5->cipher_dec = NULL;
+    }
+#endif
+
     if( s5->down ) {
         net_free( s5->down );
         s5->down = NULL;
@@ -82,7 +93,6 @@ static status s5_traffic_recv( event_t * ev )
     timer_set_pt( &ev->timer, s5_timeout_cb );
     timer_add( &ev->timer, S5_TIMEOUT );
 
-
     /// try recv if have space
     while( down->meta->end > down->meta->last ) {
         recvn = down->recv( down, down->meta->last, down->meta->end - down->meta->last );
@@ -94,6 +104,23 @@ static status s5_traffic_recv( event_t * ev )
             /// means again
             break;
         }
+#ifndef S5_OVER_TLS
+        if( s5->typ == SOCKS5_CLIENT ) {
+		    /// down -> up enc
+            if( recvn != sys_cipher_conv( s5->cipher_enc, down->meta->last, recvn ) ) {
+                err("s5 local cipher enc failed\n");
+                s5_free(s5);
+                return ERROR;
+            }
+        } else {
+		    /// down->up dec
+            if( recvn != sys_cipher_conv( s5->cipher_dec, down->meta->last, recvn ) ) {
+                err("s5 server cipher dec failed\n");
+                s5_free(s5);
+                return ERROR;
+            }
+        }
+#endif
         down->meta->last += recvn;
     }
 
@@ -172,6 +199,23 @@ static status s5_traffic_back_recv( event_t * ev )
             }
             break;
         }
+#ifndef S5_OVER_TLS
+        if( s5->typ == SOCKS5_CLIENT ) {
+	        /// up -> down dec
+            if( recvn != sys_cipher_conv( s5->cipher_dec, up->meta->last, recvn ) ) {
+                err("s5 local cipher dec failed\n");
+                s5_free(s5);
+                return ERROR;
+            }   
+        } else {
+	        /// up -> down enc
+            if( recvn != sys_cipher_conv( s5->cipher_enc, up->meta->last, recvn ) ) {
+                err("s5 server cipher enc failed\n");
+                s5_free(s5);
+                return ERROR;
+            }
+        }
+#endif
         up->meta->last += recvn;
     }
 
@@ -267,17 +311,53 @@ status s5_traffic_process( event_t * ev )
             return ERROR;
         }
     }
-
-    /// only clear up meta buffer
+#ifndef S5_OVER_TLS
+    if( !s5->cipher_enc ) {
+        if( 0 != sys_cipher_ctx_init( &s5->cipher_enc, 0 ) ) {
+            err("s5 server cipher enc init failed\n");
+            s5_free(s5);
+            return ERROR;
+        }
+    }
+    if( !s5->cipher_dec ) {
+        if( 0 != sys_cipher_ctx_init( &s5->cipher_dec, 1 ) ) {
+            err("s5 server cipher dec init failed\n");
+            s5_free(s5);
+            return ERROR;
+        }
+    }
+	
+    int down_remain = down->meta->last - down->meta->pos;
+    if( down_remain > 0 ) {
+    	if( s5->typ == SOCKS5_CLIENT ) {
+    		if( down_remain != sys_cipher_conv( s5->cipher_enc, down->meta->pos, down_remain ) ) {
+                err("s5 client cipher enc remain failed\n");
+                s5_free(s5);
+                return ERROR;
+            }
+    	} else {
+    		if( down_remain != sys_cipher_conv( s5->cipher_dec, down->meta->pos, down_remain ) ) {
+                err("s5 server cipher dec remain failed\n");
+                s5_free(s5);
+                return ERROR;
+            }
+    	}	
+    } 
+#endif    
+    /// only clear up meta in here. because s5 local run in here too.
+    /// but local down mabey recv some data.
     up->meta->pos = up->meta->last = up->meta->start;
 
-    /// set read&write callbacks 
+    /// set read/write callback funtion for transfer data between down and up
+    /// down -> self -> up
     s5->down->event->read_pt = s5_traffic_recv;
     s5->up->event->write_pt	= s5_traffic_send;
-    
+
+    /// up -> self -> down 
     s5->up->event->read_pt = s5_traffic_back_recv;
     s5->down->event->write_pt = s5_traffic_back_send;
-    
+
+    /// default set readable
     event_opt( s5->up->event, s5->up->fd, EV_R );	
     event_opt( s5->down->event, s5->down->fd, EV_R );
     return s5->down->event->read_pt( s5->down->event );
@@ -306,7 +386,9 @@ static status s5_server_rfc_phase2_send( event_t * ev )
         meta->pos += rc;
     }
     timer_del( &ev->timer );
-    /// send phase2 response to down stream finish
+    
+    meta->pos = meta->last = meta->start;  /// meta clear 
+    /// goto process local server transfer data
     ev->read_pt = s5_traffic_process;
     ev->write_pt = NULL;
     return ev->read_pt( ev );
@@ -319,9 +401,6 @@ static status s5_server_rfc_phase2_resp_build( event_t * ev )
     connection_t * down = s5->down;
     meta_t * meta = down->meta;
 
-    /// clear the meta
-    meta->last = meta->pos = meta->start;
-    /// fix the meta with phase2 reponse 
     s5_rfc_phase2_resp_t * resp = ( s5_rfc_phase2_resp_t* )meta->last;
     resp->ver = 0x05;
     resp->rep = 0x00;
@@ -330,11 +409,16 @@ static status s5_server_rfc_phase2_resp_build( event_t * ev )
     resp->bnd_addr = htons((uint16_t)up->addr.sin_addr.s_addr);
     resp->bnd_port = htons(up->addr.sin_port);
     meta->last += sizeof(s5_rfc_phase2_resp_t);
-    // make up event invalidat
+
+#ifndef S5_OVER_TLS
+    if( sizeof(s5_rfc_phase2_resp_t) != sys_cipher_conv( s5->cipher_enc, meta->pos, sizeof(s5_rfc_phase2_resp_t) ) ) {
+        err("s5 server cipher enc data failed\n");
+        s5_free(s5);
+        return ERROR;
+    }
+#endif
     event_opt( up->event, up->fd, EV_NONE );
-    /// set down to write, ready to send phase2 response
-    event_opt( down->event, down->fd, EV_W );
-    
+    event_opt( down->event, down->fd, EV_W );    
     down->event->write_pt = s5_server_rfc_phase2_send;
     return down->event->write_pt( down->event );
 }
@@ -346,14 +430,14 @@ static status s5_server_connect_check( event_t * ev )
 
     if( OK != net_socket_check_status( up->fd ) ) {
         err("s5 server connect remote failed\n" );
-        s5_free( s5 );
+        s5_free(s5);
         return ERROR;
     }
     net_socket_nodelay( up->fd );
     timer_del( &ev->timer );
 
-    ev->read_pt		= NULL;
-    ev->write_pt 	= s5_server_rfc_phase2_resp_build;
+    ev->read_pt	= NULL;
+    ev->write_pt = s5_server_rfc_phase2_resp_build;
     return ev->write_pt( ev );
 }
 
@@ -404,13 +488,13 @@ static void s5_server_address_get_cb( void * data )
     if( dns_cycle ) {
         if( OK == dns_cycle->dns_status ) {
             uint16_t addr_port = 0;
+            memcpy( &addr_port, s5->phase2.dst_port, sizeof(uint16_t) ); 
         
             snprintf( ipstr, sizeof(ipstr), "%d.%d.%d.%d",
                 dns_cycle->answer.answer_addr[0],
                 dns_cycle->answer.answer_addr[1],
                 dns_cycle->answer.answer_addr[2],
                 dns_cycle->answer.answer_addr[3] );
-            memcpy( &addr_port, s5->phase2.dst_port, sizeof(uint16_t) ); 
             
             s5->up->addr.sin_family	= AF_INET;
             s5->up->addr.sin_port = addr_port;
@@ -426,6 +510,7 @@ static void s5_server_address_get_cb( void * data )
     }
 }
 
+
 static status s5_server_address_get( event_t * ev )
 {
     connection_t * down = ev->data;
@@ -433,6 +518,7 @@ static status s5_server_address_get( event_t * ev )
     char ipstr[128] = {0};
     status rc = 0;
 
+    /// s5 rfc phase2 resp not send yet. down just check connection
     down->event->read_pt = s5_server_try_read;
     down->event->write_pt = NULL;
     event_opt( down->event, down->fd, EV_R );
@@ -448,13 +534,13 @@ static status s5_server_address_get( event_t * ev )
     if( s5->phase2.atyp == S5_RFC_IPV4 ) {
         /// ipv4 type request, goto convert ipv4 address
         uint16_t addr_port = 0;
+        memcpy( &addr_port, s5->phase2.dst_port, sizeof(uint16_t) );
 
         snprintf( ipstr, sizeof(ipstr), "%d.%d.%d.%d",
             (unsigned char )s5->phase2.dst_addr[0],
             (unsigned char )s5->phase2.dst_addr[1],
             (unsigned char )s5->phase2.dst_addr[2],
             (unsigned char )s5->phase2.dst_addr[3] );
-        memcpy( &addr_port, s5->phase2.dst_port, sizeof(uint16_t) );
         
         s5->up->addr.sin_family	= AF_INET;
         s5->up->addr.sin_port = addr_port;
@@ -469,13 +555,13 @@ static status s5_server_address_get( event_t * ev )
         if( OK == dns_rec_find( (char*)s5->phase2.dst_addr, ipstr ) ) {
             /// dns cache find success, use dns cache  
             uint16_t addr_port = 0;
+            memcpy( &addr_port, s5->phase2.dst_port, sizeof(uint16_t) );
             
             snprintf( ipstr, sizeof(ipstr), "%d.%d.%d.%d",
                 (unsigned char )ipstr[0],
                 (unsigned char )ipstr[1],
                 (unsigned char )ipstr[2],
                 (unsigned char )ipstr[3] );
-            memcpy( &addr_port, s5->phase2.dst_port, sizeof(uint16_t) );
         
             s5->up->addr.sin_family = AF_INET;
             s5->up->addr.sin_port = addr_port;
@@ -513,16 +599,16 @@ static status s5_server_rfc_phase2_recv( event_t * ev )
     socks5_cycle_t * s5 = down->data;
     meta_t * meta = down->meta;
     enum {
-        s_ver = 0,
-        s_cmd,
-        s_rsv,
-        s_atyp,
-        s_dst_addr_ipv4,
-        s_dst_addr_ipv6,
-        s_dst_addr_domain_len,
-        s_dst_addr_domain,
-        s_dst_port,
-        s_dst_port_end
+        VER = 0,
+        CMD,
+        RSV,
+        TYP,
+        TYP_V4,
+        TYP_V6,
+        TYP_DOMAINN,
+        TYP_DOMAIN,
+        PORT,
+        END
     };
 
     /*
@@ -545,18 +631,25 @@ static status s5_server_rfc_phase2_recv( event_t * ev )
                 timer_add( &ev->timer, S5_TIMEOUT );
                 return AGAIN;
             }
+#ifndef S5_OVER_TLS
+            if( rc != sys_cipher_conv( s5->cipher_dec, meta->last, rc ) ) {
+                err("s5 server cipher dec data failed\n");
+                s5_free(s5);
+                return ERROR;
+            }
+#endif
             meta->last += rc;
         }
 
         for( ; meta->pos < meta->last; meta->pos ++ ) {
             p = meta->pos;
-            if( s5->state == s_ver ) {
+            if( s5->state == VER ) {
                 /// ver is fixed. 0x05
                 s5->phase2.ver = *p;
-                s5->state = s_cmd;
+                s5->state = CMD;
                 continue;
             }
-            if( s5->state == s_cmd ) {
+            if( s5->state == CMD ) {
                 /*
                     socks5 support cmd value
                     01				connect
@@ -564,16 +657,15 @@ static status s5_server_rfc_phase2_recv( event_t * ev )
                     03				udp associate
                 */
                 s5->phase2.cmd = *p;
-                s5->state = s_rsv;
+                s5->state = RSV;
                 continue;
             }
-            if( s5->state == s_rsv ) {
-                // rsv means resverd
+            if( s5->state == RSV ) {    // RSV means resverd
                 s5->phase2.rsv = *p;
-                s5->state = s_atyp;
+                s5->state = TYP;
                 continue;
             }
-            if( s5->state == s_atyp ) {
+            if( s5->state == TYP ) {
                 s5->phase2.atyp = *p;
                 /*
                     atyp		type		length
@@ -582,18 +674,18 @@ static status s5_server_rfc_phase2_recv( event_t * ev )
                     0x04		ipv6		16
                 */
                 if( s5->phase2.atyp == S5_RFC_IPV4 ) {
-                    s5->state = s_dst_addr_ipv4;
+                    s5->state = TYP_V4;
                     s5->phase2.dst_addr_n = 4;
                     s5->phase2.dst_addr_cnt = 0;
                     continue;
                 } else if ( s5->phase2.atyp == S5_RFC_IPV6 ) {
-                    s5->state = s_dst_addr_ipv6;
+                    s5->state = TYP_V6;
                     s5->phase2.dst_addr_n = 16;
                     s5->phase2.dst_addr_cnt = 0;
                     continue;
                 } else if ( s5->phase2.atyp == S5_RFC_DOMAIN ) {
                     /// atpy domain -> dst addr domain len -> dst addr domain
-                    s5->state = s_dst_addr_domain_len;
+                    s5->state = TYP_DOMAINN;
                     s5->phase2.dst_addr_n = 0;
                     s5->phase2.dst_addr_cnt = 0;
                     continue;
@@ -602,57 +694,47 @@ static status s5_server_rfc_phase2_recv( event_t * ev )
                 s5_free(s5);
                 return ERROR;
             }
-            if( s5->state == s_dst_addr_ipv4 ) {
+            if( s5->state == TYP_V4 ) {
                 s5->phase2.dst_addr[(int)s5->phase2.dst_addr_cnt++] = *p;
                 if( s5->phase2.dst_addr_cnt == 4 ) {
-                    s5->state = s_dst_port;
+                    s5->state = PORT;
                     continue;
                 }
             }
-            if( s5->state == s_dst_addr_ipv6 ) {
+            if( s5->state == TYP_V6 ) {
                 s5->phase2.dst_addr[(int)s5->phase2.dst_addr_cnt++] = *p;
                 if( s5->phase2.dst_addr_cnt == 16 ) {
-                    s5->state = s_dst_port;
+                    s5->state = PORT;
                     continue;
                 }
             }
-            if( s5->state == s_dst_addr_domain_len ) {
+            if( s5->state == TYP_DOMAINN ) {
                 s5->phase2.dst_addr_n = *p;
-                s5->state = s_dst_addr_domain;
-                if( s5->phase2.dst_addr_n <= 0 ) {
-                    err("s5 server phase2 dst domain len [%d] <= 0. error\n", s5->phase2.dst_addr_n );
-                    s5_free(s5);
-                    return ERROR;
-                }
-                if( s5->phase2.dst_addr_n > DOMAIN_LENGTH ) {
-                    err("s5 server phase2 dst domain len [%d] > 255. error\n", s5->phase2.dst_addr_n );
-                    s5_free(s5);
-                    return ERROR;
-                }
+                s5->state = TYP_DOMAIN;
+                if(s5->phase2.dst_addr_n < 0) s5->phase2.dst_addr_n = 0;
+                if(s5->phase2.dst_addr_n > 255) s5->phase2.dst_addr_n = 255;
                 continue;
             }
-            if( s5->state == s_dst_addr_domain ) {
+            if( s5->state == TYP_DOMAIN ) {
                 s5->phase2.dst_addr[(int)s5->phase2.dst_addr_cnt++] = *p;
                 if( s5->phase2.dst_addr_cnt == s5->phase2.dst_addr_n ) {
-                    s5->state = s_dst_port;
+                    s5->state = PORT;
                     continue;
                 }
             }
-            if( s5->state == s_dst_port ) {
+            if( s5->state == PORT ) {
                 s5->phase2.dst_port[0] = *p;
-                s5->state = s_dst_port_end;
+                s5->state = END;
                 continue;
             }
-            if( s5->state == s_dst_port_end ) {
+            if( s5->state == END ) {
                 s5->phase2.dst_port[1] = *p;
-
                 /// phase2 request recv finish
+                timer_del( &ev->timer );
                 /// reset state  
                 s5->state = 0;
-                timer_del( &ev->timer );
                 
-                /// !!! meta can't reset in here, becasue connect need
-
+                meta->last = meta->pos = meta->start; /// meta clear 
                 do {
                     if( s5->phase2.ver != 0x05 ) {
                         err("s5 server phase2 ver is not '0x05', is [0x%x]\n", s5->phase2.ver );
@@ -708,9 +790,8 @@ static status s5_server_rfc_phase1_send( event_t * ev )
         meta->pos += rc;
     }
     timer_del( &ev->timer );
-    /// send phase1 response finish, reset the meta
-    meta->pos = meta->last = meta->start;
     
+    meta->pos = meta->last = meta->start; /// meta clear     
     /// goto recv phase2 request
     ev->read_pt	= s5_server_rfc_phase2_recv;
     ev->write_pt = NULL;
@@ -725,13 +806,13 @@ static status s5_server_rfc_phase1_recv( event_t * ev )
     meta_t * meta = down->meta;
     /*
         s5 phase1 message req format
-        1 byte		1 byte	 1-255 byte
-        version | nmethods | methods
+        1 byte	1 byte	    nmethods
+        VERSION | METHODS | METHOD
     */
     enum {
-        s_ver = 0,
-        s_nmethod,
-        s_methods
+        VERSION = 0,
+        METHODN,
+        METHOD
     };
 
     while( 1 ) {
@@ -750,23 +831,30 @@ static status s5_server_rfc_phase1_recv( event_t * ev )
                 timer_add( &ev->timer, S5_TIMEOUT );
                 return AGAIN;
             }
+#ifndef S5_OVER_TLS
+            if( rc != sys_cipher_conv( s5->cipher_dec, meta->last, rc ) ) {
+                err("s5 server cipher dec data failed\n");
+                s5_free(s5);
+                return ERROR;
+            }
+#endif
             meta->last += rc;
         }
 
         for( ; meta->pos < meta->last; meta->pos ++ ) {
             p = meta->pos;
-            if( s5->state == s_ver ) {
+            if( s5->state == VERSION ) {
                 s5->phase1.ver = *p;
-                s5->state = s_nmethod;
+                s5->state = METHODN;
                 continue;
             }
-            if( s5->state == s_nmethod ) {
+            if( s5->state == METHODN ) {
                 s5->phase1.methods_n = *p;
                 s5->phase1.methods_cnt = 0;
-                s5->state = s_methods;
+                s5->state = METHOD;
                 continue;
             }
-            if( s5->state == s_methods ) {
+            if( s5->state == METHOD ) {
                 s5->phase1.methods[s5->phase1.methods_cnt++] = *p;
                 if( s5->phase1.methods_n == s5->phase1.methods_cnt ) {
                     /// rfc2918 socks5 protocol phase1 request packet recv finish
@@ -774,15 +862,20 @@ static status s5_server_rfc_phase1_recv( event_t * ev )
 
                     /// reset the state 
                     s5->state = 0;
-                    /// reset the meta
-                    meta->pos = meta->last = meta->start;
-                    
+
+                    meta->pos = meta->last = meta->start; /// meta clear 
                     /// build the phase1 response
                     s5_rfc_phase1_resp_t * resp = ( s5_rfc_phase1_resp_t* ) meta->pos;
                     resp->ver = 0x05;
                     resp->method = 0x00;
                     meta->last += sizeof(s5_rfc_phase1_resp_t);
-                    
+#ifndef S5_OVER_TLS
+                    if( sizeof(s5_rfc_phase1_resp_t) != sys_cipher_conv( s5->cipher_enc, meta->pos, sizeof(s5_rfc_phase1_resp_t) ) ) {
+                        err("s5 server cipher enc data failed\n");
+                        s5_free(s5);
+                        return ERROR;
+                    }
+#endif
                     /// goto send phase1 response
                     ev->read_pt = NULL;
                     ev->write_pt = s5_server_rfc_phase1_send;
@@ -795,6 +888,7 @@ static status s5_server_rfc_phase1_recv( event_t * ev )
 
 static status s5_server_auth_recv_payload( event_t * ev )
 {
+    /// porcess the private authroization payload between local and server  
     connection_t * down = ev->data;
     socks5_cycle_t * s5 = down->data;
     meta_t * meta = down->meta;
@@ -813,20 +907,25 @@ static status s5_server_auth_recv_payload( event_t * ev )
             timer_add( &ev->timer, S5_TIMEOUT );
             return AGAIN;
         }
+#ifndef S5_OVER_TLS
+        if( rc != sys_cipher_conv( s5->cipher_dec, meta->last, rc ) ) {
+            err("s5 server cipher dec data failed\n");
+            s5_free(s5);
+            return ERROR;
+        }
+#endif
         meta->last += rc;
     }
     timer_del( &ev->timer );
 
     /// check auto data
     s5_auth_data_t * auth_payload = (s5_auth_data_t*) meta->pos;
-
     if( NULL == ezhash_find( g_s5_ctx->auth_hash, (char*)auth_payload->auth ) ) {
         err("s5 auth find auth key failed. not found\n");
         s5_free(s5);
     }
-
-    /// reset the meta 
-    meta->pos = meta->last = meta->start;
+    meta->pos = meta->last = meta->start;/// clear meta
+    /// goto process rfc s5 phase1 
     ev->write_pt = NULL;
     ev->read_pt = s5_server_rfc_phase1_recv;
     event_opt( ev, down->fd, EV_R );
@@ -835,6 +934,7 @@ static status s5_server_auth_recv_payload( event_t * ev )
 
 static status s5_server_auth_recv_header( event_t * ev )
 {
+    /// porcess the private authroization header between local and server  
     connection_t * down = ev->data;
     socks5_cycle_t * s5 = down->data;
     ssize_t rc = 0;
@@ -855,6 +955,13 @@ static status s5_server_auth_recv_header( event_t * ev )
             timer_add( &ev->timer, S5_TIMEOUT );
             return AGAIN;
         }
+#ifndef S5_OVER_TLS
+        if( rc != sys_cipher_conv( s5->cipher_dec, meta->last, rc ) ) {
+            err("s5 server cipher dec data failed\n");
+            s5_free(s5);
+            return ERROR;
+        }
+#endif
         meta->last += rc;
     }
     timer_del( &ev->timer );
@@ -878,9 +985,7 @@ static status s5_server_auth_recv_header( event_t * ev )
         s5_free( s5 );
         return ERROR;
     }
-    /// change the meta pos 
-    meta->pos += sizeof(s5_auth_info_t);
-    /// goto recv the auth payload and check payload
+    meta->pos += sizeof(s5_auth_info_t);   /// change the meta pos 
     ev->read_pt = s5_server_auth_recv_payload;
     return ev->read_pt( ev );
 }
@@ -905,7 +1010,6 @@ static status s5_server_start( event_t * ev )
             return ERROR;
         }
     }
-
     if( !down->meta ) {
         if( OK != meta_alloc_form_mempage( down->page, 8192, &down->meta ) ) {
             err("s5 alloc down meta failed\n");
@@ -913,7 +1017,22 @@ static status s5_server_start( event_t * ev )
             return ERROR;
         }
     }
-
+#ifndef S5_OVER_TLS
+    if( !s5->cipher_enc ) {
+        if( 0 != sys_cipher_ctx_init( &s5->cipher_enc, 0 ) ) {
+            err("s5 server cipher enc init failed\n");
+            s5_free(s5);
+            return ERROR;
+        }
+    }
+    if( !s5->cipher_dec ) {
+        if( 0 != sys_cipher_ctx_init( &s5->cipher_dec, 1 ) ) {
+            err("s5 server cipher dec init failed\n");
+            s5_free(s5);
+            return ERROR;
+        }
+    }
+#endif
     ev->read_pt	= s5_server_auth_recv_header;
     return ev->read_pt( ev );
 }
@@ -961,6 +1080,11 @@ status s5_server_accept_cb( event_t * ev )
 {
     connection_t * down = ev->data;
     status rc = 0;
+
+#ifndef S5_OVER_TLS
+    ev->read_pt = s5_server_start;
+    return ev->read_pt( ev );
+#endif
 
     /// s5 server use ssl connection force 
     do {
@@ -1036,8 +1160,6 @@ static status s5_serv_usr_db_file_read( meta_t * meta )
     return OK;
 }
 
-
-
 static status s5_serv_usr_db_init( )
 {
     meta_t * meta = NULL;
@@ -1076,7 +1198,7 @@ status socks5_server_init( void )
     }
 
     do {
-        g_s5_ctx = l_safe_malloc( sizeof(g_s5_t) + MAX_NET_CON*sizeof(socks5_cycle_t) );
+        g_s5_ctx = (g_s5_t*)sys_alloc( sizeof(g_s5_t) + MAX_NET_CON*sizeof(socks5_cycle_t) );
         if( !g_s5_ctx ) {
             err("s5 init allo this failed, [%d]\n", g_s5_ctx );
             return ERROR;
@@ -1088,12 +1210,12 @@ status socks5_server_init( void )
         queue_insert_tail( &g_s5_ctx->usable, &g_s5_ctx->pool[i].queue );
         
         if( config_get()->s5_mode > SOCKS5_CLIENT ) {
-            /// s5 server mode or server screct mode                
+            /// build a hash table to manager s5 users.     
             if( OK != ezhash_create( &g_s5_ctx->auth_hash, 64 ) ) {
                 err("s5 serv user hash create failed\n");
                 break;
             }
-            
+            /// init the hash table uses.
             if( OK != s5_serv_usr_db_init() ) {
                 err("s5 serv usr db init failed\n");
                 break;
@@ -1121,7 +1243,7 @@ status socks5_server_end( void )
             ezhash_free(g_s5_ctx->auth_hash);
             g_s5_ctx->auth_hash = NULL;
         }
-        l_safe_free(g_s5_ctx);
+        sys_free((void*)g_s5_ctx);
         g_s5_ctx = NULL;
     }
     return OK;
