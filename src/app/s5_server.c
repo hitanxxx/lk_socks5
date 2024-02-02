@@ -923,6 +923,7 @@ static status s5_server_auth_recv_payload( event_t * ev )
     if( NULL == ezhash_find( g_s5_ctx->auth_hash, (char*)auth_payload->auth ) ) {
         err("s5 auth find auth key failed. not found\n");
         s5_free(s5);
+	return ERROR;
     }
     meta->pos = meta->last = meta->start;/// clear meta
     /// goto process rfc s5 phase1 
