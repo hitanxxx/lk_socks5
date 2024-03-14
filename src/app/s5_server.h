@@ -6,43 +6,20 @@ extern "C"
 {
 #endif
 
-
-
-
-
 #define S5_TIMEOUT	 8
-#define S5_AUTH_MAGIC_NUM   0xa000beef
-
-/// used for private authorization
-#define S5_MSG_LOGIN_REQ    0x01
-#define S5_MSG_LOGIN_RESP   0x02
-
-#define S5_ERR_SUCCESS   0x0
-#define S5_ERR_MAGIC    0x1
-#define S5_ERR_TYPE     0x2
-#define S5_ERR_AUTH     0x3
-
+#define S5_AUTH_LOCAL_MAGIC     0xa001beef
 
 /// s5 type for rfc reqest
 #define S5_RFC_IPV4         0x1
 #define S5_RFC_IPV6         0x4
 #define S5_RFC_DOMAIN       0x3
 
-
-/// @brief  struct of private authorization data. 32 Byte
-typedef struct __attribute__((packed)) s5_auth_data_s
-{
-    unsigned char  auth[32];
-} s5_auth_data_t ;
-
 /// @brief struct of private authorization. 16 Byte
-typedef struct __attribute__((packed)) s5_auth_info_s
+typedef struct __attribute__((packed)) s5_auth
 {
     uint32_t   magic; 
-    unsigned char typ; 
-    unsigned char code; 
-    unsigned char reserved[10];
-} s5_auth_info_t ;
+    char       key[16];
+} s5_auth_t ;
 
 
 typedef struct s5_rfc_phase1_req_s

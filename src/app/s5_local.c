@@ -38,22 +38,15 @@ static status s5_local_auth_build( event_t * ev )
     socks5_cycle_t * s5 = up->data;
     meta_t * meta = s5->up->meta;
 
-    s5_auth_info_t * header = NULL;
-    s5_auth_data_t * payload = NULL;
-
-    /// fill in s5_auth_info_t
-    meta->pos = meta->last = meta->start;
-    header = (s5_auth_info_t*)meta->last;
-    header->magic = htonl(S5_AUTH_MAGIC_NUM);
-    header->typ = S5_MSG_LOGIN_REQ;
-    header->code = S5_ERR_SUCCESS;
-    meta->last += sizeof(s5_auth_info_t);
+    s5_auth_t * auth = NULL;
     
-    /// fill in s5_auth_data_t
-    payload = (s5_auth_data_t*)(meta->last);
-    memset( payload->auth, 0, sizeof(payload->auth) );
-    memcpy( (char*)payload->auth, config_get()->s5_local_auth, sizeof(payload->auth) );
-    meta->last += sizeof(s5_auth_data_t);
+    /// fill in s5_auth_t
+    meta->pos = meta->last = meta->start;
+    auth = (s5_auth_t*)meta->last;
+    auth->magic = htonl(S5_AUTH_LOCAL_MAGIC);
+    memset( auth->key, 0, sizeof(auth->key) );
+    memcpy( (char*)auth->key, config_get()->s5_local_auth, sizeof(auth->key) );
+    meta->last += sizeof(s5_auth_t);
 
 #ifndef S5_OVER_TLS
     if( !s5->cipher_enc ) {
@@ -63,7 +56,7 @@ static status s5_local_auth_build( event_t * ev )
             return ERROR;
         }
     }
-    if( (sizeof(s5_auth_info_t) + sizeof(s5_auth_data_t)) != sys_cipher_conv( s5->cipher_enc, meta->pos, (sizeof(s5_auth_info_t) + sizeof(s5_auth_data_t)) ) ) {
+    if( sizeof(s5_auth_t) != sys_cipher_conv( s5->cipher_enc, meta->pos, sizeof(s5_auth_t) ) ) {
         err("s5 local cipher enc meta failed\n");
         s5_free(s5);
         return ERROR;

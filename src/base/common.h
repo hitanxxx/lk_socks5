@@ -30,5 +30,4 @@
 #define SYS_FUNC_CHK(x) do { int ret = (x); if (0 != ret) { err("sys fuc chk failed. ret [%d]\n", ret );return -1; } } while(0);
 #define S5_OVER_TLS
 
-
 #endif

@@ -818,14 +818,14 @@ static status webser_start( event_t * ev )
 
     // init web connection page and meta memory for use
     if( NULL == c->page ) {
-        if( OK != mem_page_create(&c->page, L_PAGE_DEFAULT_SIZE) ) {
+        if( OK != mem_page_create(&c->page, 8192 ) ) {
             err("webser con page alloc failed\n");
             net_free( c );
             return ERROR;
         }
     }
     if( NULL == c->meta ) {
-        if( OK != meta_alloc_form_mempage( c->page, WEBSER_REQ_META_LEN, &c->meta ) ) {
+        if( OK != meta_alloc_form_mempage( c->page, 8192, &c->meta ) ) {
             err("webser con meta alloc failed\n");
             net_free( c );
             return ERROR;
@@ -878,7 +878,7 @@ static status webser_transfer_to_s5( event_t * ev )
 
     /// try to recv s5 private authorization header 
     meta = c->meta;
-    while( meta_len( meta->pos, meta->last ) < sizeof(s5_auth_info_t) ) {
+    while( meta_len( meta->pos, meta->last ) < sizeof(s5_auth_t) ) {
         rc = c->recv( c, meta->last, meta_len( meta->last, meta->end ) );
         if( rc < 0 ) {
             if( ERROR == rc ) {
@@ -897,9 +897,9 @@ static status webser_transfer_to_s5( event_t * ev )
     
     /// s5 private authorization header data check 
     do {
-        s5_auth_info_t * header = (s5_auth_info_t*)meta->pos;
+        s5_auth_t * header = (s5_auth_t*)meta->pos;
         
-        if( S5_AUTH_MAGIC_NUM != ntohl( header->magic ) ) {
+        if( S5_AUTH_LOCAL_MAGIC != ntohl( header->magic ) ) {
             // magic number not match, goto http/https process
             break;
         }

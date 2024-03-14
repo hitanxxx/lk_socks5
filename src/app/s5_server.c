@@ -886,64 +886,16 @@ static status s5_server_rfc_phase1_recv( event_t * ev )
     }
 }
 
-static status s5_server_auth_recv_payload( event_t * ev )
+static status s5_server_auth_recv( event_t * ev )
 {
-    /// porcess the private authroization payload between local and server  
+    /// porcess the private authroization between local and server  
     connection_t * down = ev->data;
     socks5_cycle_t * s5 = down->data;
-    meta_t * meta = down->meta;
     ssize_t rc = 0;
+    meta_t * meta = down->meta;
     
-    while( (meta->last - meta->pos) < sizeof(s5_auth_data_t) ) {
-        rc = down->recv( down, meta->last, meta->end - meta->last );
-        if( rc < 0 ) {
-            if( ERROR == rc ) {
-                err("s5 auth check header recv failed\n");
-                s5_free(s5);
-                return ERROR;
-            }
-            timer_set_data( &ev->timer, s5 );
-            timer_set_pt(&ev->timer, s5_timeout_cb );
-            timer_add( &ev->timer, S5_TIMEOUT );
-            return AGAIN;
-        }
-#ifndef S5_OVER_TLS
-        if( rc != sys_cipher_conv( s5->cipher_dec, meta->last, rc ) ) {
-            err("s5 server cipher dec data failed\n");
-            s5_free(s5);
-            return ERROR;
-        }
-#endif
-        meta->last += rc;
-    }
-    timer_del( &ev->timer );
-
-    /// check auto data
-    s5_auth_data_t * auth_payload = (s5_auth_data_t*) meta->pos;
-    if( NULL == ezhash_find( g_s5_ctx->auth_hash, (char*)auth_payload->auth ) ) {
-        err("s5 auth find auth key failed. not found\n");
-        s5_free(s5);
-	return ERROR;
-    }
-    meta->pos = meta->last = meta->start;/// clear meta
-    /// goto process rfc s5 phase1 
-    ev->write_pt = NULL;
-    ev->read_pt = s5_server_rfc_phase1_recv;
-    event_opt( ev, down->fd, EV_R );
-    return ev->read_pt( ev );
-}
-
-static status s5_server_auth_recv_header( event_t * ev )
-{
-    /// porcess the private authroization header between local and server  
-    connection_t * down = ev->data;
-    socks5_cycle_t * s5 = down->data;
-    ssize_t rc = 0;
-    unsigned char err_code = S5_ERR_SUCCESS;
-    meta_t * meta = down->meta;
-
     /// at least recv ad s5 auth header. then goto check the header
-    while( ( meta->last - meta->pos ) < sizeof(s5_auth_info_t) ) {
+    while( ( meta->last - meta->pos ) < sizeof(s5_auth_t) ) {
         rc = down->recv( down, meta->last, meta->end - meta->last );
         if( rc < 0 ) {
             if( ERROR == rc ) {
@@ -967,27 +919,23 @@ static status s5_server_auth_recv_header( event_t * ev )
     }
     timer_del( &ev->timer );
 
-    // check the auth header
-    do {
-        s5_auth_info_t * header = (s5_auth_info_t*)meta->pos;
-        if( ntohl( header->magic ) != S5_AUTH_MAGIC_NUM ) {
-            err("s5 pri, magic [0x%x] incorrect, should be S5_AUTH_MAGIC_NUM [0x%x]\n", header->magic, S5_AUTH_MAGIC_NUM );
-            err_code = S5_ERR_MAGIC;
-        }
-
-        if( header->typ != S5_MSG_LOGIN_REQ ) {
-            err("s5 pri, msg type [0x%x] incorrect, should be S5_MSG_LOGIN_REQ [0x%x]\n", header->typ, S5_MSG_LOGIN_REQ );
-            err_code = S5_ERR_TYPE;
-        }
-    } while(0);
-
-    if( err_code != S5_ERR_SUCCESS ) {
-        err("s5 auth check header failed\n");
+    s5_auth_t * auth = (s5_auth_t*)meta->pos;
+    if( ntohl( auth->magic ) != S5_AUTH_LOCAL_MAGIC ) {
+        err("s5 pri, magic [0x%x] incorrect, should be S5_AUTH_LOCAL_MAGIC [0x%x]\n", auth->magic, S5_AUTH_LOCAL_MAGIC );
         s5_free( s5 );
         return ERROR;
     }
-    meta->pos += sizeof(s5_auth_info_t);   /// change the meta pos 
-    ev->read_pt = s5_server_auth_recv_payload;
+    if( NULL == ezhash_find( g_s5_ctx->auth_hash, (char*)auth->key ) ) {
+        err("s5 auth find auth key failed. not found\n");
+        s5_free(s5);
+        return ERROR;
+    }
+    
+    meta->pos = meta->last = meta->start;/// clear meta
+    /// goto process rfc s5 phase1 
+    ev->write_pt = NULL;
+    ev->read_pt = s5_server_rfc_phase1_recv;
+    event_opt( ev, down->fd, EV_R );
     return ev->read_pt( ev );
 }
 
@@ -1034,7 +982,7 @@ static status s5_server_start( event_t * ev )
         }
     }
 #endif
-    ev->read_pt	= s5_server_auth_recv_header;
+    ev->read_pt	= s5_server_auth_recv;
     return ev->read_pt( ev );
 }
 
@@ -1051,9 +999,8 @@ status s5_server_transport( event_t * ev )
     s5->down = down;
     down->data = s5;
 
-    ev->read_pt = s5_server_auth_recv_header;
+    ev->read_pt = s5_server_auth_recv;
     return ev->read_pt( ev );
-    
 }
 
 static status s5_server_accept_cb_check( event_t * ev )

@@ -11,10 +11,10 @@ int ringbuffer_alloc(ringbuffer_t **rb, int size)
 		err("alloc ringbuffer failed. [%d]\n", errno);
 		return ERROR;
 	}
-	rb_n->size = size;
-	rb_n->data_len = 0;
-	rb_n->pos = rb_n->last = rb_n->start = rb_n->data;
-	rb_n->end = rb_n->start + size;
+    rb_n->space = size;
+    rb_n->datan = 0;
+    rb_n->pos = rb_n->last = rb_n->start = rb_n->data;
+    rb_n->end = rb_n->start + size;
 
 	*rb = rb_n;
 	return OK;
@@ -24,79 +24,96 @@ int ringbuffer_alloc(ringbuffer_t **rb, int size)
 /// @param rb
 void ringbuffer_free(ringbuffer_t *rb)
 {
-	if (rb)
-		free(rb);
+	if (rb) free(rb);
 }
 
-/// @brief push data into ringbuffer
-/// @param rb
-/// @param data storge into ringbuffer data
-/// @param len size of storge into ringbuffer data
-/// @return
-int ringbuffer_push(ringbuffer_t *rb, char *data, int len)
+static int rb_full( ringbuffer_t * rb )
 {
-	int space_tail = 0;
+	return ( rb->space == rb->datan ? 1 : 0);
+}
 
-	if (len > (rb->size - rb->data_len)) {
+int rb_empty( ringbuffer_t * rb )
+{
+	return rb->datan == 0 ? 1 : 0;
+}
+int ringbuffer_push(ringbuffer_t *rb,unsigned char *data, int datan)
+{
+	if( rb_full(rb)) {
 		err("rb full\n");
-		return ERROR;
+		return -1;
 	}
-	space_tail = rb->end - rb->last;
-	if (space_tail >= len) {
-		memcpy(rb->last, data, len);
-		rb->last += len;
+
+	if( datan > rb->space - rb->datan ) {
+		err("rb free space not enough\n");
+		return -1;
+	}
+
+	if( rb->pos <= rb->last ) {
+		/// start-----pos-----last-----end
+		int tailn = rb->end - rb->last;
+		if( tailn >= datan ) {
+			memcpy( rb->last, data, datan );
+			rb->last += datan;
+			rb->datan += datan;
+		} else {
+			memcpy( rb->last, data, tailn );
+			rb->last += tailn;
+			rb->datan += tailn;
+
+			int headn = datan - tailn;
+			memcpy( rb->start, data + tailn, headn );
+		    rb->last = rb->start + headn;
+			rb->datan += headn;	
+		}
 	} else {
-		memcpy(rb->last, data, space_tail);
-		memcpy(rb->start, data + space_tail, len - space_tail);
-		rb->last = rb->start + (len - space_tail);
+		/// start-----last-----pos-----end
+		int freen = rb->pos - rb->last;
+		memcpy( rb->last, data, datan );
+	    rb->last += freen;
+		rb->datan += freen;
 	}
-	rb->data_len += len;
-	return OK;
+	return 0;
 }
 
-/// @brief pull data form ringbuffer
-/// @param rb  point to ringbuffer
-/// @param len  want length
-/// @param out_data space for storge outer data
-/// @param out_len size of outer data, mabey less than want length if ringbuffer data not enough
-/// @return
-int ringbuffer_pull(ringbuffer_t *rb, int len, char *out_data, int *out_len)
+int ringbuffer_pull(ringbuffer_t *rb, int datan, unsigned char *data, int *outn)
 {
-	int space_tail = 0;
-	int want_len = 0;
-
-	*out_len = 0;
-
-	if (rb->data_len <= 0) {
+	if( rb_empty(rb)) {
 		err("rb empty\n");
-		return ERROR;
-	}
+		return -1;
+	}	
 
-	if (len > rb->data_len) {
-		want_len = rb->data_len;
+	if( rb->pos < rb->last ) {
+		/// start-----pos-----last-----end
+		int pulln = ( datan >= (rb->last - rb->pos) ? (rb->last-rb->pos) : datan );
+		memcpy( data, rb->pos, pulln );
+		rb->pos += pulln;
+		rb->datan -= pulln;
+
+		*outn = pulln;
 	} else {
-		want_len = len;
-	}
+		/// start-----last-----pos-----end
+		int tailn = rb->end - rb->pos;
+		if( tailn >= datan ) {
+			memcpy( data, rb->pos, datan );
+			rb->pos += datan;
+			rb->datan -= datan;
 
-	space_tail = rb->end - rb->pos;
-	if (space_tail > want_len) {
-		memcpy(out_data, rb->pos, want_len);
-		rb->pos += want_len;
-	} else {
-		memcpy(out_data, rb->pos, space_tail);
-		memcpy(out_data, rb->start, want_len - space_tail);
-		rb->pos = rb->start + (want_len - space_tail);
-	}
+			*outn = datan;
+		} else {
+			// copy all tail
+			memcpy( data, rb->pos, tailn );
+		        rb->pos += tailn;
+			rb->datan -= tailn;
+			
+			int headn = rb->last - rb->start;
+			int pulln = ( datan - tailn >= headn ? headn : (datan - tailn) );
+			memcpy( data + tailn, rb->start, pulln );
+		    rb->pos += pulln;
+			rb->datan -= pulln;
 
-	rb->data_len -= want_len;
-	*out_len = want_len;
-	return OK;
+			*outn = tailn + pulln;
+		}
+	}
+	return 0;
 }
 
-/// @brief check ringbuffer empty or not
-/// @param rb
-/// @return
-int ringbuffer_empty(ringbuffer_t *rb)
-{
-	return (rb->data_len == 0) ? 1 : 0;
-}
