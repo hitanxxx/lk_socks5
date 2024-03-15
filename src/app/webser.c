@@ -818,14 +818,14 @@ static status webser_start( event_t * ev )
 
     // init web connection page and meta memory for use
     if( NULL == c->page ) {
-        if( OK != mem_page_create(&c->page, 8192 ) ) {
+        if( OK != mem_page_create(&c->page, 4096 ) ) {
             err("webser con page alloc failed\n");
             net_free( c );
             return ERROR;
         }
     }
     if( NULL == c->meta ) {
-        if( OK != meta_alloc_form_mempage( c->page, 8192, &c->meta ) ) {
+        if( OK != meta_alloc_form_mempage( c->page, 4096, &c->meta ) ) {
             err("webser con meta alloc failed\n");
             net_free( c );
             return ERROR;
@@ -862,14 +862,14 @@ static status webser_transfer_to_s5( event_t * ev )
     
     // page && meta init
     if( NULL == c->page ) {
-        if( OK != mem_page_create(&c->page, L_PAGE_DEFAULT_SIZE) ) {
+        if( OK != mem_page_create(&c->page, 8192) ) {
             err("webser c page create failed\n");
             net_free( c );
             return ERROR;
         }
     }
     if( NULL == c->meta ) {
-        if( OK != meta_alloc_form_mempage( c->page, WEBSER_REQ_META_LEN, &c->meta ) ) {
+        if( OK != meta_alloc_form_mempage( c->page, 8192, &c->meta ) ) {
             err("webser alloc con meta failed\n");
             net_free( c );
             return ERROR;
