@@ -19,13 +19,16 @@ struct l_mem_page {
 	char 			data[0];
 };
 
-status mem_page_create( mem_page_t ** alloc, uint32 size );
-status mem_page_free( mem_page_t * page );
-void * mem_page_alloc( mem_page_t * page, uint32 size );
 
 
-char * sys_alloc( int size );
-void sys_free(    char * addr );
+void * sys_alloc( int size );
+void sys_free(     void * addr );
+
+
+int mem_pool_free(void * addr);
+void * mem_pool_alloc(int size);
+int mem_pool_deinit();
+int mem_pool_init();
 
 
 

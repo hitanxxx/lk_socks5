@@ -104,7 +104,7 @@ status timer_free( ev_timer_t * timer )
 		if( timer->f_timeset )  {
 			timer_del( timer );
 		}
-		l_safe_free(timer);
+		sys_free(timer);
 		timer = NULL;
 	}
 	return OK;
@@ -114,7 +114,7 @@ status timer_alloc( ev_timer_t ** timer )
 {
 	ev_timer_t * new = NULL;
 
-	new = (ev_timer_t *)l_safe_malloc( sizeof(ev_timer_t) );
+	new = (ev_timer_t *)sys_alloc( sizeof(ev_timer_t) );
 	if( !new )  {
 		err("safe malloc timer failed\n" );
 		return ERROR;

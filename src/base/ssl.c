@@ -65,7 +65,7 @@ status ssl_shutdown( ssl_connection_t * ssl )
     
     if( SSL_in_init( c->ssl->con ) ) {
         SSL_free( c->ssl->con );
-        l_safe_free( c->ssl );
+        mem_pool_free( c->ssl );
         c->ssl = NULL;
         c->ssl_flag = 0;
         return OK;
@@ -89,7 +89,7 @@ status ssl_shutdown( ssl_connection_t * ssl )
     }
     if( n == 1 || sslerr == 0 || sslerr == SSL_ERROR_ZERO_RETURN ) {
         SSL_free( c->ssl->con );
-        l_safe_free( c->ssl );
+        mem_pool_free( c->ssl );
         c->ssl      = NULL;
         c->ssl_flag = 0;
         return OK;
@@ -112,7 +112,7 @@ status ssl_shutdown( ssl_connection_t * ssl )
     }
     
     SSL_free( c->ssl->con );
-    l_safe_free( c->ssl );
+    mem_pool_free( c->ssl );
     c->ssl = NULL;
     c->ssl_flag = 0;
     ssl_record_error(sslerr);
@@ -396,7 +396,7 @@ status ssl_create_connection( connection_t * c, uint32 flag )
     }
     
     do {
-        sslcon = l_safe_malloc( sizeof(ssl_connection_t) );
+        sslcon = mem_pool_alloc( sizeof(ssl_connection_t) );
         if( !sslcon ) {
             err("ssl create con alloc sslcon failed, [%d]\n", errno );
             return ERROR;
@@ -433,7 +433,7 @@ status ssl_create_connection( connection_t * c, uint32 flag )
         if( sslcon->con ) {
             SSL_free( sslcon->con );
         }
-        l_safe_free( sslcon );
+        mem_pool_free( sslcon );
     }
     return ERROR;
 }
@@ -444,7 +444,7 @@ status ssl_init( void )
         err("ssl init this is not empty\n");
         return ERROR;
     }
-    g_ssl_ctx = l_safe_malloc(sizeof(g_ssl_t));
+    g_ssl_ctx = mem_pool_alloc(sizeof(g_ssl_t));
     if( !g_ssl_ctx ) {
         err("ssl init alloc this failed, [%d]\n", errno );
         return ERROR;
@@ -476,7 +476,7 @@ status ssl_end( void )
             SSL_CTX_free( g_ssl_ctx->ctx_server );
             g_ssl_ctx->ctx_server = NULL;
         }
-        l_safe_free( g_ssl_ctx );
+        mem_pool_free( g_ssl_ctx );
         g_ssl_ctx = NULL;
     }
     return OK;

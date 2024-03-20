@@ -1,51 +1,29 @@
-	#include "common.h"
+#include "common.h"
 
 
-	status meta_alloc_form_mempage ( mem_page_t * page, uint32 size, meta_t ** out )
-	{
-	meta_t * meta_alloc = NULL;
+status meta_alloc( meta_t ** meta, uint32 datan )
+{
+    meta_t * t = NULL;
 
-	sys_assert(page != NULL);
-	sys_assert(size > 0);
+    if( meta == NULL ) {
+    	return ERROR;
+    }
 
-	meta_alloc = mem_page_alloc( page, sizeof(meta_t)+size );
-	if( !meta_alloc ) {
-		err("meta alloc from page failed\n");
-		return ERROR;
-	}
-	memset( meta_alloc, 0, sizeof(meta_t)+size );
+    t = mem_pool_alloc( sizeof(meta_t)+datan );
+    if(!t) {
+    	return ERROR;
+    }
 
-	meta_alloc->start = meta_alloc->pos = meta_alloc->last = meta_alloc->data;
-	meta_alloc->end = meta_alloc->start + size;
+    t->start = t->pos = t->last = t->data;
+    t->end = t->start + datan;
 
-	*out = meta_alloc;
-	return OK;
-	}
+    *meta = t;
+    return OK;
+}
 
-
-	status meta_alloc( meta_t ** meta, uint32 size )
-	{
-	meta_t * t = NULL;
-
-	if( meta == NULL ) {
-		return ERROR;
-	}
-
-	t = l_safe_malloc( sizeof(meta_t)+size );
-	if( NULL == t ) {
-		return ERROR;
-	}
-
-	t->start = t->pos = t->last = t->data;
-	t->end = t->start + size;
-
-	*meta = t;
-	return OK;
-	}
-
-	void meta_free( meta_t * meta )
-	{
-	if( meta ) {
-		l_safe_free(meta);
-	}
-	}
+void meta_free( meta_t * meta )
+{
+    if( meta ) {
+    	mem_pool_free(meta);
+    }
+}

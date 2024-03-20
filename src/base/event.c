@@ -5,28 +5,26 @@ typedef struct
 {
 	/// accept evt action array
 	event_t * ev_arr_accept[128];
-	int ev_arr_acceptn;
+	short ev_arr_acceptn;
 
 	/// evt action array
 	event_t * ev_arr[MAX_NET_CON];
-	int ev_arrn;
+	short ev_arrn;
 
 	/// event action array for storge evt set by action array object
 	event_t * ev_arr_back[MAX_NET_CON];
-	int ev_arr_backn;
+	short ev_arr_backn;
 
 #if defined(EVENT_EPOLL)
-	int32           event_fd;
+	int           event_fd;
 	struct epoll_event * events;
 #else
 	fd_set          rfds;
 	fd_set          wfds;
+    queue_t  evqueue;
 #endif
-	event_handler_t g_event_handler;
-	queue_t         usable;
-	queue_t         use;
-	int				queue_use_num;
-	event_t         pool[0];
+	event_handler_t g_event_handler;	
+	short queue_use_num;
 } g_event_t;
 static g_event_t * g_event_ctx = NULL;
 
@@ -34,7 +32,7 @@ static g_event_t * g_event_ctx = NULL;
 #if defined(EVENT_EPOLL)
 static status event_epoll_init(     )
 {
-	g_event_ctx->events = (struct epoll_event*) l_safe_malloc ( sizeof(struct epoll_event)*(MAX_NET_CON+128) );
+	g_event_ctx->events = (struct epoll_event*) mem_pool_alloc ( sizeof(struct epoll_event)*(MAX_NET_CON+128) );
 	if( NULL == g_event_ctx->events ) {
 		err("ev epoll malloc events pool failed\n" );
 		return ERROR;
@@ -53,7 +51,7 @@ static status event_epoll_end( )
 		close( g_event_ctx->event_fd );
 	}
 	if( g_event_ctx->events ) {
-		l_safe_free( g_event_ctx->events );
+		mem_pool_free( g_event_ctx->events );
 	}
 	return OK;
 }
@@ -195,7 +193,7 @@ static status event_select_opt( event_t * ev, int32 fd, int want_opt )
 status event_select_run( time_t msec )
 {
 	struct timeval wait_tm;
-	int i = 0, fdmax = -1;
+	int fdmax = -1;
 	int actall = 0, actn = 0;
 	
 	fd_set rfds;
@@ -211,19 +209,25 @@ status event_select_run( time_t msec )
 	}
 	
 	/// find max fd in listen events
-	for( i = 0; i < listens->elem_num; i ++ ) {
-		listen_t * p_listen = mem_arr_get( listens, i + 1 );
-		event_t * p_ev = &p_listen->event;
-		if( (p_ev->f_active == 1) && (p_ev->fd > fdmax) ) {
-			fdmax = p_ev->fd;
-		}
-	}
-	/// find max fd in pool events
-	for( i = 0; i < MAX_NET_CON; i++ ) {
-		if( (g_event_ctx->pool[i].f_active == 1) && (g_event_ctx->pool[i].fd > fdmax) ) {
-			fdmax = g_event_ctx->pool[i].fd;
-		}
-	}
+    listen_t * p = g_listens;
+    while(p) {
+        event_t * pev = &p->event;
+        if(pev->f_active && pev->fd > fdmax) {
+            fdmax = pev->fd;
+        }
+        p = p->next;
+    }
+	/// find max fd in event queue
+    queue_t * q = queue_head(&g_event_ctx->evqueue);
+    queue_t * n = NULL;
+    while( q != queue_tail( &g_event_ctx->evqueue )) {
+        n = queue_next(q);
+        event_t * pev = ptr_get_struct( q, event_t, queue );
+        if( pev->f_active && pev->fd > fdmax ) {
+            fdmax = pev->fd;
+        }
+        q = n;
+    }
 
 	/// select return will be change read fds and write fds
 	memcpy( &rfds, &g_event_ctx->rfds, sizeof(fd_set) );
@@ -244,33 +248,37 @@ status event_select_run( time_t msec )
 			return ( (msec == -1) ? ERROR : AGAIN );
 		}
 	}
-
 	
 	/// loop check all listen events
-	for( i = 0; (i < listens->elem_num) && (actn < actall); i ++ ) {
-		listen_t * p_listen = mem_arr_get( listens, i + 1 );
-		event_t * p_ev = &p_listen->event;
-		if( p_ev->f_active == 1 ) {
-			if( FD_ISSET( p_ev->fd, &rfds ) ) {
-				g_event_ctx->ev_arr_accept[g_event_ctx->ev_arr_acceptn++] = p_ev;
-				p_ev->f_read = 1;
-				actn ++;   
-			}         
-		}
-	}
-	
+    p = g_listens;
+    while(p && actn < actall) {
+        event_t * pev = &p->event;
+        if(pev->f_active) {
+            if( FD_ISSET( pev->fd, &rfds ) ) {
+                g_event_ctx->ev_arr_accept[g_event_ctx->ev_arr_acceptn++] = pev;
+				pev->f_read = 1;
+				actn ++; 
+                dbg("listen act\n");
+            }
+        }
+        p = p->next;
+    }
 	/// loop check all events 
-	for( i = 0; (i < MAX_NET_CON) && (actn < actall); i ++ ) {
-		event_t * p_ev = &g_event_ctx->pool[i];
-		if( p_ev->f_active == 1 ) {
-			if( FD_ISSET( p_ev->fd, &rfds ) || FD_ISSET( p_ev->fd, &wfds ) ) {
-				g_event_ctx->ev_arr[g_event_ctx->ev_arrn++] = p_ev;
-				if( FD_ISSET( p_ev->fd, &rfds ) ) p_ev->f_read = 1;
-				if( FD_ISSET( p_ev->fd, &wfds ) ) p_ev->f_write = 1;
+    q = queue_head(&g_event_ctx->evqueue);
+    n = NULL;
+    while( q != queue_tail( &g_event_ctx->evqueue ) && actn < actall ) {
+        n = queue_next(q);
+        event_t * pev = ptr_get_struct( q, event_t, queue );
+        if( pev->f_active) {
+            if( FD_ISSET( pev->fd, &rfds ) || FD_ISSET( pev->fd, &wfds ) ) {
+                g_event_ctx->ev_arr[g_event_ctx->ev_arrn++] = pev;
+                if( FD_ISSET( pev->fd, &rfds ) ) pev->f_read = 1;
+				if( FD_ISSET( pev->fd, &wfds ) ) pev->f_write = 1;
 				actn ++;
-			}
-		}
-	} 
+            }
+        }
+        q = n;
+    }
 	
 	return OK;
 }
@@ -296,7 +304,6 @@ status event_opt( event_t * event, int32 fd, int want_opt )
 status event_run( time_t msec )
 {	
 	int i = 0;
-	listen_t * listen = NULL;
 
 	/// listen fd use SO_REUSEPORT. don't need do mutex (kernel will do it)
 	if( 0 ) {
@@ -305,12 +312,14 @@ status event_run( time_t msec )
 			/// try to get listen event lock
 			process_lock();
 			if( process_mutex_value_get() == 0 ) {
-				for( i = 0; i < listens->elem_num; i ++ ) {
-					listen = mem_arr_get( listens, i+1 );
-					listen->event.data = listen;
-					listen->event.read_pt = net_accept;
-					event_opt( &listen->event, listen->fd, EV_R );
-				}
+                listen_t * p = g_listens;
+                while(p) {
+                    p->event.data = p;
+                    p->event.read_pt = net_accept;
+                    p->event.f_listen = 1;
+                    event_opt( &p->event, p->fd, EV_R );
+                    p = p->next;
+                }
 				process_mutex_value_set( proc_pid() );
 			}
 			process_unlock();
@@ -381,12 +390,14 @@ status event_run( time_t msec )
 	if( 0 ) {
 		process_lock();
 		if( process_mutex_value_get() == proc_pid() ) {
-			for( i = 0; i < listens->elem_num; i ++ ) {
-				listen = mem_arr_get( listens, i+1 );
-				listen->event.data = listen;
-				listen->event.read_pt = net_accept;
-				event_opt( &listen->event, listen->fd, EV_NONE );
-			}	
+			listen_t * p = g_listens;
+            while(p) {
+                p->event.data = p;
+                p->event.read_pt = net_accept;
+                p->event.f_listen = 1;
+                event_opt( &p->event, p->fd, EV_NONE );
+                p = p->next;
+            }
 			process_mutex_value_set(0);
 		}
 		process_unlock();
@@ -396,19 +407,16 @@ status event_run( time_t msec )
 
 status event_alloc( event_t ** ev )
 {
-	queue_t * q = NULL;
-	event_t * local_ev = NULL;
-	if( 1 == queue_empty( &g_event_ctx->usable ) ) {
-		err("event usable empty\n");
-		return ERROR;
-	}
-	q = queue_head( &g_event_ctx->usable );
-	queue_remove( q );
-	queue_insert_tail( &g_event_ctx->use, q );
-	g_event_ctx->queue_use_num ++;
-	local_ev = ptr_get_struct( q, event_t, queue);
-	
-	*ev = local_ev;
+    event_t * nev = mem_pool_alloc( sizeof(event_t) );
+    if(!nev){
+        err("evt alloc nev failed\n");
+        return ERROR;
+    }
+    g_event_ctx->queue_use_num ++;
+#ifndef EVENT_EPOLL
+    queue_insert_tail( &g_event_ctx->evqueue, &nev->queue );
+#endif
+    *ev = nev;
 	return OK;
 }
 
@@ -427,61 +435,55 @@ status event_free( event_t * ev )
 		ev->f_active = 0;
 		ev->f_read = ev->f_write = 0;
 		ev->read_pt = ev->write_pt = NULL;
-		
-		queue_remove( &ev->queue );
-		queue_insert_tail( &g_event_ctx->usable, &ev->queue );
+
 		g_event_ctx->queue_use_num --;
+#ifndef EVENT_EPOLL
+        queue_remove( &ev->queue );
+#endif
+        mem_pool_free(ev);
 	}
 	return OK;
 }
 
 status event_init( void )
 {	
-	int i = 0;
 	if( g_event_ctx ) {
 		err("g_event_ctx not empty\n");
 		return ERROR;
 	}
-	g_event_ctx = l_safe_malloc( sizeof(g_event_t) + (sizeof(event_t)*MAX_NET_CON) );
+	g_event_ctx = mem_pool_alloc( sizeof(g_event_t) );
 	if( !g_event_ctx ) {
-		err("event alloc this failed, [%d]\n", errno );
+		err("event alloc this failed\n" );
 		return ERROR;
-	}
-	
-	queue_init( &g_event_ctx->use );
-	queue_init( &g_event_ctx->usable );
-	for( i = 0; i < MAX_NET_CON; i ++ ) {
-		queue_insert_tail( &g_event_ctx->usable, &g_event_ctx->pool[i].queue );
 	}
 
 #if defined(EVENT_EPOLL)
-	g_event_ctx->g_event_handler.init      = event_epoll_init;
-	g_event_ctx->g_event_handler.end       = event_epoll_end;
-	g_event_ctx->g_event_handler.opt       = event_epoll_opt;
-	g_event_ctx->g_event_handler.run       = event_epoll_run;
+	g_event_ctx->g_event_handler.init = event_epoll_init;
+	g_event_ctx->g_event_handler.end = event_epoll_end;
+	g_event_ctx->g_event_handler.opt = event_epoll_opt;
+	g_event_ctx->g_event_handler.run = event_epoll_run;
 #else
-	g_event_ctx->g_event_handler.init      = event_select_init;
-	g_event_ctx->g_event_handler.end       = event_select_end;
-	g_event_ctx->g_event_handler.opt       = event_select_opt;
-	g_event_ctx->g_event_handler.run       = event_select_run;
+	g_event_ctx->g_event_handler.init = event_select_init;
+	g_event_ctx->g_event_handler.end = event_select_end;
+	g_event_ctx->g_event_handler.opt = event_select_opt;
+	g_event_ctx->g_event_handler.run = event_select_run;
+    queue_init(&g_event_ctx->evqueue);
 #endif
-
 	// init event, and add listen into event
-	sys_assert( g_event_ctx->g_event_handler.init != NULL );
 	g_event_ctx->g_event_handler.init();
 
 	if(1) {
 		/// all worker process will be add listen fd into event.
 		/// listen fd set by SO_REUSEPORT. 
 		/// kernel will be process listen fd loadbalance
-		int i = 0;
-		for( i = 0; i < listens->elem_num; i ++ )  {
-			listen_t * listen_obj = mem_arr_get( listens, i+1 );
-			listen_obj->event.data = listen_obj;
-			listen_obj->event.read_pt = net_accept;
-			listen_obj->event.f_listen = 1;
-			event_opt( &listen_obj->event, listen_obj->fd, EV_R );
-		}
+        listen_t * p = g_listens;
+        while(p) {
+            p->event.data = p;
+            p->event.read_pt = net_accept;
+            p->event.f_listen = 1;
+            event_opt( &p->event, p->fd, EV_R );
+            p = p->next;
+        }
 	}
 	return OK;
 	
@@ -490,16 +492,16 @@ status event_init( void )
 status event_end( void )
 {
 	if( g_event_ctx ) {
-		int i = 0;
-		listen_t * listen = NULL;
 		process_lock();
 		if( process_mutex_value_get() == proc_pid() ) {
-			for( i = 0; i < listens->elem_num; i ++ ) {
-				listen = mem_arr_get( listens, i+1 );
-				listen->event.data 		= listen;
-				listen->event.read_pt 	= net_accept;
-				event_opt( &listen->event, listen->fd, EV_NONE );
-			}	
+            listen_t * p = g_listens;
+            while(p) {
+                p->event.data = p;
+                p->event.read_pt = net_accept;
+                p->event.f_listen = 1;
+                event_opt( &p->event, p->fd, EV_NONE );
+                p = p->next;
+            }
 			process_mutex_value_set(0);
 		}
 		process_unlock();
@@ -507,7 +509,7 @@ status event_end( void )
 		if( g_event_ctx->g_event_handler.end ) {
 			g_event_ctx->g_event_handler.end();
 		}
-		l_safe_free( g_event_ctx );
+		mem_pool_free( g_event_ctx );
 		g_event_ctx = NULL;
 	}
 

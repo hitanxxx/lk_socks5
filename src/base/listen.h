@@ -5,32 +5,26 @@
 extern "C"
 {
 #endif
-    
 
+typedef struct listen listen_t;
 
-extern mem_arr_t * listens;
+extern listen_t * g_listens;
 
-typedef status ( *listen_pt ) ( event_t * event );
-typedef struct listen_t {
-	queue_t				queue;
-	int32				fd;
-	
-	unsigned short 				port;
-	unsigned char				type;
+struct listen {
+	unsigned short lport;
+	char fssl;
+	int fd;
 
-	listen_pt			handler;
+	event_pt handler;
+	event_t	event;
+	struct sockaddr_in server_addr;
 
-	event_t				event;
-	struct sockaddr_in  server_addr;
-} listen_t;
+    listen_t * next;
+};
 
 status listen_start( void );
-status listen_stop( void );
-
 status listen_init( void );
 status listen_end( void );
-
-int listen_num( );
 
 
 #ifdef __cplusplus

@@ -1,9 +1,6 @@
 #include "common.h"
 #include "http_req.h"
 
-static queue_t 	g_queue_use;
-static queue_t 	g_queue_usable;
-http_req_t * g_pool = NULL;
 
 static status http_req_set_value( http_req_t * request, string_t * value, uint32 offsetof );
 static status http_req_set_connection( http_req_t * request, string_t * value, uint32 offsetof );
@@ -22,7 +19,7 @@ status http_req_have_body(     http_req_t * req)
 	/// if not POST and not PUT method, then don't need have body
 	if( (0 != strncmp( (char*)req->method.data, "POST", req->method.len )) &&
 		(0 != strncmp( (char*)req->method.data, "PUT", req->method.len )) ) {
-		//debug("http req method [%.*s] not allow have body\n", req->method.len, req->method.data );
+		//dbg("http req method [%.*s] not allow have body\n", req->method.len, req->method.data );
 		return 0;
 	}
 
@@ -638,19 +635,12 @@ static status http_req_request_line( http_req_t * req )
 
 static status http_req_alloc( http_req_t ** req )
 {
-	http_req_t * req_n;
-	queue_t * q;
-
-	if( queue_empty( &g_queue_usable ) == 1 ) {
-		err("http req g_queue_usable empty\n");
-		return ERROR;
-	}
-	q = queue_head( &g_queue_usable );
-	queue_remove( q );
-	queue_insert_tail( &g_queue_use, q );
-	req_n = ptr_get_struct( q, http_req_t, queue );
-
-	*req = req_n;
+	http_req_t * nreq = mem_pool_alloc(sizeof(http_req_t));
+    if(!nreq) {
+        err("http req alloc nreq failed\n");
+        return ERROR;
+    }
+	*req = nreq;
 	return OK;
 }
 
@@ -687,8 +677,7 @@ status http_req_free( http_req_t * req )
 	req->content_len = 0;
 	req->content_type = 0;
 	
-	queue_remove( &req->queue );
-	queue_insert_tail( &g_queue_usable, &req->queue );
+	mem_pool_free(req);
 	return OK;
 }
 
@@ -718,27 +707,10 @@ status http_req_create( connection_t * c, http_req_t ** request )
 
 status http_req_init_module( void )
 {
-	int i;
-
-	queue_init( &g_queue_use );
-	queue_init( &g_queue_usable );
-	g_pool = (http_req_t*)l_safe_malloc( sizeof(http_req_t)*MAX_NET_CON );
-	if( !g_pool )  {
-		err("http req header module. alloc g_pool failed. [%d]\n", errno );
-		return ERROR;
-	}
-
-	for( i = 0; i < MAX_NET_CON; i++ )  {
-		queue_insert_tail( &g_queue_usable, &g_pool[i].queue );
-	}
 	return OK;
 }
 
 status http_req_end_module( void )
 {
-	if( g_pool ) {
-		l_safe_free( g_pool );
-		g_pool = NULL;
-	}
 	return OK;
 }

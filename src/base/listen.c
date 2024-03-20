@@ -6,40 +6,52 @@
 #include "http_req.h"
 #include "webser.h"
 
-mem_arr_t * listens = NULL;
+listen_t * g_listens = NULL;
+static int g_listenn = 0;
 
-static status listen_add( unsigned short port, listen_pt handler, unsigned char type )
+static status listen_add( unsigned short port, event_pt handler, char fssl )
 {
-	listen_t *  p = mem_arr_push( listens );
-	if( !p )  {
-	err("listen arr push failed\n");
-	return ERROR;
-	}
-	p->handler = handler;
-	p->port = port;
-	p->type = type;
+    listen_t * nl = sys_alloc( sizeof(listen_t) );
+    if(!nl){
+        err("listne alloc nl failed\n");
+        return ERROR;
+    }
+    nl->lport = port;
+    nl->fssl = fssl;
+    nl->handler = handler;
+
+    if( !g_listens ) {
+        g_listens = nl;
+    } else {
+        listen_t * p = g_listens;
+        while(p->next) {
+            p = p->next;
+        }
+        p->next = nl;
+    }
+    g_listenn++;
 	return OK;
 }
 
-static status listen_open( listen_t * listens )
+static status listen_open( listen_t * lev )
 {
 	/// listen must be tcp
-	listens->server_addr.sin_family = AF_INET;
-	listens->server_addr.sin_port = htons( listens->port );
-	listens->server_addr.sin_addr.s_addr = htonl( INADDR_ANY );
+	lev->server_addr.sin_family = AF_INET;
+	lev->server_addr.sin_port = htons( lev->lport );
+	lev->server_addr.sin_addr.s_addr = htonl( INADDR_ANY );
 
 	do {
-		listens->fd = socket( AF_INET, SOCK_STREAM, 0 );
-		if( -1 == listens->fd )  {
+		lev->fd = socket( AF_INET, SOCK_STREAM, 0 );
+		if( -1 == lev->fd )  {
 			err("listen open listen socket failed\n");
 			break;
 		}
-		if( OK != net_socket_nbio( listens->fd ) )  {
+		if( OK != net_socket_nbio( lev->fd ) )  {
 			err("listen set socket non blocking failed\n");
 			break;
 		}
 		
-		if( OK != net_socket_reuseaddr( listens->fd ) )	{
+		if( OK != net_socket_reuseaddr( lev->fd ) )	{
 			err("listen set socket reuseaddr failed\n" );
 			break;
 		}
@@ -50,24 +62,24 @@ static status listen_open( listen_t * listens )
 			kernel will be process thundering herd 
 		*/
 		
-		if( OK != net_socket_reuseport( listens->fd ) )	{
+		if( OK != net_socket_reuseport( lev->fd ) )	{
 			err("listen set socket reuseport failed\n" );
 			break;
 		}
-		if( OK != net_socket_fastopen( listens->fd ) ) {
+		if( OK != net_socket_fastopen( lev->fd ) ) {
 			err("listen set socket fastopen failed\n" );
 			break;
 		}
-		if( OK != net_socket_nodelay( listens->fd ) ){
+		if( OK != net_socket_nodelay( lev->fd ) ){
 			err("listen set socket nodelay failed\n" );
 			break;
 		}
 		
-		if( OK != bind( listens->fd, (struct sockaddr *)&listens->server_addr, sizeof(struct sockaddr) ) ) {
+		if( OK != bind( lev->fd, (struct sockaddr *)&lev->server_addr, sizeof(struct sockaddr) ) ) {
 			err("listen bind failed, [%d]\n", errno );
 			break;
 		}
-		if( OK != listen( listens->fd, 10 ) ) {
+		if( OK != listen( lev->fd, 10 ) ) {
 			err("listen call listen failed\n" );
 			break;
 		}
@@ -77,53 +89,34 @@ static status listen_open( listen_t * listens )
 	return ERROR;
 }
 
-status listen_stop( void )
-{
-	int i = 0;
-	for( i = 0; i < listens->elem_num; i ++ )  {
-		listen_t * p = mem_arr_get( listens, i+1 );
-		if( p->fd > 0 )  {
-			close( p->fd );
-			p->fd = 0;
-		}
-	}
-	return OK;
-}
-
 status listen_start( void )
 {
-	int ret = -1;
-	int i = 0;
-	for( i = 0; i < listens->elem_num; i ++ ) {
-		listen_t * p = mem_arr_get( listens, i + 1 );
-		if( OK != listen_open( p ) ) {
-			err("listen open failed\n");
-			break;
-		}
-	}
-	if( i >= listens->elem_num ) ret = 0;
+    int ret = 0;
+    listen_t * p = g_listens;
+    while( p ) {
+        if(OK != listen_open(p)) {
+            err("listen open failed\n");
+            ret = -1;
+            break;
+        }
+        p = p->next;
+    }
 
-	if( ret == 0 ) {
-		return OK;
-	} else {
-		listen_stop();
-		return ERROR;
-	}
-}
-
-
-int listen_num( )
-{
-	return ( listens ? listens->elem_num : 0 );
+    if(ret != 0) {
+        p = g_listens;
+        while(p) {
+            if(p->fd > 0) {
+                close(p->fd);
+            }
+        }
+        return ERROR;
+    }
+    return OK;
 }
 
 status listen_init( void )
 {	
 	int i = 0;
-	if( OK != mem_arr_create( &listens, sizeof(listen_t) ) )  {
-		err("listens arr create failed\n" );
-		return ERROR;
-	}
 
 	// s5 local listen
 	if( config_get()->s5_mode == SOCKS5_CLIENT ) {
@@ -151,9 +144,14 @@ status listen_init( void )
 
 status listen_end( void )
 {
-	if( listens ) {
-		mem_arr_free( listens );
-		listens = NULL;
-	}
+	if( g_listens ) {
+        listen_t * p = g_listens;
+        listen_t * n = NULL;
+        while(p) {
+            n = p->next;
+            sys_free(p);
+            p = n;
+        }
+    }
 	return OK;
 }

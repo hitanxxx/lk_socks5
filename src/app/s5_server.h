@@ -62,7 +62,6 @@ typedef struct __attribute__((packed)) s5_rfc_phase2_resp_s
 
 typedef struct 
 {
-    queue_t  queue;
     int state;
     char typ;   // client, server, server screct
     

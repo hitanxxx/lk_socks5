@@ -12,20 +12,17 @@ typedef struct dns_cache_s {
 
 typedef struct dns_ctx_s
 {
-    queue_t     usable;
-    queue_t     use;
     int         recn;
     queue_t     record_mng;
-    dns_cycle_t pool[0];
 } dns_ctx_t;
 static dns_ctx_t * dns_ctx = NULL;
 
 
 static status dns_rec_add( char * query, char * addr, int msec )
 {
-    dns_cache_t * rdns = calloc(1, sizeof(dns_cache_t));
+    dns_cache_t * rdns = mem_pool_alloc(sizeof(dns_cache_t));
     if( !rdns ) {
-        err("rdns alloc failed. [%d]\n", errno );
+        err("rdns alloc dns rec failed\n" );
         return ERROR;
     }
     queue_init( &rdns->queue );
@@ -36,7 +33,7 @@ static status dns_rec_add( char * query, char * addr, int msec )
     rdns->addr[3] = addr[3];
     rdns->expire_msec = systime_msec() + msec;
     queue_insert_tail( &dns_ctx->record_mng, &rdns->queue );
-    ///debug("dns cache add entry: [%s]. ttl [%d] msec\n", query, msec );
+    ///dbg("dns cache add entry: [%s]. ttl [%d] msec\n", query, msec );
     return OK;
 }
 
@@ -71,7 +68,7 @@ status dns_rec_find( char * query, char * out_addr )
             }
         } else {
             queue_remove( q );
-            free(rdns);
+            mem_pool_free(rdns);
         }
         
         q = n;
@@ -96,25 +93,18 @@ inline static char * dns_get_serv( )
 
 static status dns_alloc( dns_cycle_t ** cycle )
 {
-    queue_t * q = NULL;
-    dns_cycle_t * dns = NULL;
-    if( queue_empty(&dns_ctx->usable) ) {
-        err("dns usable queue empty\n");
+    dns_cycle_t * ncycle = mem_pool_alloc(sizeof(dns_cycle_t));
+    if(!ncycle){
+        err("dns alloc ncycle failed\n");
         return ERROR;
     }
-    q = queue_head(&dns_ctx->usable);
-    queue_remove( q );
-
-    queue_insert_tail(&dns_ctx->use, q);
-    dns = ptr_get_struct(q, dns_cycle_t, queue);
-    *cycle = dns;
+    *cycle = ncycle;
     return OK;
 }
 
 static status dns_free( dns_cycle_t * cycle )
 {
-    queue_remove( &cycle->queue );
-    queue_insert_tail( &dns_ctx->usable, &cycle->queue );
+    mem_pool_free(cycle);
     return OK;
 }
 
@@ -268,11 +258,11 @@ status dns_response_analyze( dns_cycle_t * cycle )
                     }
                     return OK;
                 } else if ( rtyp == 0x0005 ) {
-                    ///debug("dns answer type CNAME, ignore\n");
+                    ///dbg("dns answer type CNAME, ignore\n");
                 } else if ( rtyp == 0x0002 ) {
-                    ///debug("dns answer type NAME SERVER, ignore\n");
+                    ///dbg("dns answer type NAME SERVER, ignore\n");
                 } else if ( rtyp == 0x000f ) {
-                    ///debug("dns answer type MAIL SERVER, ignore\n");
+                    ///dbg("dns answer type MAIL SERVER, ignore\n");
                 }
                 state = ANSWER_DOMAIN;
                 cur = 0;
@@ -473,24 +463,16 @@ status dns_start( dns_cycle_t * cycle )
 
 status dns_init( void )
 {
-    uint32 i = 0;
     if( dns_ctx ) {
         err("dns init this not empty\n");
         return ERROR;
     }
-    dns_ctx = l_safe_malloc( sizeof(dns_ctx_t) + sizeof(dns_cycle_t)*MAX_NET_CON );
+    dns_ctx = mem_pool_alloc( sizeof(dns_ctx_t) );
     if( !dns_ctx ) {
         err("dns init alloc dns pool failed, [%d]\n", errno );
         return ERROR;
     }
-
-    queue_init(&dns_ctx->usable);
-    queue_init(&dns_ctx->use);
     queue_init(&dns_ctx->record_mng);
-
-    for( i = 0; i < MAX_NET_CON; i ++ ) {
-        queue_insert( &dns_ctx->usable, &dns_ctx->pool[i].queue );
-    }
     return OK;
 }
 
@@ -507,11 +489,11 @@ status dns_end( void )
             
             rdns = ptr_get_struct( q, dns_cache_t, queue );
             queue_remove( q );
-            free(rdns);
+            mem_pool_free(rdns);
             
             q = n;
         }
-        l_safe_free(dns_ctx);
+        mem_pool_free(dns_ctx);
         dns_ctx = NULL;
     }
     return OK;

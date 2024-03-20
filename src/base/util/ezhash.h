@@ -19,7 +19,6 @@ typedef struct
 {  
     int range;
     ezhash_obj_t ** buckets;
-    mem_page_t * page;
 } ezhash_t;
 
 int ezhash_create( ezhash_t ** hash, int size );

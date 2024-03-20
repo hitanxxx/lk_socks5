@@ -36,7 +36,6 @@ typedef status ( *http_req_cb ) ( http_req_t * request );
 
 struct http_req
 {
-    queue_t                     queue;
     connection_t *              c;
     http_req_cb					cb;
     uint32                      state;

@@ -19,7 +19,7 @@ enum e_log_level
 };
 
 #define err( ... )  		{(log_print( LOG_ID_MAIN, LOG_LEVEL_ERROR, __func__, __LINE__, ##__VA_ARGS__ ));}
-#define debug( ... )  		{(log_print( LOG_ID_MAIN, LOG_LEVEL_DEBUG, __func__, __LINE__, ##__VA_ARGS__ ));}
+#define dbg( ... )  		{(log_print( LOG_ID_MAIN, LOG_LEVEL_DEBUG, __func__, __LINE__, ##__VA_ARGS__ ));}
 #define access_log( ... ) 	{(log_print( LOG_ID_ACCESS, LOG_LEVEL_INFO, __func__, __LINE__, ##__VA_ARGS__ ));}
 
 

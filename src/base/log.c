@@ -114,7 +114,7 @@ status log_init( void )
             err("log ctx not null\n");
             break;
         }
-        log_ctx = l_safe_malloc( sizeof( log_mgr_t ) );
+        log_ctx = sys_alloc( sizeof( log_mgr_t ) );
         if( !log_ctx ) {
             err("malloc log ctx failed. [%d]\n", errno );
             break;
@@ -134,11 +134,14 @@ status log_init( void )
     } while(0);
 
     if( log_ctx ) {
-        if( log_ctx->log_fd_main )
+        if( log_ctx->log_fd_main ) {
             close(log_ctx->log_fd_main);
-        if(log_ctx->log_fd_access)
+        }
+        if(log_ctx->log_fd_access) {
             close(log_ctx->log_fd_access);
-    l_safe_free(log_ctx);
+        }
+        sys_free(log_ctx);
+        log_ctx = NULL;
     }
 
     return ERROR;
@@ -148,11 +151,15 @@ status log_init( void )
 status log_end( void )
 {
     if( log_ctx ) {
-        if( log_ctx->log_fd_main > 0 )
-            close( log_ctx->log_fd_main );
-        if( log_ctx->log_fd_access > 0 )
-            close( log_ctx->log_fd_access );
-        l_safe_free(log_ctx);
+        if( log_ctx->log_fd_main ) {
+            close(log_ctx->log_fd_main);
+        }
+        if(log_ctx->log_fd_access) {
+            close(log_ctx->log_fd_access);
+        }
+        sys_free(log_ctx);
+        log_ctx = NULL;
     }
     return OK;
 }
+

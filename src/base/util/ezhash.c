@@ -11,22 +11,17 @@ static uint32_t FNV1a(const uint8_t* data, size_t size) {
 
 int ezhash_create( ezhash_t ** hash, int range )
 {
-    ezhash_t * new_hash = l_safe_malloc( sizeof(ezhash_t) );
+    ezhash_t * new_hash = mem_pool_alloc( sizeof(ezhash_t) );
     if( !new_hash ) {
         err("alloc new hash failed. [%d]\n", errno );
         return -1;
     }
-    if( OK != mem_page_create( &new_hash->page, 4096 ) ) {
-        err("alloc new hash's mem page failed\n");
-        l_safe_free(new_hash);
-        return -1;
-    }
     new_hash->range = range;
-    new_hash->buckets = mem_page_alloc( new_hash->page, new_hash->range *sizeof(ezhash_obj_t*) );
+    
+    new_hash->buckets = mem_pool_alloc( new_hash->range *sizeof(ezhash_obj_t*) );
     if( !new_hash->buckets ) {
         err("alloc new hash's buckets failed\n");
-        mem_page_free(new_hash->page);
-        l_safe_free(new_hash);
+        mem_pool_free(new_hash);
         return -1;
     }
     *hash = new_hash;
@@ -37,10 +32,19 @@ int ezhash_create( ezhash_t ** hash, int range )
 int ezhash_free( ezhash_t * hash )
 {
     if( hash ) {
-        if( hash->page ) {
-            mem_page_free(hash->page);
+        /// free list
+        ezhash_obj_t * p = hash->buckets[0];
+        while( p ) {            
+            if(p->key.data) {
+                mem_pool_free(p->key.data);
+            }
+            if(p->value.data) {
+                mem_pool_free(p->value.data);
+            }
+            p = p->next;
         }
-        l_safe_free(hash);
+        mem_pool_free(hash->buckets);
+        mem_pool_free(hash);
     }
     return 0;
 }
@@ -50,64 +54,40 @@ int ezhash_add( ezhash_t * hash, char * key, char * value )
     uint32_t hash_value = FNV1a( (unsigned char*)key, strlen(key) );
     int idx = hash_value%hash->range;
     /// hash number -> range number 
+    
+    ezhash_obj_t * nhash = mem_pool_alloc( sizeof(ezhash_obj_t) );
+    if(!nhash) {
+        err("nhash alloc failed\n");
+        return -1;
+    }
+    nhash->next = NULL;
+    nhash->key.len = strlen(key);
+    nhash->key.data = mem_pool_alloc( nhash->key.len + 1 );
+    if(!nhash->key.data) {
+        err("nhash alloc key data failed\n");
+        mem_pool_free(nhash);
+        return -1;
+    }
+    strncpy( (char*)nhash->key.data, key, nhash->key.len );
+
+    nhash->value.len = strlen(value);
+    nhash->value.data = mem_pool_alloc( nhash->value.len + 1 );
+    if(!nhash->value.data) {
+        err("nhash alloc value data failed\n");
+        mem_pool_free(nhash->key.data);
+        mem_pool_free(nhash);
+        return -1;
+    }
+    strncpy( (char*)nhash->value.data, value, nhash->value.len );
 
     if( hash->buckets[idx] == NULL ) {
-        hash->buckets[idx] = mem_page_alloc( hash->page, sizeof(ezhash_obj_t) );
-        if( !hash->buckets[idx] ) {
-            err("ezhash mem page alloc obj failed\n");
-            return -1;
-        }
-        hash->buckets[idx]->next = NULL;
-
-        
-        hash->buckets[idx]->key.data = mem_page_alloc( hash->page, strlen(key)+1 );
-        if( !hash->buckets[idx]->key.data ) {
-            err("ezhash mem page alloc obj key failed\n");
-            return -1;
-        }
-        hash->buckets[idx]->key.len = strlen(key);
-        strncpy( (char*)hash->buckets[idx]->key.data, key, strlen(key) );
-    
-        
-        hash->buckets[idx]->value.data = mem_page_alloc( hash->page, strlen(value)+1 );
-        if( !hash->buckets[idx]->value.data ) {
-            err("ezhash mem page alloc obj value failed\n");
-            return -1;
-        }
-        hash->buckets[idx]->value.len = strlen(value);
-        strncpy( (char*)hash->buckets[idx]->value.data, value, strlen(value) );
-        
+        hash->buckets[idx] = nhash;
     } else {
-        ezhash_obj_t * new_obj = mem_page_alloc( hash->page, sizeof(ezhash_obj_t) );
-        if ( !new_obj ) {
-            err("ezhash mem page alloc obj failed\n");
-            return -1;
-        }
-        new_obj->next = NULL;
-
-        
-        new_obj->key.data = mem_page_alloc( hash->page, strlen(key)+1 );
-        if( !new_obj->key.data ) {
-            err("ezhash mem page alloc obj key failed\n");
-            return -1;
-        }
-        new_obj->key.len = strlen(key);
-        strncpy( (char*)new_obj->key.data, key, strlen(key) );
-
-        
-        new_obj->value.data = mem_page_alloc( hash->page, strlen(value)+1 );
-        if( !new_obj->value.data ) {
-            err("ezhash mem page alloc obj value failed\n");
-            return -1;
-        }
-        new_obj->value.len = strlen(value);
-        strncpy( (char*)new_obj->value.data, value, strlen(value) );
-        
         ezhash_obj_t * p = hash->buckets[idx];
-        if( p->next ) {
+        while(p->next) {
             p = p->next;
         }
-        p->next = new_obj;
+        p->next = nhash;
     }
     return 0;
 }
@@ -120,13 +100,12 @@ char * ezhash_find( ezhash_t * hash, char * key )
 
     if( hash->buckets[idx] ) {
         ezhash_obj_t * p = hash->buckets[idx];
-        if( p ) {
+        while ( p ) {
             if( strlen(key) == p->key.len && strncmp( (char*)p->key.data, key, strlen(key) ) == 0 ) {
                 return (char*)p->value.data;
             }
             p = p->next;
         }
-    
     }
     return NULL;
 }

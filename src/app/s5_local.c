@@ -190,20 +190,14 @@ status s5_local_accept_cb( event_t * ev )
 
     do {
         /// alloc down mem and meta
-        if( !down->page ) {
-            if( OK != mem_page_create(&down->page, 8192 ) ) {
-                err("s5 down page alloc failed\n");
+        if(!down->meta) {
+            if(OK != meta_alloc( &down->meta, 8192 )) {
+                err("s5 local alloc down meta failed\n");
                 net_free(down);
                 return ERROR;
             }
-        }
-        if( !down->meta ) {
-            if( OK != meta_alloc_form_mempage( down->page, 8192, &down->meta ) ) {
-                err("s5 down meta alloc failed\n");
-                net_free(down);
-                return ERROR;
-            }
-        }
+         }
+        
         /// alloc up and goto connect
         if( OK != s5_alloc( &s5 ) ) {
             err("s5 cycle alloc failed\n");
@@ -219,14 +213,8 @@ status s5_local_accept_cb( event_t * ev )
             break;
         }
         s5->up->data = s5;
-        if( !s5->up->page ) {
-            if( OK != mem_page_create(&s5->up->page, 8192 ) ) {
-                err("s5 up page alloc failed\n");
-                break;
-            }
-        }
         if( !s5->up->meta ) {
-            if( OK != meta_alloc_form_mempage( s5->up->page, 8192, &s5->up->meta ) ) {
+            if( OK != meta_alloc( &s5->up->meta, 8192 ) ) {
                 err("s5 up meta alloc failed\n");
                 break;
             }

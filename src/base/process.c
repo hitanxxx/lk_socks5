@@ -338,7 +338,7 @@ status process_init( void )
 		return ERROR;
 	}
 
-	g_proc_ctx = l_safe_malloc( sizeof(process_ctx_t) );
+	g_proc_ctx = sys_alloc( sizeof(process_ctx_t) );
 	if( !g_proc_ctx ) {
 		err("alloc process ctx failed, [%d]\n", errno );
 		return -1;
@@ -394,7 +394,7 @@ status process_end( void )
 			sys_shm_free( &g_proc_ctx->shm );
 			g_proc_ctx->shm.size = 0;
 		}
-		l_safe_free(g_proc_ctx);
+		sys_free(g_proc_ctx);
 	}
 	return OK;
 }

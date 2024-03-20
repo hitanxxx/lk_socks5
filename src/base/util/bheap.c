@@ -11,7 +11,7 @@ status heap_create( heap_t ** heap, uint32 size )
 	
 	/// heap index 0 is alwsys unused 
 	int alloc_size = sizeof(heap_t) + (sizeof(heap_node_t*) * (size+1) );
-	new_heap = (heap_t*)l_safe_malloc( alloc_size );
+	new_heap = (heap_t*)sys_alloc( alloc_size );
 	if( !new_heap )  {
 		return ERROR;
 	}
@@ -26,7 +26,7 @@ status heap_create( heap_t ** heap, uint32 size )
 status heap_free( heap_t * heap )
 {
 	if( heap ) {
-		l_safe_free( heap );
+		sys_free( heap );
 	} 
 	return OK;
 }

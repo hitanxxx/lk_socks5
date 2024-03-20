@@ -10,11 +10,11 @@ extern "C"
 #define WEBSER_LENGTH_INDEX_STR 32
 #define WEBSER_LENGTH_HOME_STR 256
 #define WEBSER_REQ_META_LEN 4096
-#define WEBSER_BODY_META_LENGTH 32768
+#define WEBSER_BODY_META_LENGTH 16384
 #define WEBSER_LENGTH_PATH_STR (REQ_LENGTH_URI_STR + WEBSER_LENGTH_HOME_STR + WEBSER_LENGTH_INDEX_STR)
 
 typedef struct {
-	string_t  key;
+	char key[32];
 	event_pt  handler;
     enum http_process_status  method;
     unsigned char body_need;
@@ -22,7 +22,6 @@ typedef struct {
 } webser_api_t;
 
 typedef struct {
-    queue_t queue;
     connection_t *c;
     void *data;
     int type;
@@ -34,21 +33,23 @@ typedef struct {
     int ffd;        // file fd  
     int fsize;      // file allsize
     int fsend;      // file sendsize
+    int ffragmentn;
 
     // api data
     webser_api_t * api;
-    
+
+    //easy build rsp header 
     int             http_rsp_headern;
     meta_t *        http_rsp_header_meta;
     mem_list_t *    http_rsp_header_list;
-    
+
+    //easy build rsp body
     int             http_rsp_bodyn;
     meta_t *        http_rsp_body_meta;
     mem_list_t *    http_rsp_body_list;
     
     int             http_rsp_code;
-    char *          http_rsp_mime;
-	
+    char *          http_rsp_mime;	
 } webser_t;
 
 

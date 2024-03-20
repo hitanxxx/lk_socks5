@@ -2,7 +2,6 @@
 #include "http_body.h"
 #include "http_req.h"
 #include "webser.h"
-#include "mailsender.h"
 
 static status wapi_echo_post( event_t * ev )
 {
@@ -17,7 +16,7 @@ static status wapi_echo_post( event_t * ev )
         return 500;
     }
     /// process the http req body
-    debug("http req data [%s]\n", meta_http_req_body->pos );
+    dbg("http req data [%s]\n", meta_http_req_body->pos );
     
 
     /// build the http rsp body datas

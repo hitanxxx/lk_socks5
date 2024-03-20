@@ -1,15 +1,5 @@
 #include "common.h"
 
-typedef struct 
-{
-	queue_t         usable;
-	queue_t         use;
-	connection_t    pool[0];
-} g_net_t;
-static g_net_t * g_net_ctx = NULL;
-
-
-
 
 status net_socket_nbio( int32 fd )
 {
@@ -223,7 +213,7 @@ status net_accept( event_t * ev )
 		c->send = sends;
 		c->recv_chain = NULL;
 		c->send_chain = send_chains;
-		c->ssl_flag = ( listen->type == S5_SSL ) ? 1 : 0;
+		c->ssl_flag = (listen->fssl) ? 1 : 0;
 
 		c->event->read_pt = listen->handler;
 		c->event->write_pt = NULL;
@@ -243,12 +233,15 @@ static status net_free_cb( event_t * ev )
 		event_free( ev );
 		c->event = NULL;
 	}
-	if( c->page ) {
-		mem_page_free( c->page );
-		c->page = NULL;
-	}
-	/// meta memory form page 
-	c->meta = NULL;
+	
+    meta_t * m = c->meta;
+    meta_t * n = NULL;
+    while(m) {
+        n = m->next;
+        meta_free(m);
+        m = n;
+    }
+    
 	if( c->fd ) {
 		close( c->fd );
 		c->fd = 0;
@@ -265,8 +258,7 @@ static status net_free_cb( event_t * ev )
 	c->recv			= NULL;
 	c->recv_chain	= NULL;
 
-	queue_remove( &c->queue );
-	queue_insert_tail( &g_net_ctx->usable, &c->queue );
+	mem_pool_free(c);
 	return OK;
 }
 
@@ -307,29 +299,21 @@ status net_free( connection_t * c )
 
 status net_alloc( connection_t ** c )
 {
-	connection_t * new_obj = NULL;
-	queue_t * q = NULL;
+    connection_t * nc = mem_pool_alloc( sizeof(connection_t) );
+    if(!nc) {
+        err("net alloc nc failed\n");
+        return ERROR;
+    }
 
-	if( queue_empty( &g_net_ctx->usable ) ) {
-		err("net alloc usbale empty\n" );
-		return ERROR;
-	}
-
-	q = queue_head( &g_net_ctx->usable );
-	queue_remove( q );
-	queue_insert_tail( &g_net_ctx->use, q );
-	new_obj = ptr_get_struct( q, connection_t, queue );
-
-	if( NULL == new_obj->event ) {
-		if( OK != event_alloc( &new_obj->event ) ) {
-			err("net alloc conn event failed\n");
-			queue_remove( q );
-			queue_insert_tail( &g_net_ctx->usable, q );
-			return ERROR;
-		}
-		new_obj->event->data = new_obj;
-	}
-	*c = new_obj;
+    if(!nc->event) {
+        if(OK != event_alloc(&nc->event)) {
+            err("net alloc nc evt failed\n");
+            mem_pool_free(nc);
+            return ERROR;
+        }
+        nc->event->data = nc;
+    }
+    *c = nc;
 	return OK;
 }
 
@@ -341,39 +325,10 @@ void net_timeout( void * data )
 
 status net_init( void )
 {
-	uint32 i;
-
-	if( g_net_ctx != NULL ) {
-		err("net ctx not empty\n");
-		return ERROR;
-	}
-	
-	g_net_ctx = l_safe_malloc(sizeof(g_net_t)+(MAX_NET_CON*sizeof(connection_t)));
-	if( !g_net_ctx ) {
-		err("net init malloc pirvate failed, [%d]\n", errno );
-		return ERROR;
-	}
-	
-	queue_init( &g_net_ctx->usable );
-	queue_init( &g_net_ctx->use );
-	for( i = 0; i < MAX_NET_CON; i ++ ) {
-		queue_insert_tail( &g_net_ctx->usable, &g_net_ctx->pool[i].queue );
-	}
 	return OK;
 }
 
 status net_end( void )
 {
-	uint32 i;
-
-	if( g_net_ctx ) {
-		for( i = 0; i < MAX_NET_CON; i ++ ) {
-			if( g_net_ctx->pool[i].page ) {
-				mem_page_free(g_net_ctx->pool[i].page);
-				g_net_ctx->pool[i].page = NULL;
-			}
-		}
-		l_safe_free( g_net_ctx );
-	}
 	return OK;
 }

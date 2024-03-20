@@ -1,23 +1,43 @@
 #include "common.h"
 
-status list_page_alloc( mem_page_t * page, uint32 size, mem_list_t ** out )
+
+int mem_list_free( mem_list_t * h )
 {
-	mem_list_t * new = NULL;
+    mem_list_t * p = h;
+    mem_list_t * n = NULL;
 
-	if( !page ) {
-		err("page null or size < 0\n");
-		return ERROR;
-	}
-
-	new = mem_page_alloc( page, sizeof(mem_list_t)+size );
-	if( !new ) {
-		err("mem page alloc memlist failed\n");
-		return ERROR;
-	}
-	memset( new, 0, sizeof(mem_list_t)+size );
-	if( out ) {
-		*out = new;
-	}
-	return OK;
+    while(p) {
+        n = p->next;
+        mem_pool_free(p);
+        p = n;
+    }
+    return 0;
 }
+
+int mem_list_push( mem_list_t ** h, char * data )
+{
+    int datan = strlen(data);
+    
+    mem_list_t * nl = mem_pool_alloc( sizeof(mem_list_t)+datan+1 );
+    if(!nl) {
+        err("alloc memlist nl failed\n");
+        return -1;
+    }
+    nl->next = NULL;
+    nl->datan = datan;
+    memcpy( nl->data, data, datan );
+
+    if(!*h) {
+        *h = nl;
+    } else {
+        mem_list_t * p = (*h);
+        while(p->next) {
+            p = p->next;
+        }
+        p->next = nl;
+    }
+    return 0;
+}
+
+
 

@@ -8,7 +8,7 @@ extern "C"
     
 
 //#define MAX_NET_CON	FD_SETSIZE
-#define MAX_NET_CON  1024
+#define MAX_NET_CON  768
 
 #define L_NET_TIMEOUT 5
 
@@ -21,7 +21,6 @@ struct net_connection_t
 {
     queue_t             queue;
     
-    mem_page_t        *page;
     int32               fd;
     uint32              con_type;	// enum connection_type
     void*               data;

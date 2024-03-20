@@ -136,10 +136,11 @@ status config_init ( void )
     memset( &g_config, 0, sizeof(config_t) );
     g_config.sys_log_level = 0xff; /// full level
     struct stat fstat;
-    meta_t * fmeta = NULL;
     int fsz = 0;
     int ffd = 0;
     int rc = 0;
+    char * fbuf = NULL;
+    int freadn = 0;
 
     memset( &fstat, 0, sizeof(struct stat) );
     do {
@@ -149,8 +150,9 @@ status config_init ( void )
         }
         fsz = (int)fstat.st_size;
         /// need to fsz+1 to storge '\0'
-        if( OK != meta_alloc( &fmeta, fsz+1 ) ) {
-            ahead_dbg("config alloc meta to storge failed. [%d]\n", errno );
+        fbuf = sys_alloc( fsz+1 );
+        if(!fbuf) {
+            ahead_dbg("config alloc buf failed\n");
             break;
         }
         ffd = open( S5_PATH_CFG, O_RDONLY );
@@ -159,30 +161,29 @@ status config_init ( void )
             break;
         }
 
-        while( fmeta->last - fmeta->pos < fsz ) {
-            rc = read( ffd, fmeta->last, fmeta->end - fmeta->last );
+        while( freadn < fsz ) {
+            rc = read( ffd, fbuf + freadn, fsz + 1 - freadn );
             if( rc <= 0 ) {
                 ahead_dbg("config read file failed. [%d]\n", errno );
                 break;
             }
-            fmeta->last += rc;
+            freadn += rc;
         }while(0);
 
         ahead_dbg("config string:\n");
-        ahead_dbg("%s", fmeta->pos );
-        if( OK != config_parse( (char*)fmeta->pos ) ) {
+        ahead_dbg("%s", fbuf );
+        if( OK != config_parse( (char*)fbuf ) ) {
             ahead_dbg("config parse failed\n");
             break;
         }
 
     } while(0);
-
-    if( ffd )
+    if( ffd ) {
         close(ffd);
-
-    if(fmeta)
-        meta_free(fmeta);
-
+    }
+    if(fbuf) {
+        sys_free(fbuf);
+    }
     return OK;
 }
 

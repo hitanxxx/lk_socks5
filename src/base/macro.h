@@ -82,7 +82,7 @@ extern "C"
 
 
 #define S5_SSL		0x1
-#define S5_NOSSL    0x2
+#define S5_NOSSL    0x0
 
 
 enum connection_type 
@@ -160,8 +160,6 @@ typedef struct net_connection_t   connection_t;
 // macros
 #define l_abs(x)                            (((x)>=0)?(x):(-(x)))
 #define l_unused(x)                         ((void)x)
-#define l_safe_free(x)                      (free(x))
-#define l_safe_malloc(len)                  (calloc(1, (uint32)(len)))
 #define l_strlen(str)                       ((uint32)strlen((char*)str))
 #define l_min(x,y)                          ((x<y)?x:y)
 #define l_max(x,y)                          ((x>y)?x:y)

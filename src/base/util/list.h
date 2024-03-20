@@ -10,11 +10,14 @@ typedef struct mem_list mem_list_t;
 struct mem_list 
 {
 	mem_list_t 			*next;
-	int 				datalen;
+	int 				datan;
 	char	 			data[0];
 };
 
-status list_page_alloc( mem_page_t * page, uint32 size, mem_list_t ** out );
+int mem_list_push( mem_list_t ** h, char * data );
+int mem_list_free( mem_list_t * h );
+
+
 
 #ifdef __cplusplus
 }

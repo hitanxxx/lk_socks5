@@ -1,28 +1,16 @@
 #include "common.h"
 #include "http_body.h"
 
-static queue_t g_queue_usable;
-static queue_t g_queue_use;
-static http_body_t * g_pool = NULL;
-
-
 static status http_body_alloc( http_body_t ** body )
 {
-	http_body_t * new;
-	queue_t * q;
-
-	if( queue_empty( &g_queue_usable ) == 1 ) {
-		err("http body queue usable empty\n");
-		return ERROR;
-	}
-	q = queue_head( &g_queue_usable );
-	queue_remove( q );
-	queue_insert( &g_queue_use, q );
-	new = ptr_get_struct( q, http_body_t, queue );
-	*body = new;
+	http_body_t * nbd = mem_pool_alloc(sizeof(http_body_t));
+    if(!nbd){
+        err("http body alloc nbd failed\n");
+        return ERROR;
+    }
+	*body = nbd;
 	return OK;
 }
-
 
 status http_body_free( http_body_t * bd )
 {
@@ -43,6 +31,14 @@ status http_body_free( http_body_t * bd )
 	bd->chunk_part_cur = 0;
 	bd->chunk_part_len = 0;
 
+    meta_t * m = bd->body_head;
+    meta_t * n = NULL;
+    while(m) {
+        n = m->next;
+        meta_free(m);
+        m = n;
+    }
+    
 	bd->body_head = NULL;
 	bd->body_last = NULL;
 	bd->body_len = 0;
@@ -51,8 +47,7 @@ status http_body_free( http_body_t * bd )
 	// todo: free the metalist for stroge chunk raw data
 	bd->chunk_meta = NULL;
 	
-	queue_remove( &bd->queue );
-	queue_insert_tail( &g_queue_usable, &bd->queue );
+	mem_pool_free(bd);
 	return OK;
 }
 
@@ -189,10 +184,11 @@ static status http_body_chunk( http_body_t * bd )
 	meta_t * meta_n = NULL;
 	while( 1 ) {
 		if( meta_len( bd->body_last->last, bd->body_last->end ) <= 0 ) {
-			if( OK != meta_alloc_form_mempage( bd->c->page, ENTITY_BODY_BUFFER_SIZE, &meta_n ) )  {
-				err("http body chunk alloc append meta failed\n");
-				return ERROR;
-			}
+            if( OK != meta_alloc( &meta_n, ENTITY_BODY_BUFFER_SIZE ) ) {
+                err("http body chunk alloc append meta failed\n");
+                return ERROR;
+            }
+        
 			bd->body_last->next = meta_n;
 			bd->body_last = meta_n;
 			bd->chunk_pos = bd->body_last->pos;
@@ -229,10 +225,11 @@ static status http_body_content( http_body_t * bd )
 	while ( 1 ) {
 		
 		if( meta_len( bd->body_last->last, bd->body_last->end ) <= 0 ) {
-			if( OK != meta_alloc_form_mempage( bd->c->page, ENTITY_BODY_BUFFER_SIZE, &meta_n ) ){
-				err("http body content alloc append meta failed\n");
-				return ERROR;
-			}
+
+            if( OK != meta_alloc( &meta_n, ENTITY_BODY_BUFFER_SIZE ) ) {
+                err("http body content alloc append meta failed\n");
+                return ERROR;
+            }
 			bd->body_last->next = meta_n;
 			bd->body_last = meta_n;
 		}
@@ -262,8 +259,6 @@ static status http_body_content( http_body_t * bd )
 
 status http_body_dump( http_body_t * bd, meta_t ** dumpmeta )
 {
-	connection_t * c = bd->c;
-
 	if( bd->body_len <= 0 ) {
 		return ERROR;
 	}
@@ -272,10 +267,10 @@ status http_body_dump( http_body_t * bd, meta_t ** dumpmeta )
 	meta_t * meta = NULL;
 
 	/// alloc meta form connection's page. meta will be free when connection free
-	if( OK != meta_alloc_form_mempage( c->page, bd->body_len, &meta ) ) {
-		err("http body dump alloc meta failed\n");
-		return ERROR;
-	}
+    if( OK != meta_alloc( &meta, bd->body_len ) ) {
+        err("http body dump alloc meta failed\n");
+        return ERROR;
+    }
 
 	/// copy data form body chain into dumo meta
 	cur = bd->body_head;
@@ -290,38 +285,37 @@ status http_body_dump( http_body_t * bd, meta_t ** dumpmeta )
 		err("meta datan [%d] != bodylen [%d]\n", meta->last - meta->pos, bd->body_len );
 		return ERROR;
 	} else {
-		*dumpmeta = meta;
+    		*dumpmeta = meta;
 		return OK;
 	}
 }
 
 static status http_body_start( http_body_t * bd )
 {
-	/// get remian body data in the connection meta
-	uint32 body_remain_len = meta_len( bd->c->meta->pos, bd->c->meta->last );;
-
 	if( bd->body_type == HTTP_BODY_TYPE_NULL ) {
 		bd->body_status |= HTTP_BODY_STAT_DONE_CACHENO;
 		return DONE;
 	} else if ( bd->body_type == HTTP_BODY_TYPE_CONTENT || bd->body_type == HTTP_BODY_TYPE_CHUNK ) {
+        
+        /// get remian body data in the connection meta
+        uint32 remainn = meta_len( bd->c->meta->pos, bd->c->meta->last );;
 
-		/// alloc frist meta to stroge the content data
-		if( OK != meta_alloc_form_mempage( bd->c->page, body_remain_len + ENTITY_BODY_BUFFER_SIZE, &bd->body_head ) ) {
-			err("http body alloc head failed\n");
-			return ERROR;
-		}
+        /// alloc frist meta to stroge the content data
+        if( OK != meta_alloc( &bd->body_head, remainn + ENTITY_BODY_BUFFER_SIZE ) ) {
+            err("http body alloc header failed\n");
+            return ERROR;
+        }
 		bd->body_last = bd->body_head;
 
 		if( bd->body_type == HTTP_BODY_TYPE_CONTENT ) {
 			/// content length type http body
-			if( body_remain_len > 0 ) {
+			if( remainn > 0 ) {
 				if( bd->body_cache ) {
-					memcpy( bd->body_last->last, bd->c->meta->pos, body_remain_len );
-					bd->body_last->last += body_remain_len;
+					memcpy( bd->body_last->last, bd->c->meta->pos, remainn );
+					bd->body_last->last += remainn;
 				}
-				
-				bd->c->meta->pos += body_remain_len;
-				bd->content_recvd += body_remain_len;
+				bd->c->meta->pos += remainn;
+				bd->content_recvd += remainn;
 
 				if( bd->content_recvd >= bd->content_len ) {
 					bd->body_len = bd->content_len;
@@ -329,18 +323,16 @@ static status http_body_start( http_body_t * bd )
 					return DONE;
 				}
 			}
-
 			bd->cb = http_body_content;
 			return bd->cb( bd );
 		} else {
 			/// chunked type http body
-		
-			if( body_remain_len > 0 ) {
+			if( remainn > 0 ) {
 				/// whatever body cache enbale, chunked type need to copy the remain data
-				memcpy( bd->body_last->last, bd->c->meta->pos, body_remain_len );
-				bd->body_last->last += body_remain_len;
+				memcpy( bd->body_last->last, bd->c->meta->pos, remainn );
+				bd->body_last->last += remainn;
 			}
-			bd->c->meta->pos += body_remain_len;
+			bd->c->meta->pos += remainn;
 			bd->chunk_pos = bd->body_last->pos;
 			bd->cb = http_body_chunk;
 			return bd->cb( bd );
@@ -368,29 +360,13 @@ status http_body_create( connection_t * c, http_body_t ** body, int discard )
 	return OK;
 }
 
+
 status http_body_init_module( void )
 {
-	uint32 i;
-	
-	g_pool = (http_body_t*)l_safe_malloc( sizeof(http_body_t)*MAX_NET_CON );
-	if( !g_pool ) {
-		err("http body malloc g_pool\n" );
-		return ERROR;
-	}
-	
-	queue_init( &g_queue_usable );
-	queue_init( &g_queue_use );
-	for( i = 0; i < MAX_NET_CON; i ++ ) {
-		queue_insert_tail( &g_queue_usable, &g_pool[i].queue );
-	}
 	return OK;
 }
 
 status http_body_end_module( void )
 {
-	if( g_pool ) {
-		l_safe_free( g_pool );
-		g_pool = NULL;
-	}
 	return OK;
 }

@@ -8,36 +8,23 @@
 typedef struct 
 {
     ezhash_t * auth_hash;
-
-    queue_t         usable;
-    queue_t         use;
-    socks5_cycle_t  pool[0];
 } g_s5_t;
 static g_s5_t * g_s5_ctx = NULL;
 
 status s5_alloc( socks5_cycle_t ** s5 )
 {
-    queue_t * q = NULL;
-    socks5_cycle_t * n_s5 = NULL;
-
-    if( queue_empty(&g_s5_ctx->usable) ) {
-        err("s5 alloc usable empty\n");
+    socks5_cycle_t * ns5 = mem_pool_alloc(sizeof(socks5_cycle_t));
+    if(!ns5) {
+        err("ns5 alloc failed\n");
         return ERROR;
     }
-    q = queue_head( &g_s5_ctx->usable );
-    queue_remove(q);
-
-    queue_insert_tail(&g_s5_ctx->use, q);
-    n_s5 = ptr_get_struct(q, socks5_cycle_t, queue);
-    *s5 = n_s5;
+    *s5 = ns5;
     return OK;
 }
 
 
 status s5_free( socks5_cycle_t * s5 )
 {
-    queue_t * q = &s5->queue;
-
     memset( &s5->phase1, 0x0, sizeof(s5_rfc_phase1_req_t) );
     memset( &s5->phase2, 0x0, sizeof(s5_rfc_phase2_req_t) );
 
@@ -68,9 +55,8 @@ status s5_free( socks5_cycle_t * s5 )
     s5->state = 0;
     s5->recv_down_err = 0;
     s5->recv_up_err = 0;
-    
-    queue_remove( q );
-    queue_insert_tail(&g_s5_ctx->usable, q);
+
+    mem_pool_free(s5);
     return OK;
 }
 
@@ -280,32 +266,17 @@ status s5_traffic_process( event_t * ev )
     connection_t * up = s5->up;
 
     // init down stream traffic buffer
-    if( !down->page ) {
-        if( OK != mem_page_create(&down->page, 8192 ) ) {
-            err("webser down page create failed\n");
-            s5_free(s5);
-            return ERROR;
-        }
-    }
     if( !down->meta ) {
-        if( OK != meta_alloc_form_mempage( down->page, 8192, &down->meta ) ) {
-            err("s5 alloc down meta failed\n");
+        if( OK != meta_alloc( &down->meta, 8192 ) ) {
+            err("s5 down meta alloc failed\n");
             s5_free(s5);
             return ERROR;
         }
     }
     
-
     // init up stream traffic buffer
-    if( !up->page ) {
-        if( OK != mem_page_create(&up->page, 8192 ) ) {
-            err("webser up page create failed\n");
-            s5_free(s5);
-            return ERROR;
-        }
-    }
     if( !up->meta ) {
-        if( OK != meta_alloc_form_mempage( up->page, 8192, &up->meta ) ) {
+        if( OK != meta_alloc( &up->meta, 8192 ) ) {
             err("s5 alloc up meta failed\n");
             s5_free(s5);
             return ERROR;
@@ -952,15 +923,9 @@ static status s5_server_start( event_t * ev )
     s5->down = down;
     down->data = s5;
 
-    if( !down->page ) {
-        if( OK != mem_page_create(&down->page, 8192 ) ) {
-            err("webser c page create failed\n");
-            s5_free(s5);
-            return ERROR;
-        }
-    }
+   
     if( !down->meta ) {
-        if( OK != meta_alloc_form_mempage( down->page, 8192, &down->meta ) ) {
+        if( OK != meta_alloc( &down->meta, 8192 ) ) {
             err("s5 alloc down meta failed\n");
             s5_free(s5);
             return ERROR;
@@ -1137,7 +1102,6 @@ static status s5_serv_usr_db_init( )
 
 status socks5_server_init( void )
 {
-    int i = 0;
     int ret = -1;
 
     if( g_s5_ctx ) {
@@ -1146,16 +1110,11 @@ status socks5_server_init( void )
     }
 
     do {
-        g_s5_ctx = (g_s5_t*)sys_alloc( sizeof(g_s5_t) + MAX_NET_CON*sizeof(socks5_cycle_t) );
+        g_s5_ctx = (g_s5_t*)mem_pool_alloc( sizeof(g_s5_t) );
         if( !g_s5_ctx ) {
-            err("s5 init allo this failed, [%d]\n", g_s5_ctx );
+            err("s5 ctx alloc failed\n" );
             return ERROR;
         }
-
-        queue_init(&g_s5_ctx->usable);
-        queue_init(&g_s5_ctx->use);
-        for( i = 0; i < MAX_NET_CON; i++ )
-        queue_insert_tail( &g_s5_ctx->usable, &g_s5_ctx->pool[i].queue );
         
         if( config_get()->s5_mode > SOCKS5_CLIENT ) {
             /// build a hash table to manager s5 users.     
@@ -1168,6 +1127,8 @@ status socks5_server_init( void )
                 err("s5 serv usr db init failed\n");
                 break;
             }
+        } else {
+            /// cli do nothing.
         }
         ret = 0;
     } while(0);
@@ -1177,7 +1138,7 @@ status socks5_server_init( void )
             if( config_get()->s5_mode > SOCKS5_CLIENT ) {
                 ezhash_free(g_s5_ctx->auth_hash);
             }
-            l_safe_free(g_s5_ctx);
+            mem_pool_free(g_s5_ctx);
             g_s5_ctx = NULL;
         }
     }
@@ -1191,7 +1152,7 @@ status socks5_server_end( void )
             ezhash_free(g_s5_ctx->auth_hash);
             g_s5_ctx->auth_hash = NULL;
         }
-        sys_free((void*)g_s5_ctx);
+        mem_pool_free((void*)g_s5_ctx);
         g_s5_ctx = NULL;
     }
     return OK;

@@ -21,7 +21,10 @@ typedef struct l_event event_t;
 typedef status ( *event_pt ) ( event_t * event );
 struct l_event 
 {
-    queue_t         queue;
+#ifndef EVENT_EPOLL
+    queue_t     queue;
+#endif
+
     int32           fd;
     // every event should have a timer to control network time out
     ev_timer_t      timer;

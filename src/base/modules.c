@@ -6,7 +6,6 @@
 #include "http_body.h"
 #include "http_req.h"
 #include "webser.h"
-#include "mailsender.h"
 
 
 /// core module
@@ -51,6 +50,7 @@ status modules_core_exit( void )
 /// @return 
 status modules_process_init( void )
 {
+    SYS_FUNC_CHK(mem_pool_init());
     SYS_FUNC_CHK(ssl_init());
     SYS_FUNC_CHK(timer_init());
     SYS_FUNC_CHK(net_init());
@@ -59,7 +59,6 @@ status modules_process_init( void )
     SYS_FUNC_CHK(socks5_local_init());
     SYS_FUNC_CHK(http_req_init_module());
     SYS_FUNC_CHK(http_body_init_module());
-    SYS_FUNC_CHK(mailsender_init());
     SYS_FUNC_CHK(webser_init());
     SYS_FUNC_CHK(dns_init());
     return OK;
@@ -75,9 +74,9 @@ status modules_pocess_exit( void )
     SYS_FUNC_CHK(socks5_local_end());
     SYS_FUNC_CHK(http_req_end_module());
     SYS_FUNC_CHK(http_body_end_module());
-    SYS_FUNC_CHK(mailsender_exit());
     SYS_FUNC_CHK(webser_end());
     SYS_FUNC_CHK(dns_end());
+    SYS_FUNC_CHK(mem_pool_deinit());
     return OK;
 }
 

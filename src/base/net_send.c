@@ -14,7 +14,7 @@ ssize_t recvs( connection_t * c, unsigned char * buffer, uint32 len )
         rc = recv( c->fd, buffer, len, 0 );
         if( rc <= 0 ) {
             if( rc == 0 ) {
-                err("peer closed\n");
+                err("closed by peer\n");
                 return ERROR;
             } else {
                 if( (errno == EAGAIN) || (errno == EWOULDBLOCK) ) {
