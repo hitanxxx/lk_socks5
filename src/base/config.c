@@ -62,7 +62,7 @@ static status config_parse( char * str )
         if(s5_serv_auth_path)
             strncpy( g_config.s5_serv_auth_path, cJSON_GetStringValue(s5_serv_auth_path), sizeof(g_config.s5_serv_auth_path)-1 );
         if( s5_serv_gw )
-            strncpy( g_config.s5_serv_gw, cJSON_GetStringValue(s5_serv_gw), sizeof(g_config.s5_serv_gw) );
+            strncpy( g_config.s5_serv_gw, cJSON_GetStringValue(s5_serv_gw), sizeof(g_config.s5_serv_gw)-1 );
         
         ahead_dbg("s5_mode: [%d]\n", g_config.s5_mode );
         ahead_dbg("s5_serv_port: [%hd]\n", g_config.s5_serv_port);

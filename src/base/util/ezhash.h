@@ -25,6 +25,7 @@ int ezhash_create( ezhash_t ** hash, int size );
 int ezhash_free( ezhash_t * hash );
 
 int ezhash_add( ezhash_t * hash, char * key, char * value );
+int ezhash_del( ezhash_t * hash, char * key );
 char * ezhash_find( ezhash_t * hash, char * key );
 
 #ifdef __cplusplus

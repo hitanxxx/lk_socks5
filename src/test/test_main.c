@@ -1,5 +1,6 @@
 #include "macro.h"
 #include "test_main.h"
+#include "mem.h"
 
 static manager_t manager;
 
@@ -25,25 +26,23 @@ status test_run( void )
 {
 	uint32 i = 0;
 
-	t_echo ( "=======================\n" );
-	t_echo ( "\ttest start \n" );
-	t_echo ( "=======================\n" );
+	t_echo ( "===== test start =====\n" );
 	for( i = 0; i < manager.num; i ++ ) {
 		manager.test[i].pt( );
 	}
-	t_echo ( "=======================\n" );
-	t_echo ( "test uint num [%d]\n", manager.num );
-	t_echo ( "=======================\n" );
+	t_echo ( "===== test fin =====\n" );
+	t_echo ( "unit num: [%d]\n", manager.num );
 	return OK;
 }
 
 status test_start( void )
 {
 	uint32 i;
-
+    mem_pool_init();
 	for( i = 0; init_t[i]; i ++ ) {
 		init_t[i]( );
 	}
 	test_run();
-	return OK;
+    mem_pool_deinit();
+    return OK;
 }

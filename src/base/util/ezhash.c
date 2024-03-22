@@ -33,20 +33,62 @@ int ezhash_free( ezhash_t * hash )
 {
     if( hash ) {
         /// free list
-        ezhash_obj_t * p = hash->buckets[0];
-        while( p ) {            
-            if(p->key.data) {
-                mem_pool_free(p->key.data);
+        int i = 0;
+        while(i < hash->range) {
+            ezhash_obj_t * p = hash->buckets[i];
+            while( p ) {            
+                if(p->key.data) {
+                    mem_pool_free(p->key.data);
+                }
+                if(p->value.data) {
+                    mem_pool_free(p->value.data);
+                }
+                p = p->next;
             }
-            if(p->value.data) {
-                mem_pool_free(p->value.data);
-            }
-            p = p->next;
+            i++;
         }
         mem_pool_free(hash->buckets);
         mem_pool_free(hash);
     }
     return 0;
+}
+
+int ezhash_del( ezhash_t * hash, char * key )
+{
+    uint32_t hash_val = FNV1a( (unsigned char*)key, strlen(key) );
+    int idx = hash_val%hash->range;
+
+    if(!hash->buckets[idx]) {  /// do nothing
+        return ERROR;
+    }
+
+    ezhash_obj_t * h = hash->buckets[idx];
+    ezhash_obj_t * p = NULL;
+    while(h) {
+
+        if( h->key.len == strlen(key) && 0 == strncmp( (char*)h->key.data, key, strlen(key) ) ) {
+            if( h == hash->buckets[idx] ) {
+                hash->buckets[idx] = h->next;
+                
+            } else {
+                p->next = h->next;
+            }
+            /// free h
+            if(h->key.data) {
+                mem_pool_free(h->key.data);
+            }
+            if(h->value.data) {
+                mem_pool_free(h->value.data);
+            }
+            mem_pool_free(h);
+            return OK;
+        }
+
+        p = h;
+        h = h->next;
+    }
+    
+    return -1;
 }
 
 int ezhash_add( ezhash_t * hash, char * key, char * value )

@@ -56,7 +56,7 @@ status webser_api_reg( char * key, event_pt cb, enum http_process_status method_
         return ERROR;
     }
     int keyn = 0;
-    if( strlen(key) > (sizeof(key)-1) ) {
+    if( strlen(key) > (sizeof(p->key)-1) ) {
         keyn = sizeof(key)-1;
     } else {
         keyn = strlen(key);
@@ -978,6 +978,7 @@ status webser_init( void )
         
         /// init mime hash 
         if( OK != webser_rsp_mime_init( )) {
+            mem_pool_free(g_web_ctx);
             err("webser mime hash init failed\n");
             return ERROR;
         }

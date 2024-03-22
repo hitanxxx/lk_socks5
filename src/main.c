@@ -2,7 +2,7 @@
 #include "modules.h"
 #include "test_main.h"
 
-static status proc_daemon( void )
+status proc_daemon( void )
 {
 	int32  fd;
 	status rc = -1;
@@ -34,8 +34,7 @@ static status proc_daemon( void )
 			return ERROR;
 		}
 #if 0
-		if (dup2(fd, STDERR_FILENO) == -1)
-		{
+		if (dup2(fd, STDERR_FILENO) == -1) {
 			err(" dup2(STDERR) failed\n" );
 			return ERROR;
 		}
@@ -54,7 +53,7 @@ static status proc_daemon( void )
 
 /// @brief storge pid file into file 
 /// @return 
-static status proc_pid_create(  )
+status proc_pid_create(  )
 {
 	int ffd = 0;
 	char  str[128] = {0};
@@ -77,7 +76,7 @@ static status proc_pid_create(  )
 
 /// @brief delete pid file
 /// @return 
-static void proc_pid_free(  )
+void proc_pid_free(  )
 {
 	unlink( S5_PATH_PID );
 }
@@ -86,7 +85,7 @@ static void proc_pid_free(  )
 /// @param argc 
 /// @param argv 
 /// @return 
-static status proc_cmd_option( int argc, char * argv[] )
+status proc_cmd_option( int argc, char * argv[] )
 {
 	pid_t pid;
 	char * opt_string = NULL;
@@ -132,18 +131,16 @@ static status proc_cmd_option( int argc, char * argv[] )
 
 int32 main( int argc, char ** argv )
 {
-	int32 rc = ERROR;	
-
-	ahead_dbg("=======================\n");
-	ahead_dbg("==  welcome to use  ==\n");
-	ahead_dbg("=======================\n");
-	ahead_dbg("[%s %s]\n", __DATE__, __TIME__ );
-
+	ahead_dbg(">>>>> S5. [%s %s]\n", __DATE__, __TIME__ );
 	/// set higiest process priority
 	setpriority(PRIO_PROCESS, 0, -20 );
 	/// refresh system time info
 	systime_update( );
-
+    
+#if defined (TEST)
+    test_start();
+    exit(0);
+#else
 	/// process the command line params
 	if( OK != proc_cmd_option( argc, argv ) ) {
 		err("proc_cmd_option failed\n");
@@ -165,19 +162,15 @@ int32 main( int argc, char ** argv )
 		err("config_init failed\n");
 		return -1;
 	}
-
 	if( OK != proc_daemon( ) ) {
 		err("proc_daemon failed\n");
 		return -1;
 	}
-
-	if( OK != proc_pid_create( ) ) {
-		err("proc_pid_create failed\n");
-		return -1;
-	}
-
-	//test_start();
-
+    if( OK != proc_pid_create( ) ) {
+        err("proc_pid_create failed\n");
+        return -1;
+    }
+    
 	do  {
 		// modules core 
 		if( OK != modules_core_init( ) ) {
@@ -189,5 +182,6 @@ int32 main( int argc, char ** argv )
 
 	modules_core_exit();
 	proc_pid_free();
-	return rc;
+	return 0;
+#endif
 }

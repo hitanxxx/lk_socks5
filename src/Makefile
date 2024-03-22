@@ -10,8 +10,10 @@ OBJCOPY      = $(CROSS_PREFIX)objcopy
 STRIP        = $(CROSS_PREFIX)strip
 SIZE         = $(CROSS_PREFIX)size
 
-### DEF 
-DEFINE += 
+### DEF
+ifeq ($(TEST), y)
+DEFINE += -DTEST
+endif
 
 
 ### INC DIR
