@@ -1,29 +1,31 @@
 #include "common.h"
 
-static pthread_mutex_t mem_th_lock = PTHREAD_MUTEX_INITIALIZER;
-
-#define MEM_POOL "MEM_POOL"
-#define VER	"0.1"
-#define MEM_POOL_BLOCKN     6
-#define MEM_POOL_OBJN       1024
+static char * g_mp_ver = "s5_mempool_v0.2";
+static pthread_mutex_t g_sys_thread_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t g_mp_thread_lock = PTHREAD_MUTEX_INITIALIZER;
 
 
-typedef struct
+#define MP_BLK_MAX     6
+#define MP_OBJ_MAX     1024
+
+typedef struct 
 {
-    int fuse;
+    queue_t queue;
+    int blk_idx;
     char addr[0];
 } mem_obj_t;
 
-typedef struct
+typedef struct 
 {
-    mem_obj_t ** list;
-    char * listaddr;
-    int listaddrn;
+    queue_t usable;
+    queue_t inuse;
+    void * p;
+    int pn;
 } mem_block_t;
 
 typedef struct 
 {
-	mem_block_t * arr;
+	mem_block_t * blks;
     /*
         0:512   byte
         1:1024  
@@ -40,9 +42,9 @@ static mem_ctx_t g_mem_ctx;
 void * sys_alloc( int size )
 {
     assert( size > 0 );
-    pthread_mutex_lock( &mem_th_lock );
+    pthread_mutex_lock( &g_sys_thread_lock );
     char * addr = calloc( 1, size );
-    pthread_mutex_unlock( &mem_th_lock );
+    pthread_mutex_unlock( &g_sys_thread_lock );
     if( !addr ) {
         err("sys alloc failed. [%d]\n", errno );
         return NULL;
@@ -53,25 +55,22 @@ void * sys_alloc( int size )
 void sys_free( void * addr )
 {
     if( addr ) {
-        pthread_mutex_lock( &mem_th_lock );
+        pthread_mutex_lock( &g_sys_thread_lock );
         free(addr);
-        pthread_mutex_unlock( &mem_th_lock );
+        pthread_mutex_unlock( &g_sys_thread_lock );
     }
 }
 
 int mem_pool_deinit()
 {
 	int i = 0;
-    if( g_mem_ctx.arr ) {
-        for( i = 0; i < MEM_POOL_BLOCKN; i ++ ) {
-            if( g_mem_ctx.arr[i].listaddr ) {
-        		free(g_mem_ctx.arr[i].listaddr);
-            }
-            if( g_mem_ctx.arr[i].list ) {
-        		free(g_mem_ctx.arr[i].list);
+    if( g_mem_ctx.blks ) {
+        for( i = 0; i < MP_BLK_MAX; i ++ ) {
+            if( g_mem_ctx.blks[i].p ) {
+        		free(g_mem_ctx.blks[i].p);
             }
     	}
-    	free(g_mem_ctx.arr);
+    	free(g_mem_ctx.blks);
     }
 	return 0;
 }
@@ -81,22 +80,21 @@ int mem_pool_init()
 	int i = 0;
 	int j = 0;
 
-	g_mem_ctx.arr = malloc( sizeof(mem_block_t)*MEM_POOL_BLOCKN );
-	if( !g_mem_ctx.arr ) {
-		err("malloc blocks failed.\n");
+	g_mem_ctx.blks = malloc( sizeof(mem_block_t)*MP_BLK_MAX );
+	if( !g_mem_ctx.blks ) {
+		err("malloc blks failed.\n");
 		return -1;
     }
-    memset( g_mem_ctx.arr, 0x0, sizeof(mem_block_t)*MEM_POOL_BLOCKN );
+    memset( g_mem_ctx.blks, 0x0, sizeof(mem_block_t)*MP_BLK_MAX );
     
 
-	for( i = 0; i < MEM_POOL_BLOCKN; i ++) {
-        
+	for( i = 0; i < MP_BLK_MAX; i ++) {        
         int obj_space = 0;
-        int obj_n = MEM_POOL_OBJN;
+        int obj_n = MP_OBJ_MAX;
     
 		if(i == 0) {
             obj_space = 512;   
-            obj_n = 2 * MEM_POOL_OBJN; /// small obj need more
+            obj_n *= 2; /// double for small obj
         } else if (i == 1) {
             obj_space = 1024;
         } else if (i == 2) {
@@ -108,45 +106,38 @@ int mem_pool_init()
         } else if (i == 5) {
             obj_space = 16384; 
         }
-        
-		///
-		g_mem_ctx.arr[i].list = malloc( sizeof(mem_obj_t*)*obj_n );
-		if( !g_mem_ctx.arr[i].list ) {
-			err("malloc idx [%d] list point failed\n", i );
-            mem_pool_deinit();
-			return -1;
-		}
-		memset( g_mem_ctx.arr[i].list, 0x0, sizeof(mem_obj_t*)*obj_n );
 
-        /// 
-		g_mem_ctx.arr[i].listaddrn = (sizeof(mem_obj_t)+obj_space)*obj_n;
-		g_mem_ctx.arr[i].listaddr = malloc( g_mem_ctx.arr[i].listaddrn );
-		if(!g_mem_ctx.arr[i].listaddr) {
-			err("malloc idx [%d] list failed\n", i);
+		g_mem_ctx.blks[i].pn = (sizeof(mem_obj_t)+obj_space)*obj_n;
+		g_mem_ctx.blks[i].p = malloc( g_mem_ctx.blks[i].pn );
+		if(!g_mem_ctx.blks[i].p) {
+			err("mempool blk [%d] p alloc failed\n", i, errno );
             mem_pool_deinit();
 			return -1;
 		}
-		memset( g_mem_ctx.arr[i].listaddr, 0x0, g_mem_ctx.arr[i].listaddrn );
-        
-		///		
-		char * p = g_mem_ctx.arr[i].listaddr;
+		memset( g_mem_ctx.blks[i].p, 0x0, g_mem_ctx.blks[i].pn );
+
+        queue_init( &g_mem_ctx.blks[i].usable );
+        queue_init( &g_mem_ctx.blks[i].inuse );
+		char * p = g_mem_ctx.blks[i].p;
 		for( j = 0; j < obj_n; j ++) {
-			g_mem_ctx.arr[i].list[j] = (mem_obj_t*)p;
-			g_mem_ctx.arr[i].list[j]->fuse = 0;
 
-			p += sizeof(mem_obj_t)+obj_space;
+            mem_obj_t * obj = (mem_obj_t*)p;
+            obj->blk_idx = i;
+            queue_insert_tail( &g_mem_ctx.blks[i].usable, &obj->queue );
+        
+			p += (sizeof(mem_obj_t)+obj_space);
 		}
 	}
 	return 0;
 }
 
-int mem_pool_free( void * addr)
+int mem_pool_free( void * p )
 {
-    ///getting mem_obj_t by address offset
-	mem_obj_t * obj = (mem_obj_t*)(addr-sizeof(mem_obj_t));
-    if( obj->fuse ) {
-        obj->fuse = 0;  ///reset the flag. so that can alloc again
-    }
+    pthread_mutex_lock(&g_mp_thread_lock);
+	mem_obj_t * obj = (mem_obj_t*)(p-offsetof(mem_obj_t, addr)); /// address offset
+    queue_remove( &obj->queue );
+    queue_insert_tail( &g_mem_ctx.blks[obj->blk_idx].usable, &obj->queue );
+    pthread_mutex_unlock(&g_mp_thread_lock);
 	return 0;
 }
 
@@ -156,7 +147,7 @@ void * mem_pool_alloc(int size)
     int obj_size = 0;
     assert(size > 0);
 
-    
+    pthread_mutex_lock(&g_mp_thread_lock);
     /// find which block
     if( size <= 512 ) {
         obj_block = 0;
@@ -178,19 +169,29 @@ void * mem_pool_alloc(int size)
         obj_size = 16384;
     } else {
         err("alloc size [%d] too big. not support\n", size );
+        pthread_mutex_unlock(&g_mp_thread_lock);
         return NULL;
     }
 
-    int j = 0;
-    for( j = 0; j < MEM_POOL_OBJN; j ++ ) {
-        if(!g_mem_ctx.arr[obj_block].list[j]->fuse) {
-            g_mem_ctx.arr[obj_block].list[j]->fuse = 1;
-            memset( g_mem_ctx.arr[obj_block].list[j]->addr, 0x0, obj_size ); ///clear dirty data for convenicence 
-            return g_mem_ctx.arr[obj_block].list[j]->addr;
-        }
+    if( queue_empty( &g_mem_ctx.blks[obj_block].usable ) ) {
+        err("mempool alloc size [%d] failed. no space\n", size );
+        pthread_mutex_unlock(&g_mp_thread_lock);
+        return NULL;
     }
-    err("mem pool alloc size [%d] failed.\n", size );
-    return NULL;
+
+    queue_t * q = queue_head( &g_mem_ctx.blks[obj_block].usable );
+    mem_obj_t * obj = ptr_get_struct( q, mem_obj_t, queue);
+    
+    queue_remove( &obj->queue );
+    queue_insert_tail( &g_mem_ctx.blks[obj_block].inuse, &obj->queue );
+
+    memset( obj->addr, 0, obj_size );
+    pthread_mutex_unlock(&g_mp_thread_lock);
+    return obj->addr;
 }
 
+char * mem_pool_ver() 
+{
+    return g_mp_ver;
+}
 

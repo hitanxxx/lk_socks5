@@ -29,6 +29,7 @@ int mem_pool_free(void * addr);
 void * mem_pool_alloc(int size);
 int mem_pool_deinit();
 int mem_pool_init();
+char * mem_pool_ver();
 
 
 
