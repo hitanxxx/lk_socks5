@@ -6,12 +6,12 @@ status meta_alloc( meta_t ** meta, uint32 datan )
     meta_t * t = NULL;
 
     if( meta == NULL ) {
-    	return ERROR;
+        return ERROR;
     }
 
     t = mem_pool_alloc( sizeof(meta_t)+datan );
     if(!t) {
-    	return ERROR;
+        return ERROR;
     }
 
     t->start = t->pos = t->last = t->data;
@@ -24,6 +24,6 @@ status meta_alloc( meta_t ** meta, uint32 datan )
 void meta_free( meta_t * meta )
 {
     if( meta ) {
-    	mem_pool_free(meta);
+        mem_pool_free(meta);
     }
 }

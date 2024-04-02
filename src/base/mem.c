@@ -25,7 +25,7 @@ typedef struct
 
 typedef struct 
 {
-	mem_block_t * blks;
+    mem_block_t * blks;
     /*
         0:512   byte
         1:1024  
@@ -63,36 +63,36 @@ void sys_free( void * addr )
 
 int mem_pool_deinit()
 {
-	int i = 0;
+    int i = 0;
     if( g_mem_ctx.blks ) {
         for( i = 0; i < MP_BLK_MAX; i ++ ) {
             if( g_mem_ctx.blks[i].p ) {
-        		free(g_mem_ctx.blks[i].p);
+                free(g_mem_ctx.blks[i].p);
             }
-    	}
-    	free(g_mem_ctx.blks);
+        }
+        free(g_mem_ctx.blks);
     }
-	return 0;
+    return 0;
 }
 
 int mem_pool_init()
 {
-	int i = 0;
-	int j = 0;
+    int i = 0;
+    int j = 0;
 
-	g_mem_ctx.blks = malloc( sizeof(mem_block_t)*MP_BLK_MAX );
-	if( !g_mem_ctx.blks ) {
-		err("malloc blks failed.\n");
-		return -1;
+    g_mem_ctx.blks = malloc( sizeof(mem_block_t)*MP_BLK_MAX );
+    if( !g_mem_ctx.blks ) {
+        err("malloc blks failed.\n");
+        return -1;
     }
     memset( g_mem_ctx.blks, 0x0, sizeof(mem_block_t)*MP_BLK_MAX );
     
 
-	for( i = 0; i < MP_BLK_MAX; i ++) {        
+    for( i = 0; i < MP_BLK_MAX; i ++) {        
         int obj_space = 0;
         int obj_n = MP_OBJ_MAX;
     
-		if(i == 0) {
+        if(i == 0) {
             obj_space = 512;   
             obj_n *= 2; /// double for small obj
         } else if (i == 1) {
@@ -107,38 +107,38 @@ int mem_pool_init()
             obj_space = 16384; 
         }
 
-		g_mem_ctx.blks[i].pn = (sizeof(mem_obj_t)+obj_space)*obj_n;
-		g_mem_ctx.blks[i].p = malloc( g_mem_ctx.blks[i].pn );
-		if(!g_mem_ctx.blks[i].p) {
-			err("mempool blk [%d] p alloc failed\n", i, errno );
+        g_mem_ctx.blks[i].pn = (sizeof(mem_obj_t)+obj_space)*obj_n;
+        g_mem_ctx.blks[i].p = malloc( g_mem_ctx.blks[i].pn );
+        if(!g_mem_ctx.blks[i].p) {
+            err("mempool blk [%d] p alloc failed\n", i, errno );
             mem_pool_deinit();
-			return -1;
-		}
-		memset( g_mem_ctx.blks[i].p, 0x0, g_mem_ctx.blks[i].pn );
+            return -1;
+        }
+        memset( g_mem_ctx.blks[i].p, 0x0, g_mem_ctx.blks[i].pn );
 
         queue_init( &g_mem_ctx.blks[i].usable );
         queue_init( &g_mem_ctx.blks[i].inuse );
-		char * p = g_mem_ctx.blks[i].p;
-		for( j = 0; j < obj_n; j ++) {
+        char * p = g_mem_ctx.blks[i].p;
+        for( j = 0; j < obj_n; j ++) {
 
             mem_obj_t * obj = (mem_obj_t*)p;
             obj->blk_idx = i;
             queue_insert_tail( &g_mem_ctx.blks[i].usable, &obj->queue );
         
-			p += (sizeof(mem_obj_t)+obj_space);
-		}
-	}
-	return 0;
+            p += (sizeof(mem_obj_t)+obj_space);
+        }
+    }
+    return 0;
 }
 
 int mem_pool_free( void * p )
 {
     pthread_mutex_lock(&g_mp_thread_lock);
-	mem_obj_t * obj = (mem_obj_t*)(p-offsetof(mem_obj_t, addr)); /// address offset
+    mem_obj_t * obj = (mem_obj_t*)(p-offsetof(mem_obj_t, addr)); /// address offset
     queue_remove( &obj->queue );
     queue_insert_tail( &g_mem_ctx.blks[obj->blk_idx].usable, &obj->queue );
     pthread_mutex_unlock(&g_mp_thread_lock);
-	return 0;
+    return 0;
 }
 
 void * mem_pool_alloc(int size)
