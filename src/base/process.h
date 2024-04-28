@@ -8,7 +8,7 @@ extern "C"
     
 #define	MAXPROCESS 128
 
-typedef struct process_t {
+typedef struct {
 	uint32			sequence_num;
 	pid_t			pid;
 

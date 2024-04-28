@@ -194,7 +194,7 @@ static status webser_free( webser_t * webser )
 
 inline static void webser_timeout_con( void * data )
 {
-    net_free( (connection_t*)data );
+    net_free( (con_t*)data );
 }
 
 inline static void webser_timeout_cycle( void * data )
@@ -204,7 +204,7 @@ inline static void webser_timeout_cycle( void * data )
 
 static status webser_keepalive( event_t * ev )
 {
-    connection_t* c = ev->data;
+    con_t* c = ev->data;
     webser_t * webser = c->data;
     uint32 remain = meta_len( c->meta->pos, c->meta->last );
 
@@ -285,7 +285,7 @@ void webser_rsp_header_push_str( webser_t * webser, char * str )
 
 static status webser_rsp_send_body_api( event_t * ev )
 {	
-    connection_t * c = ev->data;
+    con_t * c = ev->data;
     webser_t * webser = c->data;
     status rc = 0;
     
@@ -317,48 +317,44 @@ static status webser_rsp_send_body_api( event_t * ev )
 
 static status webser_rsp_send_body_file( event_t * ev )
 {	
-    connection_t * c = ev->data;
+    con_t * c = ev->data;
     webser_t * webser = c->data;
-    status rc = 0;
-    
-    /// send http payload static file 
-    /// (read form file and send unti finish or error happen)
-    do {
-        rc = c->send_chain( c, webser->http_rsp_body_meta );
-        if( rc < 0 ) {
-            if( rc == ERROR ) {
-                err("webser send resp body failed\n");
+    meta_t * meta = webser->http_rsp_body_meta;
+
+    for(;;) {
+        if( meta->last > meta->pos ) {
+            int sendn = c->send( c, meta->pos, meta->last - meta->pos );
+            if( sendn < 0 ) {
+                if( sendn == ERROR ) {
+                    err("webser file content send error\n");
+                    webser_free(webser);
+                    return ERROR;
+                }
+                timer_add( &ev->timer, WEBSER_TIMEOUT );
+                return AGAIN;
+            }
+            meta->pos += sendn;
+            webser->fsend += sendn;
+            if(webser->fsend >= webser->fsize) {
+                break;
+            }
+        }
+        
+        if( meta->last == meta->pos )
+            meta->last = meta->pos = meta->start;
+        
+        if(meta->last < meta->end) {
+            int readn = read(webser->ffd, meta->last, meta->end - meta->last );
+            if( readn <= 0 ) {
+                err("webser read file, errno [%d]\n", errno );
                 webser_free( webser );
                 return ERROR;
             }
-            timer_set_data( &ev->timer, webser );
-            timer_set_pt( &ev->timer, webser_timeout_cycle );
-            timer_add( &ev->timer, WEBSER_TIMEOUT );
-            return AGAIN;
+            meta->last += readn;
         }
-        
-        timer_add( &ev->timer, WEBSER_TIMEOUT );
-        webser->http_rsp_body_meta->pos = webser->http_rsp_body_meta->last = webser->http_rsp_body_meta->start;
-
-        webser->fsend += webser->ffragmentn;
-        webser->ffragmentn = 0;
-        
-        int remain = webser->fsize - webser->fsend;
-        if( remain <= 0 ) {
-            break;  // break the loop when send file success
-        }
-        int ffn = (uint32)l_min( remain, meta_len( webser->http_rsp_body_meta->last, webser->http_rsp_body_meta->end) );
-        int readn = read( webser->ffd, webser->http_rsp_body_meta->last, ffn );
-        if( readn <= 0 ) {
-            err("webser read file, errno [%d]\n", errno );
-            webser_free( webser );
-            return ERROR;
-        }
-        webser->http_rsp_body_meta->last += readn;
-        webser->ffragmentn = readn;
-    } while(1);
+    }
     timer_del( &ev->timer );
-
+    
     if( webser->http_rsp_code == 200 && webser->http_req->keepalive == 1 ) {
         ev->write_pt = webser_keepalive;
         return ev->write_pt( ev );
@@ -370,27 +366,17 @@ static status webser_rsp_send_body_file( event_t * ev )
 
 static status webser_rsp_send_body( event_t * ev )
 {
-    connection_t * c = ev->data;
+    con_t * c = ev->data;
     webser_t * webser = c->data;
 
     /// send http rsp payload
     if( webser->type == WEBSER_FILE ) {
-
         /// for mem pool alloc sign 
         if( OK != meta_alloc(&webser->http_rsp_body_meta, WEBSER_BODY_META_LENGTH-sizeof(meta_t) ) ) {
             err("webser rsp body meta alloc failed\n");
             webser_free(webser);
             return ERROR;
         }
-        int readn = read( webser->ffd, webser->http_rsp_body_meta->last, (webser->http_rsp_body_meta->end-webser->http_rsp_body_meta->last) );
-        if( readn <= 0 ) {
-            err("webser rsp body meta read file failed. [%d]\n", errno );
-            webser_free(webser);
-            return ERROR;
-        }
-        webser->http_rsp_body_meta->last += readn;
-        webser->ffragmentn = readn;
-        
         ev->write_pt = webser_rsp_send_body_file;
         return ev->write_pt( ev );
     } else {
@@ -402,7 +388,7 @@ static status webser_rsp_send_body( event_t * ev )
 
 static status webser_rsp_send_header( event_t * ev )
 {
-    connection_t * c = ev->data;
+    con_t * c = ev->data;
     webser_t * webser = c->data;
     status rc = 0;
 
@@ -437,7 +423,7 @@ static status webser_rsp_send_header( event_t * ev )
 
 static status webser_try_read( event_t * ev  )
 {
-    connection_t * c = ev->data;
+    con_t * c = ev->data;
     webser_t * webser = c->data;
     int n = 0;
     char buf[1] = {0};
@@ -459,7 +445,7 @@ closed:
 
 static status webser_rsp_send_start( event_t * ev )
 {
-    connection_t * c = ev->data;
+    con_t * c = ev->data;
     ev->read_pt = webser_try_read;
     ev->write_pt = webser_rsp_send_header;
     event_opt( ev, c->fd, EV_R|EV_W );
@@ -468,6 +454,8 @@ static status webser_rsp_send_start( event_t * ev )
 
 static status webser_rsp_header_build( webser_t * webser )
 {
+    char str[128] = {0};
+
     // build http rsp header
     switch( webser->http_rsp_code ) {
         case 200:
@@ -491,18 +479,16 @@ static status webser_rsp_header_build( webser_t * webser )
     }
     webser_rsp_header_push_str( webser, "Server: S5\r\n" );
     webser_rsp_header_push_str( webser, "Accept-Charset: utf-8\r\n" );
-    char gmt_date_str[128] = {0};
-    sprintf( gmt_date_str, "Date: %s\r\n", systime_gmt());
-    webser_rsp_header_push_str( webser, gmt_date_str );
-    
-    if( !webser->http_rsp_mime ) {
+    memset(str, 0, sizeof(str));
+    sprintf( str, "Date: %s\r\n", systime_gmt());
+    webser_rsp_header_push_str( webser, str );    
+    if( !webser->http_rsp_mime )
         webser->http_rsp_mime = webser_rsp_mime_find( NULL, 0 );
-    } 
     webser_rsp_header_push_str( webser, webser->http_rsp_mime );
 
-    char content_len_str[64] = {0};
-    snprintf( content_len_str, sizeof(content_len_str)-1, "Content-Length: %d\r\n", webser->http_rsp_bodyn );
-    webser_rsp_header_push_str( webser, content_len_str );
+    memset(str, 0, sizeof(str));
+    sprintf( str, "Content-Length: %d\r\n", webser->http_rsp_bodyn );
+    webser_rsp_header_push_str( webser, str );
     
     if( webser->http_req->headers.connection && ((uint32)webser->http_req->headers.connection->len > l_strlen("close")) ) {
         webser_rsp_header_push_str( webser, "Connection: keep-alive\r\n" );
@@ -606,7 +592,7 @@ static void webser_req_file_open ( webser_t * webser )
 
 static status webser_req_file ( event_t * ev )
 {
-    connection_t * c = ev->data;
+    con_t * c = ev->data;
     webser_t * webser = c->data;
 
     webser_req_file_open( webser );
@@ -624,7 +610,7 @@ static status webser_req_file ( event_t * ev )
 status webser_req_api( event_t * ev )
 {
     int32 resp_code = 0;
-    connection_t * c = ev->data;
+    con_t * c = ev->data;
     webser_t * webser = c->data;
 
     /// goto do resiger api function 
@@ -669,7 +655,7 @@ status webser_req_api( event_t * ev )
 
 static status webser_req_body_recv( event_t * ev )
 {
-    connection_t * c = ev->data;
+    con_t * c = ev->data;
     webser_t * web = c->data;
     status rc = 0;
 
@@ -702,7 +688,7 @@ static status webser_req_body_recv( event_t * ev )
 
 status webser_req_body_wait( event_t * ev )
 {
-    connection_t * c = ev->data;
+    con_t * c = ev->data;
     webser_t * web = c->data;
 
     if( web->type == WEBSER_API ) {
@@ -749,7 +735,7 @@ status webser_req_body_wait( event_t * ev )
 
 static status webser_req_bypass( event_t * ev )
 {
-    connection_t * c = ev->data;
+    con_t * c = ev->data;
     webser_t * webser = c->data;
     status rc = 0;
 
@@ -767,7 +753,7 @@ static status webser_req_bypass( event_t * ev )
 
 static status webser_req_header( event_t * ev )
 {
-    connection_t * c = ev->data;
+    con_t * c = ev->data;
     webser_t * webser = c->data;
     status rc = 0;
 
@@ -793,7 +779,7 @@ static status webser_req_header( event_t * ev )
 
 static status webser_start( event_t * ev )
 {
-    connection_t * c = ev->data;
+    con_t * c = ev->data;
     webser_t * webser = NULL;
 
     // init web connection page and meta memory for use
@@ -830,7 +816,7 @@ static status webser_start( event_t * ev )
 /// @return 
 static status webser_transfer_to_s5( event_t * ev )
 {
-    connection_t * c = ev->data;
+    con_t * c = ev->data;
     meta_t * meta = NULL;
     ssize_t rc = 0;
     
@@ -883,7 +869,7 @@ static status webser_transfer_to_s5( event_t * ev )
 
 static status webser_accept_cb_ssl_check( event_t * ev )
 {
-    connection_t * c = ev->data;
+    con_t * c = ev->data;
 
     if( !c->ssl->handshaked ) {
         err("webser handshake failed\n");
@@ -911,7 +897,7 @@ static status webser_accept_cb_ssl_check( event_t * ev )
 
 status webser_accept_cb_ssl( event_t * ev )
 {
-    connection_t * c = ev->data;
+    con_t * c = ev->data;
     status rc = 0;
 
     do {

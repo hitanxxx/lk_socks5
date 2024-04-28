@@ -52,7 +52,7 @@ typedef struct dns_cycle
     queue_t         queue;
     // in && out
     unsigned char   query[DOMAIN_LENGTH+1];	/// stoege dns query host and convert qnam e
-    connection_t *  c;
+    con_t *  c;
     dns_callback    cb;
     void *          cb_data;
     status          dns_status; // OK:success 	ERROR:error

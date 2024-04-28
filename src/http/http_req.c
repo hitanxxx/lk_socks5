@@ -61,7 +61,7 @@ static status http_req_find_header( string_t * str, http_req_value_t ** header )
     return ERROR;
 }
 
-static status http_req_recv( connection_t * c, meta_t * meta )
+static status http_req_recv( con_t * c, meta_t * meta )
 {
     ssize_t recvn = 0;
 
@@ -230,7 +230,7 @@ static status http_req_headers_analysis( http_req_t * req, meta_t * meta )
 static status http_req_headers( http_req_t * req )
 {
     int rc = AGAIN;
-    connection_t * c = req->c;
+    con_t * c = req->c;
     http_req_value_t * headers;
 
     if( OK != mem_arr_create( &req->headers.list, sizeof(string_t) ) ) {
@@ -585,7 +585,7 @@ static status http_req_request_line_analysis( http_req_t * req, meta_t * meta )
 static status http_req_request_line( http_req_t * req )
 {
     int32 rc = AGAIN;
-    connection_t * c = req->c;
+    con_t * c = req->c;
 
     while( 1 ) {
         /// alaways recv until error happend or parse finish 
@@ -682,7 +682,7 @@ status http_req_free( http_req_t * req )
 }
 
 
-status http_req_create( connection_t * c, http_req_t ** request )
+status http_req_create( con_t * c, http_req_t ** request )
 {
     /*
         http request 

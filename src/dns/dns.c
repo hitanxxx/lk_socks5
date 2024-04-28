@@ -274,7 +274,7 @@ status dns_response_analyze( dns_cycle_t * cycle )
 
 status dns_response_recv( event_t * ev )
 {
-    connection_t * c = ev->data;
+    con_t * c = ev->data;
     dns_cycle_t * cycle = c->data;
     meta_t * meta = &cycle->dns_meta;
     status rc = 0;
@@ -322,7 +322,7 @@ status dns_response_recv( event_t * ev )
 
 status dns_request_send( event_t * ev )
 {
-    connection_t * c = ev->data;
+    con_t * c = ev->data;
     dns_cycle_t * cycle = c->data;
     meta_t * meta = &cycle->dns_meta;
     ssize_t rc = 0;
@@ -393,7 +393,7 @@ static status dns_request_packet( event_t * ev )
     /*
         header + question
     */
-    connection_t * c = ev->data;
+    con_t * c = ev->data;
     dns_cycle_t * cycle = c->data;
     dns_header_t * header   = NULL;
     unsigned char * qname   = NULL;
@@ -429,7 +429,7 @@ static status dns_request_packet( event_t * ev )
 /// @breif: start a ipv4 dns query request 
 status dns_start( dns_cycle_t * cycle )
 {
-    connection_t * c = cycle->c;
+    con_t * c = cycle->c;
     struct sockaddr_in addr;
 
     addr.sin_family = AF_INET;

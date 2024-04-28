@@ -11,10 +11,10 @@ typedef struct listen listen_t;
 extern listen_t * g_listens;
 
 struct listen {
+    int fd;
+	char fssl:1;
 	unsigned short lport;
-	char fssl;
-	int fd;
-
+	
 	event_pt handler;
 	event_t	event;
 	struct sockaddr_in server_addr;

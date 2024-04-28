@@ -14,7 +14,7 @@ typedef status ( *http_body_cb ) ( http_body_t * bd );
 struct http_body 
 {
     queue_t                 queue;
-    connection_t            *c;
+    con_t            *c;
     uint32                  state;
     http_body_cb    		cb;
 
@@ -46,7 +46,7 @@ struct http_body
 };
 
 status http_body_dump( http_body_t * bd, meta_t ** dumpmeta );
-status http_body_create( connection_t * c, http_body_t ** body, int discard );
+status http_body_create( con_t * c, http_body_t ** body, int discard );
 status http_body_free( http_body_t * bd );
 status http_body_init_module( void );
 status http_body_end_module( void );

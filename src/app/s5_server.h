@@ -68,8 +68,8 @@ typedef struct
     s5_rfc_phase1_req_t phase1;
     s5_rfc_phase2_req_t phase2;
 
-    connection_t * down;
-    connection_t * up;
+    con_t * down;
+    con_t * up;
     dns_cycle_t * dns_cycle;
 
 #ifndef S5_OVER_TLS
@@ -77,8 +77,8 @@ typedef struct
     sys_cipher_t * cipher_dec;  /// cipher ctx for decrypt data
 #endif
     
-	char		recv_down_err;
-	char		recv_up_err;
+	char		recv_down_err:1;
+	char		recv_up_err:1;
 } socks5_cycle_t;
 
 

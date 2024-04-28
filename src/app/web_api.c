@@ -6,7 +6,7 @@
 static status wapi_echo_post( event_t * ev )
 {
     /// example for do post api function
-    connection_t * c = ev->data;
+    con_t * c = ev->data;
     webser_t * web = c->data;
 
     /// dump http req body into single meta (meta_http_req_body)
@@ -38,7 +38,7 @@ static status wapi_echo_post( event_t * ev )
 static status wapi_echo_get( event_t * ev )
 {   
     /// example for do get api function 
-    connection_t * c = ev->data;
+    con_t * c = ev->data;
     webser_t * web = c->data;
 
     /// build the http rsp body datas

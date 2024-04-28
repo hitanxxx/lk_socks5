@@ -68,10 +68,10 @@ void s5_timeout_cb( void * data )
 
 static status s5_traffic_recv( event_t * ev )
 {
-    connection_t * c = ev->data;
+    con_t * c = ev->data;
     socks5_cycle_t * s5 = c->data;
-    connection_t * down = s5->down;
-    connection_t * up = s5->up;
+    con_t * down = s5->down;
+    con_t * up = s5->up;
     
     ssize_t recvn = 0;
 
@@ -126,10 +126,10 @@ static status s5_traffic_recv( event_t * ev )
 
 static int s5_traffic_send( event_t * ev )
 {	
-    connection_t * c = ev->data;
+    con_t * c = ev->data;
     socks5_cycle_t * s5 = c->data;
-    connection_t * down = s5->down;
-    connection_t * up = s5->up;
+    con_t * down = s5->down;
+    con_t * up = s5->up;
     ssize_t sendn = 0;
 
     timer_set_data( &ev->timer, (void*)s5 );
@@ -165,10 +165,10 @@ static int s5_traffic_send( event_t * ev )
 
 static status s5_traffic_back_recv( event_t * ev )
 {
-    connection_t * c = ev->data;
+    con_t * c = ev->data;
     socks5_cycle_t * s5 = c->data;
-    connection_t * down = s5->down;
-    connection_t * up = s5->up;
+    con_t * down = s5->down;
+    con_t * up = s5->up;
     
     ssize_t recvn = 0;
 
@@ -220,10 +220,10 @@ static status s5_traffic_back_recv( event_t * ev )
 
 static int s5_traffic_back_send( event_t * ev )
 {
-    connection_t * c = ev->data;
+    con_t * c = ev->data;
     socks5_cycle_t * s5 = c->data;
-    connection_t * down = s5->down;
-    connection_t * up = s5->up;
+    con_t * down = s5->down;
+    con_t * up = s5->up;
     
     ssize_t sendn = 0;
     
@@ -260,10 +260,10 @@ static int s5_traffic_back_send( event_t * ev )
 
 status s5_traffic_process( event_t * ev )
 {
-    connection_t * c = ev->data;
+    con_t * c = ev->data;
     socks5_cycle_t * s5 = c->data;
-    connection_t * down = s5->down;
-    connection_t * up = s5->up;
+    con_t * down = s5->down;
+    con_t * up = s5->up;
 
     // init down stream traffic buffer
     if( !down->meta ) {
@@ -336,7 +336,7 @@ status s5_traffic_process( event_t * ev )
 
 static status s5_server_rfc_phase2_send( event_t * ev )
 {
-    connection_t * down = ev->data;
+    con_t * down = ev->data;
     socks5_cycle_t * s5 = down->data;
     status rc = 0;
     meta_t * meta = down->meta;
@@ -367,9 +367,9 @@ static status s5_server_rfc_phase2_send( event_t * ev )
 
 static status s5_server_rfc_phase2_resp_build( event_t * ev )
 {
-    connection_t * up = ev->data;
+    con_t * up = ev->data;
     socks5_cycle_t * s5 = up->data;
-    connection_t * down = s5->down;
+    con_t * down = s5->down;
     meta_t * meta = down->meta;
 
     s5_rfc_phase2_resp_t * resp = ( s5_rfc_phase2_resp_t* )meta->last;
@@ -396,7 +396,7 @@ static status s5_server_rfc_phase2_resp_build( event_t * ev )
 
 static status s5_server_connect_check( event_t * ev )
 {
-    connection_t* up = ev->data;
+    con_t* up = ev->data;
     socks5_cycle_t * s5 = up->data;
 
     if( OK != net_socket_check_status( up->fd ) ) {
@@ -414,7 +414,7 @@ static status s5_server_connect_check( event_t * ev )
 
 static status s5_server_connect( event_t * ev )
 {
-    connection_t * up = ev->data;
+    con_t * up = ev->data;
     socks5_cycle_t * s5 = up->data;
     status rc = 0;
 
@@ -438,7 +438,7 @@ static status s5_server_connect( event_t * ev )
 
 static status s5_server_try_read( event_t * ev  )
 {
-    connection_t * down = ev->data;
+    con_t * down = ev->data;
     socks5_cycle_t * s5 = down->data;
 
     if( OK != net_socket_check_status( down->fd ) ) {
@@ -484,7 +484,7 @@ static void s5_server_address_get_cb( void * data )
 
 static status s5_server_address_get( event_t * ev )
 {
-    connection_t * down = ev->data;
+    con_t * down = ev->data;
     socks5_cycle_t * s5 = down->data;
     char ipstr[128] = {0};
     status rc = 0;
@@ -566,7 +566,7 @@ static status s5_server_address_get( event_t * ev )
 static status s5_server_rfc_phase2_recv( event_t * ev )
 {
     unsigned char * p = NULL;
-    connection_t * down = ev->data;
+    con_t * down = ev->data;
     socks5_cycle_t * s5 = down->data;
     meta_t * meta = down->meta;
     enum {
@@ -737,7 +737,7 @@ static status s5_server_rfc_phase2_recv( event_t * ev )
 
 static status s5_server_rfc_phase1_send( event_t * ev )
 {
-    connection_t * down = ev->data;
+    con_t * down = ev->data;
     socks5_cycle_t * s5 = down->data;
     status rc = 0;
     meta_t * meta = down->meta;
@@ -771,7 +771,7 @@ static status s5_server_rfc_phase1_send( event_t * ev )
 
 static status s5_server_rfc_phase1_recv( event_t * ev )
 {
-    connection_t * down = ev->data;
+    con_t * down = ev->data;
     socks5_cycle_t * s5 = down->data;
     unsigned char * p = NULL;
     meta_t * meta = down->meta;
@@ -860,7 +860,7 @@ static status s5_server_rfc_phase1_recv( event_t * ev )
 static status s5_server_auth_recv( event_t * ev )
 {
     /// porcess the private authroization between local and server  
-    connection_t * down = ev->data;
+    con_t * down = ev->data;
     socks5_cycle_t * s5 = down->data;
     ssize_t rc = 0;
     meta_t * meta = down->meta;
@@ -912,7 +912,7 @@ static status s5_server_auth_recv( event_t * ev )
 
 static status s5_server_start( event_t * ev )
 {
-    connection_t * down = ev->data;
+    con_t * down = ev->data;
     socks5_cycle_t * s5 = NULL;
 
     if( OK != s5_alloc(&s5) ) {
@@ -953,7 +953,7 @@ static status s5_server_start( event_t * ev )
 
 status s5_server_transport( event_t * ev )
 {
-    connection_t * down = ev->data;
+    con_t * down = ev->data;
     socks5_cycle_t * s5 = NULL;
     
     if( OK != s5_alloc(&s5) ) {
@@ -970,7 +970,7 @@ status s5_server_transport( event_t * ev )
 
 static status s5_server_accept_cb_check( event_t * ev )
 {
-    connection_t * down = ev->data;
+    con_t * down = ev->data;
 
     if( !down->ssl->handshaked ) {
         err(" downstream handshake error\n" );
@@ -991,7 +991,7 @@ static status s5_server_accept_cb_check( event_t * ev )
 
 status s5_server_accept_cb( event_t * ev )
 {
-    connection_t * down = ev->data;
+    con_t * down = ev->data;
     status rc = 0;
 
 #ifndef S5_OVER_TLS

@@ -1,7 +1,7 @@
 #include "common.h"
 
 
-ssize_t recvs( connection_t * c, unsigned char * buffer, uint32 len )
+ssize_t recvs( con_t * c, unsigned char * buffer, uint32 len )
 {
     ssize_t rc;
 
@@ -33,7 +33,7 @@ ssize_t recvs( connection_t * c, unsigned char * buffer, uint32 len )
 
 
 
-ssize_t sends( connection_t * c, unsigned char * buffer, uint32 len )
+ssize_t sends( con_t * c, unsigned char * buffer, uint32 len )
 {
     ssize_t rc;
     
@@ -62,14 +62,13 @@ inline static status meta_need_send( meta_t * meta )
     return( meta->last > meta->pos ) ? OK : ERROR;
 }
 
-status send_chains( connection_t * c, meta_t * head )
+status send_chains( con_t * c, meta_t * head )
 {
     meta_t * cur = NULL;
     ssize_t size = 0;
     
     sys_assert( c != NULL );
     sys_assert( head != NULL );
-
 
     while(1) {
         cur = head;
@@ -95,7 +94,7 @@ status send_chains( connection_t * c, meta_t * head )
     };
 }
 
-ssize_t udp_recvs( connection_t * c, unsigned char * buffer, uint32 len )
+ssize_t udp_recvs( con_t * c, unsigned char * buffer, uint32 len )
 {
     ssize_t rc;
     socklen_t socklen = sizeof(struct sockaddr);
@@ -124,7 +123,7 @@ ssize_t udp_recvs( connection_t * c, unsigned char * buffer, uint32 len )
 }
 
 
-ssize_t udp_sends( connection_t * c, unsigned char * buffer, uint32 len )
+ssize_t udp_sends( con_t * c, unsigned char * buffer, uint32 len )
 {
     ssize_t rc;
     socklen_t socklen = sizeof(struct sockaddr);

@@ -155,7 +155,7 @@ typedef int32_t                 int32;
 typedef int32_t                 status;
 typedef uint32_t                uint32;
 typedef volatile uint32         atomic_t;
-typedef struct net_connection_t   connection_t;
+typedef struct net_connection_t   con_t;
 
 // macros
 #define l_abs(x)                            (((x)>=0)?(x):(-(x)))

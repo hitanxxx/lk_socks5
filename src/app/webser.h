@@ -22,7 +22,7 @@ typedef struct {
 } webser_api_t;
 
 typedef struct {
-    connection_t *c;
+    con_t *c;
     void *data;
     int type;
 
@@ -33,7 +33,6 @@ typedef struct {
     int ffd;        // file fd  
     int fsize;      // file allsize
     int fsend;      // file sendsize
-    int ffragmentn;
 
     // api data
     webser_api_t * api;

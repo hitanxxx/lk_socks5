@@ -36,7 +36,7 @@ typedef status ( *http_req_cb ) ( http_req_t * request );
 
 struct http_req
 {
-    connection_t *              c;
+    con_t *              c;
     http_req_cb					cb;
     uint32                      state;
 
@@ -64,7 +64,7 @@ struct http_req
 };
 
 status http_req_have_body(     http_req_t * req);
-status http_req_create( connection_t * c, http_req_t ** req );
+status http_req_create( con_t * c, http_req_t ** req );
 status http_req_free( http_req_t * req );
 status http_req_init_module( void );
 status http_req_end_module( void );

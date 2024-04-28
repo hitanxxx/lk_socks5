@@ -344,7 +344,7 @@ static status http_body_start( http_body_t * bd )
 }
 
 
-status http_body_create( connection_t * c, http_body_t ** body, int discard )
+status http_body_create( con_t * c, http_body_t ** body, int discard )
 {
     http_body_t * body_n;
 

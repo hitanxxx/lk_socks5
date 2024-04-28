@@ -6,7 +6,7 @@
 
 static status s5_local_auth_send( event_t * ev )
 {
-    connection_t* up = ev->data;
+    con_t* up = ev->data;
     socks5_cycle_t * s5 = up->data;
     meta_t * meta = s5->up->meta;
     status rc = 0;
@@ -34,7 +34,7 @@ static status s5_local_auth_send( event_t * ev )
 
 static status s5_local_auth_build( event_t * ev )
 {
-    connection_t* up = ev->data;
+    con_t* up = ev->data;
     socks5_cycle_t * s5 = up->data;
     meta_t * meta = s5->up->meta;
 
@@ -77,7 +77,7 @@ static inline void s5_local_up_addr_get( struct sockaddr_in * addr )
 
 static status s5_local_up_connect_ssl( event_t * ev )
 {
-    connection_t* up = ev->data;
+    con_t* up = ev->data;
     socks5_cycle_t * cycle = up->data;
 
     if( !up->ssl->handshaked ) {
@@ -98,7 +98,7 @@ static status s5_local_up_connect_ssl( event_t * ev )
 
 static status s5_local_up_connect_check( event_t * ev )
 {
-    connection_t* up = ev->data;
+    con_t* up = ev->data;
     socks5_cycle_t * cycle = up->data;
     status rc;
 
@@ -113,11 +113,11 @@ static status s5_local_up_connect_check( event_t * ev )
 
         /// must use ssl connect s5 server !!!
         /// use a ezswtich in here   
-        up->ssl_flag = 1;
+        up->fssl = 1;
 #ifndef S5_OVER_TLS
-        up->ssl_flag = 0;
+        up->fssl = 0;
 #endif
-        if( up->ssl_flag ) {
+        if( up->fssl ) {
             if( OK != ssl_create_connection( up, L_SSL_CLIENT ) ) {
                 err("s5 local create ssl connection for up failed\n");
                 break;
@@ -147,7 +147,7 @@ static status s5_local_up_connect_check( event_t * ev )
 static status s5_local_down_recv( event_t * ev )
 {
     /// cache read data
-    connection_t * down = ev->data;
+    con_t * down = ev->data;
     socks5_cycle_t * s5 = down->data;
     meta_t * meta = down->meta;
     int readn = 0;
@@ -180,7 +180,7 @@ static status s5_local_down_recv( event_t * ev )
 
 status s5_local_accept_cb( event_t * ev )
 {
-    connection_t * down = ev->data;
+    con_t * down = ev->data;
     socks5_cycle_t * s5 = NULL;
     status rc;
 

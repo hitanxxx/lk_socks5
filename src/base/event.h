@@ -32,17 +32,16 @@ struct l_event
     /// cache previously event option (EV_R,EV_W,EV_NONE)
 	int 			opt;
 
-    /// listen event yes or not 
-    char            f_listen;
-    /// event can disable by other events 
-	char   			f_active;  
-
-    /// mark readable, writable
-    char    f_read;
-    char    f_write;
-
     event_pt        read_pt;
     event_pt        write_pt;
+
+    /// listen event yes or not 
+    char    f_listen:1;
+    /// event can disable by other events 
+	char    f_active:1;  
+    /// mark readable, writable
+    char    f_read:1;
+    char    f_write:1;
 };
 typedef status (*event_handler_init) (void);
 typedef status (*event_handler_end) (void);

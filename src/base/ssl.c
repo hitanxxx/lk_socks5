@@ -42,7 +42,7 @@ void ssl_record_error( int sslerr )
 
 status ssl_shutdown_handler( event_t * ev )
 {
-    connection_t * c = ev->data;
+    con_t * c = ev->data;
     ssl_handshake_pt  callback = c->ssl->cb;
     
     if( ssl_shutdown( c->ssl ) == AGAIN ) {
@@ -57,17 +57,17 @@ status ssl_shutdown_handler( event_t * ev )
     return callback( c->event );
 }
 
-status ssl_shutdown( ssl_connection_t * ssl )
+status ssl_shutdown( ssl_con_t * ssl )
 {
     int32 n, sslerr = 0;
-    connection_t * c = ssl->data;
+    con_t * c = ssl->data;
     int mode = 0;
     
     if( SSL_in_init( c->ssl->con ) ) {
         SSL_free( c->ssl->con );
         mem_pool_free( c->ssl );
         c->ssl = NULL;
-        c->ssl_flag = 0;
+        c->fssl = 0;
         return OK;
     }
     
@@ -91,7 +91,7 @@ status ssl_shutdown( ssl_connection_t * ssl )
         SSL_free( c->ssl->con );
         mem_pool_free( c->ssl );
         c->ssl      = NULL;
-        c->ssl_flag = 0;
+        c->fssl = 0;
         return OK;
     }
     
@@ -114,7 +114,7 @@ status ssl_shutdown( ssl_connection_t * ssl )
     SSL_free( c->ssl->con );
     mem_pool_free( c->ssl );
     c->ssl = NULL;
-    c->ssl_flag = 0;
+    c->fssl = 0;
     ssl_record_error(sslerr);
     return ERROR;
 }
@@ -122,7 +122,7 @@ status ssl_shutdown( ssl_connection_t * ssl )
 
 static status ssl_handshake_handler( event_t * ev )
 {
-    connection_t * c = ev->data;
+    con_t * c = ev->data;
     
     if( ssl_handshake( c->ssl ) == AGAIN ) {
         timer_add( &ev->timer, L_SSL_TIMEOUT );
@@ -136,10 +136,10 @@ static status ssl_handshake_handler( event_t * ev )
     return c->ssl->cb( ev );
 }
 
-status ssl_handshake( ssl_connection_t * ssl )
+status ssl_handshake( ssl_con_t * ssl )
 {
     int n, sslerr;
-    connection_t * c = ssl->data;
+    con_t * c = ssl->data;
     
     ssl_clear_error();
     n = SSL_do_handshake( ssl->con );
@@ -178,7 +178,7 @@ inline static status ssl_write_handler( event_t * ev)
     return ev->read_pt( ev );
 }
 
-ssize_t ssl_read( connection_t * c, unsigned char * start, uint32 len )
+ssize_t ssl_read( con_t * c, unsigned char * start, uint32 len )
 {
     int rc = 0, sslerr = 0;
     
@@ -233,7 +233,7 @@ static status ssl_read_handler( event_t * ev )
     return ev->write_pt( ev );
 }
 
-ssize_t ssl_write( connection_t * c, unsigned char * start, uint32 len )
+ssize_t ssl_write( con_t * c, unsigned char * start, uint32 len )
 {
     int rc = 0, sslerr = 0;
     
@@ -284,7 +284,7 @@ ssize_t ssl_write( connection_t * c, unsigned char * start, uint32 len )
     return ERROR;
 }
 
-status ssl_write_chain( connection_t * c, meta_t * meta )
+status ssl_write_chain( con_t * c, meta_t * meta )
 {
     ssize_t sent;
     meta_t * cl = meta;
@@ -386,9 +386,9 @@ status ssl_load_ctx_certificate( SSL_CTX ** ctx, int flag )
     return OK;
 }
 
-status ssl_create_connection( connection_t * c, uint32 flag )
+status ssl_create_connection( con_t * c, uint32 flag )
 {
-    ssl_connection_t * sslcon = NULL;
+    ssl_con_t * sslcon = NULL;
     
     if ( (flag != L_SSL_CLIENT) && (flag != L_SSL_SERVER) ) {
         err("ssl create con flag not support\n");
@@ -396,7 +396,7 @@ status ssl_create_connection( connection_t * c, uint32 flag )
     }
     
     do {
-        sslcon = mem_pool_alloc( sizeof(ssl_connection_t) );
+        sslcon = mem_pool_alloc( sizeof(ssl_con_t) );
         if( !sslcon ) {
             err("ssl create con alloc sslcon failed, [%d]\n", errno );
             return ERROR;

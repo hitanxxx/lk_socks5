@@ -77,7 +77,7 @@ status net_socket_check_status( int32 fd )
     return OK;
 }
 
-status net_check_ssl_valid( connection_t * c )
+status net_check_ssl_valid( con_t * c )
 {
     ssize_t n = 0;
     unsigned char buf = 0;
@@ -97,13 +97,10 @@ status net_check_ssl_valid( connection_t * c )
     return OK;
 }
 
-status net_connect( connection_t * c, struct sockaddr_in * addr )
+status net_connect( con_t * c, struct sockaddr_in * addr )
 {
     status rc = 0;
     int ret = ERROR;
-    
-    // copy s5 server addr to connection's addr
-    memcpy( &c->addr, addr, sizeof(struct sockaddr_in) );
     
     c->fd = socket( AF_INET, SOCK_STREAM , 0 );
     do {
@@ -161,7 +158,7 @@ status net_accept( event_t * ev )
 
     listen_t * listen = ev->data;
     int32 c_fd;
-    connection_t * c;
+    con_t * c;
     socklen_t len = sizeof( struct sockaddr_in );
     
     while( 1 )  {
@@ -213,7 +210,7 @@ status net_accept( event_t * ev )
         c->send = sends;
         c->recv_chain = NULL;
         c->send_chain = send_chains;
-        c->ssl_flag = (listen->fssl) ? 1 : 0;
+        c->fssl = (listen->fssl) ? 1 : 0;
 
         c->event->read_pt = listen->handler;
         c->event->write_pt = NULL;
@@ -227,7 +224,7 @@ status net_accept( event_t * ev )
 
 static status net_free_cb( event_t * ev )
 {
-    connection_t * c = ev->data;
+    con_t * c = ev->data;
     
     if( c->event ) {
         event_free( ev );
@@ -251,7 +248,7 @@ static status net_free_cb( event_t * ev )
     memset( &c->addr, 0, sizeof(struct sockaddr_in) );
 
     c->ssl             = NULL;
-    c->ssl_flag     = 0;
+    c->fssl     = 0;
     
     c->send            = NULL;
     c->send_chain    = NULL;
@@ -264,7 +261,7 @@ static status net_free_cb( event_t * ev )
 
 void net_free_ssl_timeout( void * data )
 {
-    connection_t * c = data;
+    con_t * c = data;
 
     if( AGAIN == ssl_shutdown( c->ssl ) ) {
         c->ssl->cb = net_free_cb;
@@ -278,11 +275,11 @@ void net_free_ssl_timeout( void * data )
     c->event->read_pt( c->event );
 }
 
-status net_free( connection_t * c )
+status net_free( con_t * c )
 {
     sys_assert(c!=NULL);
 
-    if( c->ssl && c->ssl_flag ) {
+    if( c->ssl && c->fssl ) {
         if( AGAIN == ssl_shutdown( c->ssl ) ) {
             c->ssl->cb = net_free_cb;
             timer_set_data( &c->event->timer, c );
@@ -297,9 +294,9 @@ status net_free( connection_t * c )
     return c->event->read_pt( c->event );
 }
 
-status net_alloc( connection_t ** c )
+status net_alloc( con_t ** c )
 {
-    connection_t * nc = mem_pool_alloc( sizeof(connection_t) );
+    con_t * nc = mem_pool_alloc( sizeof(con_t) );
     if(!nc) {
         err("net alloc nc failed\n");
         return ERROR;
@@ -319,7 +316,7 @@ status net_alloc( connection_t ** c )
 
 void net_timeout( void * data )
 {
-    net_free( (connection_t *)data );
+    net_free( (con_t *)data );
 }
 
 
