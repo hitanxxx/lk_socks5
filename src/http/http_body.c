@@ -46,7 +46,11 @@ status http_body_free( http_body_t * bd )
 
     // todo: free the metalist for stroge chunk raw data
     bd->chunk_meta = NULL;
-    
+
+    if(bd->body_dump) {
+        meta_free(bd->body_dump);
+        bd->body_dump = NULL;
+    }
     mem_pool_free(bd);
     return OK;
 }
@@ -257,7 +261,7 @@ static status http_body_content( http_body_t * bd )
     }
 }
 
-status http_body_dump( http_body_t * bd, meta_t ** dumpmeta )
+status http_body_dump( http_body_t * bd )
 {
     if( bd->body_len <= 0 ) {
         return ERROR;
@@ -285,7 +289,7 @@ status http_body_dump( http_body_t * bd, meta_t ** dumpmeta )
         err("meta datan [%d] != bodylen [%d]\n", meta->last - meta->pos, bd->body_len );
         return ERROR;
     } else {
-            *dumpmeta = meta;
+        bd->body_dump = meta;
         return OK;
     }
 }

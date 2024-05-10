@@ -13,39 +13,38 @@ typedef struct http_body http_body_t;
 typedef status ( *http_body_cb ) ( http_body_t * bd );
 struct http_body 
 {
-    queue_t                 queue;
-    con_t            *c;
-    uint32                  state;
-    http_body_cb    		cb;
+    queue_t  queue;
+    con_t  *c;
+    uint32 state;
+    http_body_cb cb;
 
-    /// [IN] data.
+    ///[IN]data.
 	uint32 body_type;		/// body is content or chunk 
 	uint32 body_cache;		/// body cache or not save (just recvd)
 
-    /// [PRIVATE] data
-    /// storge content info
+    ///[PRIVATE]content
     int content_len;
 	int	content_recvd;
-	
-    /// storge chunk hex value 
+    	
+    ///[PRIVATE]chunk
 	unsigned char hex_str[ENTITY_BODY_CHUNKED_PART_HEX_STR_LENGTH];
 	uint32 hex_len;
-
-    /// storge chunk body data (not convert to raw data yet)
 	unsigned char * chunk_pos;
     uint32 chunk_part_cur;
     uint32 chunk_part_len;
 	meta_t* chunk_meta;
 
-    /// [OUT] data.
+    ///[OUT] data.
 	status body_status;	/// body recv status (finish or not)
-    /// storge final body data
+    ///storge final body data
 	meta_t * body_head;
 	meta_t * body_last;
 	uint32 body_len;
+
+    meta_t * body_dump;
 };
 
-status http_body_dump( http_body_t * bd, meta_t ** dumpmeta );
+status http_body_dump( http_body_t * bd);
 status http_body_create( con_t * c, http_body_t ** body, int discard );
 status http_body_free( http_body_t * bd );
 status http_body_init_module( void );

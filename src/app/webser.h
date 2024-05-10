@@ -46,17 +46,24 @@ typedef struct {
     int             http_rsp_bodyn;
     meta_t *        http_rsp_body_meta;
     mem_list_t *    http_rsp_body_list;
-    
+
     int             http_rsp_code;
     char *          http_rsp_mime;	
 } webser_t;
 
 
+void webser_timeout_cycle( void * data );
+status webser_free( webser_t * webser );
 
-void webser_rsp_body_push_str( webser_t * webser, char * str );
+status webser_rsp_send( event_t * ev );
+
+void webser_rsp_body_push( webser_t * webser, const char * str, ... );
+status webser_req_body_proc( webser_t * web );
+status webser_rsp_body_dump( webser_t *webser);
+status webser_req_header_dump( webser_t * webser, int http_code );
+
 void webser_rsp_mime(webser_t *webser, char *mimetype);
 
-status webser_req_body_wait( event_t * ev );
 
 status webser_init(void);
 status webser_end(void);

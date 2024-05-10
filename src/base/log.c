@@ -10,9 +10,9 @@ typedef struct
 log_mgr_t * log_ctx = NULL;
 
 static string_t levels[] = {
-    string("[ERR]"),
-    string("[DBG]"),
-    string("[PRI]")
+    string("[error]"),
+    string("[debug]"),
+    string("[info]")
 };
 
 static status log_format_time( log_content_t * ctx )
@@ -119,7 +119,7 @@ status log_init( void )
             err("malloc log ctx failed. [%d]\n", errno );
             break;
         }
-
+        ///O_APPEND make write is atomic operation
         log_ctx->log_fd_main = open( S5_PATH_LOG_FILE_MAIN, O_CREAT|O_RDWR|O_APPEND, 0644 );
         if( log_ctx->log_fd_main <= 0 ) {
             err( "open logfile [%s] failed, [%d]\n", S5_PATH_LOG_FILE_MAIN, errno );
