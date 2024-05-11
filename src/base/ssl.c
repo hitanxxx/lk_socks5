@@ -44,10 +44,13 @@ status ssl_shutdown_handler( event_t * ev )
 {
     con_t * c = ev->data;
     ssl_handshake_pt  callback = c->ssl->cb;
-    
-    if( ssl_shutdown( c->ssl ) == AGAIN ) {
+
+    int rc = ssl_shutdown(c->ssl);
+    if(rc == AGAIN) {
         timer_add( &ev->timer, L_SSL_TIMEOUT );
         return AGAIN;
+    } else if (rc == ERROR) {
+        return ERROR;
     }
     
     if( c->ssl->cache_ev_type ) {
@@ -61,60 +64,48 @@ status ssl_shutdown( ssl_con_t * ssl )
 {
     int32 n, sslerr = 0;
     con_t * c = ssl->data;
-    int mode = 0;
+    int mode = SSL_get_shutdown(c->ssl->con);
     
     if( SSL_in_init( c->ssl->con ) ) {
-        SSL_free( c->ssl->con );
-        mem_pool_free( c->ssl );
-        c->ssl = NULL;
-        c->fssl = 0;
         return OK;
-    }
-    
-    if( c->event->timer.f_timeout ) {
-        mode = SSL_RECEIVED_SHUTDOWN|SSL_SENT_SHUTDOWN;
-        SSL_set_quiet_shutdown(c->ssl->con, 1);
-    } else {
-        mode = SSL_get_shutdown(c->ssl->con);
-        mode |= SSL_RECEIVED_SHUTDOWN;
-        mode |= SSL_SENT_SHUTDOWN;
     }
     
     SSL_set_shutdown(c->ssl->con, mode);
     ssl_clear_error();
 
-    n = SSL_shutdown( c->ssl->con );
-    if( n != 1 && ERR_peek_error() ) {
+    int try = 0;
+    for( try = 0; try < 2; try ++ ) {
+        n = SSL_shutdown( c->ssl->con );
+        if(n == 1) {
+            return OK;
+        }
+        if(n == 0 && try == 0) {
+            continue;
+        }
+
         sslerr = SSL_get_error(c->ssl->con, n );
-    }
-    if( n == 1 || sslerr == 0 || sslerr == SSL_ERROR_ZERO_RETURN ) {
-        SSL_free( c->ssl->con );
-        mem_pool_free( c->ssl );
-        c->ssl      = NULL;
-        c->fssl = 0;
-        return OK;
-    }
-    
-    if( sslerr == SSL_ERROR_WANT_READ ) {
-        if( 0 == ssl->cache_ev_type ) {
-            ssl->cache_ev_type = c->event->opt;
+        if( sslerr == SSL_ERROR_WANT_READ ) {
+            if( 0 == ssl->cache_ev_type ) {
+                ssl->cache_ev_type = c->event->opt;
+            }
+            event_opt( c->event, c->fd, EV_R );
+            c->event->read_pt	= ssl_shutdown_handler;
+            return AGAIN;
+        } else if ( sslerr == SSL_ERROR_WANT_WRITE ) {
+            if( 0 == ssl->cache_ev_type ) {
+                ssl->cache_ev_type = c->event->opt;
+            }
+            event_opt( c->event, c->fd, EV_W );
+            c->event->write_pt	= ssl_shutdown_handler;
+            return AGAIN;
         }
-        event_opt( c->event, c->fd, EV_R );
-        c->event->read_pt	= ssl_shutdown_handler;
-        return AGAIN;
-    } else if ( sslerr == SSL_ERROR_WANT_WRITE ) {
-        if( 0 == ssl->cache_ev_type ) {
-            ssl->cache_ev_type = c->event->opt;
+
+        if(sslerr == SSL_ERROR_ZERO_RETURN || ERR_peek_error() == 0) {
+            return OK;
         }
-        event_opt( c->event, c->fd, EV_W );
-        c->event->write_pt	= ssl_shutdown_handler;
-        return AGAIN;
     }
-    
-    SSL_free( c->ssl->con );
-    mem_pool_free( c->ssl );
-    c->ssl = NULL;
-    c->fssl = 0;
+
+    err("ssl shutdown error. [%s]\n", ERR_error_string( ERR_get_error(), g_ssl_ctx->g_err_msg ) );
     ssl_record_error(sslerr);
     return ERROR;
 }
@@ -123,10 +114,13 @@ status ssl_shutdown( ssl_con_t * ssl )
 static status ssl_handshake_handler( event_t * ev )
 {
     con_t * c = ev->data;
-    
-    if( ssl_handshake( c->ssl ) == AGAIN ) {
+
+    int rc = ssl_handshake(c->ssl);
+    if(rc == AGAIN) {
         timer_add( &ev->timer, L_SSL_TIMEOUT );
         return AGAIN;
+    } else if (rc == ERROR) {
+        return ERROR;
     }
     
     if( c->ssl->cache_ev_type ) {

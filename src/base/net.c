@@ -243,17 +243,21 @@ static status net_free_cb( event_t * ev )
         close( c->fd );
         c->fd = 0;
     }
-    c->con_type        = 0;
-    c->data         = NULL;
+    c->con_type = 0;
+    c->data = NULL;
     memset( &c->addr, 0, sizeof(struct sockaddr_in) );
 
-    c->ssl             = NULL;
-    c->fssl     = 0;
+    if(c->ssl && c->fssl) {
+        SSL_free( c->ssl->con );
+        mem_pool_free( c->ssl );
+        c->ssl = NULL;
+        c->fssl = 0;
+    }
     
-    c->send            = NULL;
-    c->send_chain    = NULL;
-    c->recv            = NULL;
-    c->recv_chain    = NULL;
+    c->send = NULL;
+    c->send_chain = NULL;
+    c->recv = NULL;
+    c->recv_chain = NULL;
 
     mem_pool_free(c);
     return OK;

@@ -14,7 +14,7 @@ ssize_t recvs( con_t * c, unsigned char * buffer, uint32 len )
         rc = recv( c->fd, buffer, len, 0 );
         if( rc <= 0 ) {
             if( rc == 0 ) {
-                err("closed by peer\n");
+                err("recv 0. closed by peer\n");
                 return ERROR;
             } else {
                 if( (errno == EAGAIN) || (errno == EWOULDBLOCK) ) {
@@ -22,7 +22,7 @@ ssize_t recvs( con_t * c, unsigned char * buffer, uint32 len )
                 } else if ( errno == EINTR ) {
                     continue;
                 } else {
-                    err("errno [%d] [%s]\n", errno, strerror(errno) );
+                    err("rec errno. [%d] [%s]\n", errno, strerror(errno) );
                     return ERROR;
                 }
             }
@@ -30,7 +30,6 @@ ssize_t recvs( con_t * c, unsigned char * buffer, uint32 len )
         return rc;
     };
 }
-
 
 
 ssize_t sends( con_t * c, unsigned char * buffer, uint32 len )
@@ -49,7 +48,7 @@ ssize_t sends( con_t * c, unsigned char * buffer, uint32 len )
             } else if ( errno == EINTR ) {
                 continue;
             } else {
-                err("errno [%d] [%s]\n", errno, strerror(errno) );
+                err("send errno. [%d] [%s]\n", errno, strerror(errno) );
                 return ERROR;
             }
         }
