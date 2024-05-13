@@ -267,15 +267,18 @@ void net_free_ssl_timeout( void * data )
 {
     con_t * c = data;
 
-    if( AGAIN == ssl_shutdown( c->ssl ) ) {
-        c->ssl->cb = net_free_cb;
-        timer_set_data( &c->event->timer, c );
-        timer_set_pt( &c->event->timer, net_free_ssl_timeout );
-        timer_add( &c->event->timer, L_NET_TIMEOUT );
-        return;
+    if(c->ssl) {
+        if( AGAIN == ssl_shutdown( c->ssl ) ) {
+            c->ssl->cb = net_free_cb;
+            timer_set_data( &c->event->timer, c );
+            timer_set_pt( &c->event->timer, net_free_ssl_timeout );
+            timer_add( &c->event->timer, L_NET_TIMEOUT );
+            return;
+        }
     }
-    c->event->write_pt  = NULL;
-    c->event->read_pt   = net_free_cb;
+        
+    c->event->write_pt = NULL;
+    c->event->read_pt = net_free_cb;
     c->event->read_pt( c->event );
 }
 
@@ -284,7 +287,8 @@ status net_free( con_t * c )
     sys_assert(c!=NULL);
 
     if( c->ssl && c->fssl ) {
-        if( AGAIN == ssl_shutdown( c->ssl ) ) {
+        int rc = ssl_shutdown(c->ssl);
+        if(rc == AGAIN) {
             c->ssl->cb = net_free_cb;
             timer_set_data( &c->event->timer, c );
             timer_set_pt( &c->event->timer, net_free_ssl_timeout );
@@ -292,7 +296,7 @@ status net_free( con_t * c )
             return AGAIN;
         }
     }
-    
+    /// ERROR and OK all do this
     c->event->write_pt = NULL;
     c->event->read_pt = net_free_cb;
     return c->event->read_pt( c->event );

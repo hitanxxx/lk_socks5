@@ -11,19 +11,21 @@ extern "C"
 #define L_SSL_CLIENT        0x01
 #define L_SSL_SERVER        0x02
 
-typedef struct ssl_con_t ssl_con_t;
-typedef status ( * ssl_handshake_pt )( event_t * ev );
-struct ssl_con_t {
-    SSL_CTX	*           session_ctx;
-    SSL*                con;
-    
-    ssl_handshake_pt    cb;
-    void *              data;
-    int   			    cache_ev_type;
-    event_pt            cache_ev_handler;
 
-	char    handshaked:1;
-};
+typedef status ( * ssl_layer_done_pt )( event_t * ev );
+typedef struct {
+    SSL_CTX	* session_ctx;
+    SSL* con;
+    
+    void * data;
+    int cache_ev_typ;
+    event_pt cache_ev_readpt;
+    event_pt cache_ev_writept;
+    ssl_layer_done_pt cb;
+    
+	char    f_handshaked:1;
+    char    f_shutdown_send:1;  ///initiative shutdown
+} ssl_con_t;
 
 status ssl_init( void );
 status ssl_end( void );
@@ -44,8 +46,6 @@ status ssl_conf_set_key ( string_t * value );
 
 status ssl_load_ctx_certificate( SSL_CTX ** ctx, int flag );
 status ssl_load_con_certificate( SSL_CTX * ctx, int flag, SSL ** ssl );
-
-void ssl_record_error( int sslerr );
 
 #ifdef __cplusplus
 }

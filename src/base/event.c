@@ -258,7 +258,6 @@ status event_select_run( time_t msec )
                 g_event_ctx->ev_arr_accept[g_event_ctx->ev_arr_acceptn++] = pev;
                 pev->f_read = 1;
                 actn ++; 
-                dbg("listen act\n");
             }
         }
         p = p->next;

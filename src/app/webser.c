@@ -794,7 +794,7 @@ static status webser_accept_cb_ssl_check( event_t * ev )
 {
     con_t * c = ev->data;
 
-    if( !c->ssl->handshaked ) {
+    if( !c->ssl->f_handshaked ) {
         err("webser handshake failed\n");
         net_free( c );
         return ERROR;
@@ -821,42 +821,40 @@ static status webser_accept_cb_ssl_check( event_t * ev )
 status webser_accept_cb_ssl( event_t * ev )
 {
     con_t * c = ev->data;
-    status rc = 0;
 
-    do {
-        rc = net_check_ssl_valid(c);
-        if( OK != rc ) {
-            if( AGAIN == rc ) {
-                timer_set_data( &ev->timer, c );
-                timer_set_pt( &ev->timer, webser_timeout_con );
-                timer_add( &ev->timer, WEBSER_TIMEOUT );
-                return AGAIN;
-            }
-            err("webser check net ssl failed\n");
-            break;
+    int rc = net_check_ssl_valid(c);
+    if(rc<0) {
+        if(rc==AGAIN) {
+            timer_set_data( &ev->timer, c );
+            timer_set_pt( &ev->timer, webser_timeout_con );
+            timer_add( &ev->timer, WEBSER_TIMEOUT );
+            return AGAIN;
         }
-        
-        if( OK != ssl_create_connection( c, L_SSL_SERVER ) ) {
-            err("webser ssl con create failed\n");
-            break;
-        }
-        rc = ssl_handshake( c->ssl );
-        if( rc < 0 ) {
-            if( rc == ERROR ) {
-                err("webser ssl handshake failed\n");
-                break;
-            }
+        err("webser check net ssl failed\n");
+        net_free(c);
+        return ERROR;
+    }
+
+    if( OK != ssl_create_connection( c, L_SSL_SERVER ) ) {
+        err("webser ssl con create failed\n");
+        net_free(c);
+        return ERROR;
+    }
+
+    rc = ssl_handshake( c->ssl );
+    if(rc<0) {
+        if(rc==AGAIN) {
             c->ssl->cb = webser_accept_cb_ssl_check;
             timer_set_data( &ev->timer, c );
             timer_set_pt( &ev->timer, webser_timeout_con );
             timer_add( &ev->timer, WEBSER_TIMEOUT );
             return AGAIN;
         }
-        return webser_accept_cb_ssl_check( ev );
-    } while(0);
-
-    net_free( c );
-    return ERROR;
+        err("webser ssl handshake failed\n");
+        net_free(c);
+        return ERROR;
+    }
+    return webser_accept_cb_ssl_check( ev );
 }
 
 status webser_accept_cb( event_t * ev )

@@ -39,7 +39,7 @@ static status s5_local_auth_build( event_t * ev )
     meta_t * meta = s5->up->meta;
 
     s5_auth_t * auth = NULL;
-    
+
     /// fill in s5_auth_t
     meta->pos = meta->last = meta->start;
     auth = (s5_auth_t*)meta->last;
@@ -80,8 +80,8 @@ static status s5_local_up_connect_ssl( event_t * ev )
     con_t* up = ev->data;
     socks5_cycle_t * cycle = up->data;
 
-    if( !up->ssl->handshaked ) {
-        err("s5 local connect to s5 server failed. ssl handshake error\n" );
+    if( !up->ssl->f_handshaked ) {
+        err("s5 local to s5 server. ssl handshake err\n" );
         s5_free( cycle );
         return ERROR;
     }
@@ -99,49 +99,45 @@ static status s5_local_up_connect_ssl( event_t * ev )
 static status s5_local_up_connect_check( event_t * ev )
 {
     con_t* up = ev->data;
-    socks5_cycle_t * cycle = up->data;
+    socks5_cycle_t * s5 = up->data;
     status rc;
 
-    do {
-        if( OK != net_socket_check_status( up->fd ) ) {
-            err("s5 local connect check status failed\n");
-            break;
-        }
-        timer_del( &ev->timer );
-        net_socket_nodelay( up->fd );
+    timer_del( &ev->timer );
+    net_socket_nodelay( up->fd );
+    
+    if( OK != net_socket_check_status( up->fd ) ) {
+        err("s5 local connect check status failed\n");
+        s5_free(s5);
+        return ERROR;
+    }
 
-
-        /// must use ssl connect s5 server !!!
-        /// use a ezswtich in here   
-        up->fssl = 1;
+    up->fssl = 1;
 #ifndef S5_OVER_TLS
-        up->fssl = 0;
-#endif
-        if( up->fssl ) {
-            if( OK != ssl_create_connection( up, L_SSL_CLIENT ) ) {
-                err("s5 local create ssl connection for up failed\n");
-                break;
-            }
-            rc = ssl_handshake( up->ssl );
-            if( rc < 0 ) {
-                if( rc != AGAIN ) {
-                    err("s5 local ssl handshake failed\n");
-                    break;
-                }
+    up->fssl = 0;
+#endif    
+    if( up->fssl ) {
+        if( OK != ssl_create_connection( up, L_SSL_CLIENT ) ) {
+            err("s5 local create ssl connection for up failed\n");
+            s5_free(s5);
+            return ERROR;
+        }
+        rc = ssl_handshake( up->ssl );
+        if(rc<0) {
+            if(rc==AGAIN) {
                 up->ssl->cb = s5_local_up_connect_ssl;
-                timer_set_data( &ev->timer, cycle );
+                timer_set_data( &ev->timer, s5 );
                 timer_set_pt( &ev->timer, s5_timeout_cb );
                 timer_add( &ev->timer, S5_TIMEOUT );
                 return AGAIN;
             }
-            return s5_local_up_connect_ssl( ev );
+            err("s5 local ssl handshake failed\n");
+            s5_free(s5);
+            return ERROR;
         }
-        ev->write_pt = s5_local_auth_build;
-        return ev->write_pt( ev );
-    } while(0);
-
-    s5_free( cycle );
-    return ERROR;
+        return s5_local_up_connect_ssl( ev );
+    }
+    ev->write_pt = s5_local_auth_build;
+    return ev->write_pt( ev );
 }
 
 static status s5_local_down_recv( event_t * ev )
@@ -153,7 +149,6 @@ static status s5_local_down_recv( event_t * ev )
     int readn = 0;
 
     while( 1 ) {
-
         /// check meta remain space
         if( meta->end <= meta->last ) {
             err("s5 local down recv cache data too much\n");
@@ -163,16 +158,16 @@ static status s5_local_down_recv( event_t * ev )
 
         /// cache read data
         readn = down->recv( down, meta->last, meta->end - meta->last );
-        if( readn < 0 ) {
-            if( readn == ERROR ) {
-                err("s5 local down recv failed\n");
-                s5_free(s5);
-                return ERROR;
+        if(readn<0) {
+            if(readn==AGAIN) {
+                timer_set_data( &s5->up->event->timer, s5 );
+                timer_set_pt( &s5->up->event->timer, s5_timeout_cb );
+                timer_add( &s5->up->event->timer, S5_TIMEOUT );
+                return AGAIN;
             }
-            timer_set_data( &s5->up->event->timer, s5 );
-            timer_set_pt( &s5->up->event->timer, s5_timeout_cb );
-            timer_add( &s5->up->event->timer, S5_TIMEOUT );
-            return AGAIN;
+            err("s5 local down recv failed\n");
+            s5_free(s5);
+            return ERROR;
         }
         meta->last += readn;
     }
@@ -182,53 +177,50 @@ status s5_local_accept_cb( event_t * ev )
 {
     con_t * down = ev->data;
     socks5_cycle_t * s5 = NULL;
-    status rc;
 
     down->event->read_pt = s5_local_down_recv;
     down->event->write_pt = NULL;
     event_opt( down->event, down->fd, EV_R );
 
-    do {
-        /// alloc down mem and meta
-        if(!down->meta) {
-            if(OK != meta_alloc( &down->meta, 8192 )) {
-                err("s5 local alloc down meta failed\n");
-                net_free(down);
-                return ERROR;
-            }
-         }
-        
-        /// alloc up and goto connect
-        if( OK != s5_alloc( &s5 ) ) {
-            err("s5 cycle alloc failed\n");
-            net_free( down );
+    /// alloc down mem and meta
+    if(!down->meta) {
+        if(OK != meta_alloc( &down->meta, 8192 )) {
+            err("s5 local alloc down meta failed\n");
+            net_free(down);
             return ERROR;
         }
-        s5->typ = SOCKS5_CLIENT;
-        s5->down = down;
-        down->data = s5;
-        
-        if( OK != net_alloc( &s5->up ) ) {
-            err("s5 up alloc failed\n");
-            break;
-        }
-        s5->up->data = s5;
-        if( !s5->up->meta ) {
-            if( OK != meta_alloc( &s5->up->meta, 8192 ) ) {
-                err("s5 up meta alloc failed\n");
-                break;
-            }
-        }
+    }
+    
+    if( OK != s5_alloc(&s5) ) {
+        err("s5 cycle alloc failed\n");
+        net_free( down );
+        return ERROR;
+    }
+    s5->typ = SOCKS5_CLIENT;
+    s5->down = down;
+    down->data = s5;
 
-        s5_local_up_addr_get( &s5->up->addr );
-        rc = net_connect( s5->up, &s5->up->addr );
-        if( rc == ERROR ) {
-            err("cycle up connect failed\n");
-            break;
+    if( OK != net_alloc( &s5->up ) ) {
+        err("s5 up alloc failed\n");
+        s5_free(s5);
+        return ERROR;
+    }
+    s5->up->data = s5;
+    if( !s5->up->meta ) {
+        if( OK != meta_alloc( &s5->up->meta, 8192 ) ) {
+            err("s5 up meta alloc failed\n");
+            s5_free(s5);
+            return ERROR;
         }
-        s5->up->event->read_pt	= NULL;
-        s5->up->event->write_pt	= s5_local_up_connect_check;
-        if( rc == AGAIN ) {
+    }
+    s5_local_up_addr_get( &s5->up->addr );
+
+    s5->up->event->read_pt	= NULL;
+    s5->up->event->write_pt	= s5_local_up_connect_check;
+        
+    int rc = net_connect( s5->up, &s5->up->addr );
+    if(rc<0) {
+        if(rc == AGAIN) {
             if( s5->up->event->opt != EV_W ) {
                 event_opt( s5->up->event, s5->up->fd, EV_W );
             }
@@ -237,11 +229,11 @@ status s5_local_accept_cb( event_t * ev )
             timer_add( &s5->up->event->timer, S5_TIMEOUT );
             return AGAIN;
         }
-        return s5->up->event->write_pt( s5->up->event );
-    } while(0);
-
-    s5_free( s5 );
-    return ERROR;
+        err("cycle up connect failed\n");
+        s5_free(s5);
+        return ERROR;
+    }
+    return s5->up->event->write_pt( s5->up->event );
 }
 
 status socks5_local_init( void )

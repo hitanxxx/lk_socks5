@@ -859,25 +859,23 @@ static status s5_server_rfc_phase1_recv( event_t * ev )
 
 static status s5_server_auth_recv( event_t * ev )
 {
-    /// porcess the private authroization between local and server  
     con_t * down = ev->data;
     socks5_cycle_t * s5 = down->data;
     ssize_t rc = 0;
     meta_t * meta = down->meta;
     
-    /// at least recv ad s5 auth header. then goto check the header
     while( ( meta->last - meta->pos ) < sizeof(s5_auth_t) ) {
         rc = down->recv( down, meta->last, meta->end - meta->last );
-        if( rc < 0 ) {
-            if( ERROR == rc ) {
-                err("s5 server authorizaton check header recv failed\n");
-                s5_free(s5);
-                return ERROR;
+        if(rc<0) {
+            if(rc==AGAIN) {
+                timer_set_data( &ev->timer, s5 );
+                timer_set_pt(&ev->timer, s5_timeout_cb );
+                timer_add( &ev->timer, S5_TIMEOUT );
+                return AGAIN;
             }
-            timer_set_data( &ev->timer, s5 );
-            timer_set_pt(&ev->timer, s5_timeout_cb );
-            timer_add( &ev->timer, S5_TIMEOUT );
-            return AGAIN;
+            err("s5 server auth recv failed\n");
+            s5_free(s5);
+            return ERROR;
         }
 #ifndef S5_OVER_TLS
         if( rc != sys_cipher_conv( s5->cipher_dec, meta->last, rc ) ) {
@@ -892,18 +890,19 @@ static status s5_server_auth_recv( event_t * ev )
 
     s5_auth_t * auth = (s5_auth_t*)meta->pos;
     if( ntohl( auth->magic ) != S5_AUTH_LOCAL_MAGIC ) {
-        err("s5 pri, magic [0x%x] incorrect, should be S5_AUTH_LOCAL_MAGIC [0x%x]\n", auth->magic, S5_AUTH_LOCAL_MAGIC );
-        s5_free( s5 );
-        return ERROR;
-    }
-    if( NULL == ezhash_find( g_s5_ctx->auth_hash, (char*)auth->key ) ) {
-        err("s5 auth find auth key failed. not found\n");
+        err("s5 server. auth check. magic [0x%x] != [0x%x]\n", auth->magic, S5_AUTH_LOCAL_MAGIC );
         s5_free(s5);
         return ERROR;
     }
-    
-    meta->pos = meta->last = meta->start;/// clear meta
-    /// goto process rfc s5 phase1 
+    if( NULL == ezhash_find( g_s5_ctx->auth_hash, (char*)auth->key ) ) {
+        err("s5 server. auth check, auth key not found\n");
+        s5_free(s5);
+        return ERROR;
+    }
+
+    meta->pos = meta->start;
+    meta->last -= sizeof(s5_auth_t);
+
     ev->write_pt = NULL;
     ev->read_pt = s5_server_rfc_phase1_recv;
     event_opt( ev, down->fd, EV_R );
@@ -972,8 +971,8 @@ static status s5_server_accept_cb_check( event_t * ev )
 {
     con_t * down = ev->data;
 
-    if( !down->ssl->handshaked ) {
-        err(" downstream handshake error\n" );
+    if( !down->ssl->f_handshaked ) {
+        err("s5 server con handshake error\n" );
         net_free( down );
         return ERROR;
     }
@@ -992,48 +991,44 @@ static status s5_server_accept_cb_check( event_t * ev )
 status s5_server_accept_cb( event_t * ev )
 {
     con_t * down = ev->data;
-    status rc = 0;
-
+    
 #ifndef S5_OVER_TLS
     ev->read_pt = s5_server_start;
     return ev->read_pt( ev );
 #endif
-
-    /// s5 server use ssl connection force 
-    do {
-        rc = net_check_ssl_valid(down);
-        if( OK != rc ) {
-            if( AGAIN == rc ) {
-                timer_set_data( &ev->timer, down );
-                timer_set_pt( &ev->timer, net_timeout );
-                timer_add( &ev->timer, S5_TIMEOUT );
-                return AGAIN;
-            }
-            err("s5 server check net ssl failed\n");
-            break;
-        }
-        
-        if( OK != ssl_create_connection( down, L_SSL_SERVER ) ) {
-            err("s5 server down ssl create connection failed\n");
-            break;
-        }
-        rc = ssl_handshake( down->ssl );
-        if( rc < 0 ) {
-            if( ERROR == rc ) {
-                err("s5 server down ssl handshake failed\n");
-                break;
-            }
-            down->ssl->cb = s5_server_accept_cb_check;
+    int rc = net_check_ssl_valid(down);
+    if(rc<0) {
+        if(rc == AGAIN) {
             timer_set_data( &ev->timer, down );
             timer_set_pt( &ev->timer, net_timeout );
             timer_add( &ev->timer, S5_TIMEOUT );
             return AGAIN;
         }
-        return s5_server_accept_cb_check( ev );
-    } while(0);
+        err("s5 server ssl check failed\n");
+        net_free( down );
+        return ERROR;
+    }
 
-    net_free( down );
-    return ERROR;
+    if( OK != ssl_create_connection( down, L_SSL_SERVER ) ) {
+        err("s5 server down ssl con create failed\n");
+        net_free( down );
+        return ERROR;
+    }
+
+    rc = ssl_handshake(down->ssl);
+    if(rc<0) {
+        if(rc == AGAIN) {
+            down->ssl->cb = s5_server_accept_cb_check; ///!!!set cb is important
+            timer_set_data( &ev->timer, down );
+            timer_set_pt( &ev->timer, net_timeout );
+            timer_add( &ev->timer, S5_TIMEOUT );
+            return AGAIN;
+        }
+        err("s5 server ssl shandshake failed\n");
+        net_free( down );
+        return ERROR;
+    }
+    return s5_server_accept_cb_check( ev ); 
 }
 
 
