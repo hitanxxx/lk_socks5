@@ -48,10 +48,9 @@ status ssl_shutdown_handler( event_t * ev )
         timer_add( &ev->timer, L_SSL_TIMEOUT );
         return AGAIN;
     }
-    
-    if( c->ssl->cache_ev_typ ) {
-        event_opt( ev, c->fd, c->ssl->cache_ev_typ );
-        c->ssl->cache_ev_typ = 0;
+    if(c->ssl&&c->ssl->cache_ev_typ) {
+        event_opt(ev, c->fd, c->ssl->cache_ev_typ);
+        c->ssl->cache_ev_typ=0;
     }
     return (cb?(cb(c->event)):rc);
 }
@@ -91,11 +90,6 @@ status ssl_shutdown( ssl_con_t * ssl )
         }
     }
     ssl_dump_error(sslerr);
-    
-    SSL_free(c->ssl->con);
-    mem_pool_free(c->ssl);
-    c->ssl = NULL;
-    c->fssl = 0;
     return ERROR;
 }
 
@@ -103,26 +97,18 @@ status ssl_shutdown( ssl_con_t * ssl )
 static status ssl_handshake_handler( event_t * ev )
 {
     con_t * c = ev->data;
-
     timer_del( &ev->timer );
-    int rc = ssl_handshake(c->ssl);
-    if(rc<0) {
-        if(rc == AGAIN) {
-            timer_add( &ev->timer, L_SSL_TIMEOUT );
-            return AGAIN;
-        }
-        assert(c->event->timer.timeout_handler);
-        assert(c->event->timer.data);
-        c->event->timer.timeout_handler(c->event->timer.data);
-        return ERROR;
-    }
     
-    if( c->ssl->cache_ev_typ ) {
-        event_opt( ev, c->fd, c->ssl->cache_ev_typ );
+    int rc = ssl_handshake(c->ssl);
+    if(rc==AGAIN) {
+        timer_add( &ev->timer, L_SSL_TIMEOUT );
+        return AGAIN;
+    } 
+    if(c->ssl&&c->ssl->cache_ev_typ) {
+        event_opt(ev, c->fd, c->ssl->cache_ev_typ);
         c->ssl->cache_ev_typ = 0;
     }
-    assert(c->ssl->cb);
-    return c->ssl->cb( ev );
+    return (c->ssl->cb?c->ssl->cb(ev):rc);
 }
 
 status ssl_handshake( ssl_con_t * ssl )
@@ -152,18 +138,13 @@ status ssl_handshake( ssl_con_t * ssl )
         return AGAIN;
     }
     ssl_dump_error(sslerr);
-
-    SSL_free(c->ssl->con);
-    mem_pool_free(c->ssl);
-    c->ssl = NULL;
-    c->fssl = 0;
     return ERROR;
 }
 
 inline static status ssl_write_handler( event_t * ev)
 {
     con_t * c = ev->data;
-    if(c->ssl->cache_ev_writept) {
+    if(c->ssl&&c->ssl->cache_ev_writept) {
         c->event->write_pt = c->ssl->cache_ev_writept;
         c->ssl->cache_ev_writept = NULL;
     }
@@ -199,24 +180,18 @@ ssize_t ssl_read( con_t * c, unsigned char * start, uint32 len )
             event_opt(c->event, c->fd, EV_W);
         }
         return AGAIN;
-    } else if (sslerr == SSL_ERROR_ZERO_RETURN || ERR_peek_error() == 0) {
-        ///err("ssl read eof\n"); /// not clear ssl data, will be call shutdown again
-        ssl_dump_error(sslerr);
-        return ERROR; 
     }
+    ///if (sslerr == SSL_ERROR_ZERO_RETURN || ERR_peek_error() == 0) {
+    ///    err("ssl read eof\n"); ///eof form ssl peer(shutdown)
+    ///}
     ssl_dump_error(sslerr);
-
-    SSL_free(c->ssl->con);
-    mem_pool_free(c->ssl);
-    c->ssl = NULL;
-    c->fssl = 0;
     return ERROR;
 }
 
 static status ssl_read_handler( event_t * ev )
 {
     con_t * c = ev->data;
-    if(c->ssl->cache_ev_readpt) {
+    if(c->ssl&&c->ssl->cache_ev_readpt) {
         c->event->read_pt = c->ssl->cache_ev_readpt;
         c->ssl->cache_ev_readpt = NULL;
     }
@@ -255,11 +230,6 @@ ssize_t ssl_write( con_t * c, unsigned char * start, uint32 len )
         return AGAIN;
     }
     ssl_dump_error(sslerr);
-
-    SSL_free(c->ssl->con);
-    mem_pool_free(c->ssl);
-    c->ssl = NULL;
-    c->fssl = 0;
     return ERROR;
 }
 
