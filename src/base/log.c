@@ -33,10 +33,9 @@ static status log_format_text( log_content_t * ctx )
 {
     int32 len = 0;
 
-    len = snprintf( ctx->pos, meta_len( ctx->pos, ctx->last )-1, " %s", ctx->func );
+    len = snprintf( ctx->pos, meta_len( ctx->pos, ctx->last )-1, " <%s:%d> ", ctx->func,ctx->line );
     ctx->pos += len;
-    len = snprintf( ctx->pos, meta_len( ctx->pos, ctx->last )-1, ":%d ", ctx->line );
-    ctx->pos += len;
+
     len = vsnprintf( ctx->pos, meta_len( ctx->pos, ctx->last )-1, ctx->args, ctx->args_list );
     ctx->pos += len;
     return OK;

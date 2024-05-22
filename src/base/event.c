@@ -96,14 +96,14 @@ status event_epoll_run( time_t msec )
     if( act_num <= 0 ) {
         if( act_num < 0 ) {
             if( errno == EINTR ) {
-                err("evt epoll_wait interrupt by signal\n");
+                err("evt epoll_wait irq by [sig]\n");
                 return OK;
             }
-            err("evt epoll_wait failed, [%d] [%s]", errno, strerror(errno) );
+            err("evt epoll_wait irq by [err], [%d] [%s]", errno, strerror(errno) );
             return ERROR;
         } else {
-            /// msec -1 will not be timeout. can't return 0
-            return ( (msec == -1) ? ERROR : AGAIN );
+            ///msec -1 will not be timeout. can't return 0
+            return ((msec==-1)?ERROR:AGAIN);
         }
     }
 
@@ -201,8 +201,8 @@ status event_select_run( time_t msec )
 
     memset( &wait_tm, 0, sizeof(struct timeval) );
     if( msec > 0 ) {
-        wait_tm.tv_sec     = msec/1000;
-        wait_tm.tv_usec    = (msec%1000)*1000;
+        wait_tm.tv_sec = msec/1000;
+        wait_tm.tv_usec = (msec%1000)*1000;
     } else {
         wait_tm.tv_sec = 0;
         wait_tm.tv_usec = (200*1000);
@@ -238,10 +238,10 @@ status event_select_run( time_t msec )
     if( actall <= 0 ) {
         if( actall < 0 ) {
             if( errno == EINTR ) {
-                err("evt select interrupt by signal\n");
+                err("evt select irq by [sig]\n");
                 return OK;
             }
-            err("evt select failed, [%d] [%s]\n", errno, strerror(errno) );
+            err("evt select irq by [err], [%d] [%s]\n", errno, strerror(errno) );
             return ERROR;
         } else {
             /// msec -1 will not be timeout. can't return 0

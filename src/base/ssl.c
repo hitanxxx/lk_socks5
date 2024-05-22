@@ -41,27 +41,19 @@ status ssl_shutdown_handler( event_t * ev )
 {
     con_t * c = ev->data;
     ssl_layer_done_pt cb = c->ssl->cb;
-    assert(cb);
     timer_del( &ev->timer );
 
     int rc = ssl_shutdown(c->ssl);
-    if(rc<0) {
-        if(rc == AGAIN) {
-            timer_add( &ev->timer, L_SSL_TIMEOUT );
-            return AGAIN;
-        }
-        assert(c->event->timer.timeout_handler);
-        assert(c->event->timer.data);
-        c->event->timer.timeout_handler(c->event->timer.data);
-		err("timeout\n");
-        return ERROR;
+    if(rc==AGAIN) {
+        timer_add( &ev->timer, L_SSL_TIMEOUT );
+        return AGAIN;
     }
     
     if( c->ssl->cache_ev_typ ) {
         event_opt( ev, c->fd, c->ssl->cache_ev_typ );
         c->ssl->cache_ev_typ = 0;
     }
-    return cb( c->event );
+    return (cb?(cb(c->event)):rc);
 }
 
 status ssl_shutdown( ssl_con_t * ssl )
