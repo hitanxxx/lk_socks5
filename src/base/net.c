@@ -119,6 +119,9 @@ status net_connect( con_t * c, struct sockaddr_in * addr )
                 continue;
             } else if((errno == EAGAIN) || (errno == EALREADY) || (errno == EINPROGRESS)) {
                 c->fd = fd;
+		c->send = sends;
+                c->recv = recvs;
+                c->send_chain = send_chains;
                 return AGAIN;
             }
             err("connect failed, [%d]\n", errno );
