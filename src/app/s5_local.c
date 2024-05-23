@@ -89,7 +89,6 @@ static status s5_local_up_connect_ssl( event_t * ev )
     
     up->recv = ssl_read;
     up->send = ssl_write;
-    up->recv_chain = NULL;
     up->send_chain = ssl_write_chain;
 
     ev->write_pt = s5_local_auth_build;

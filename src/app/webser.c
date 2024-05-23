@@ -803,7 +803,6 @@ static status webser_accept_cb_ssl_check( event_t * ev )
 
     c->recv = ssl_read;
     c->send = ssl_write;
-    c->recv_chain = NULL;
     c->send_chain = ssl_write_chain;
 
     ev->write_pt = NULL;
@@ -823,7 +822,7 @@ status webser_accept_cb_ssl( event_t * ev )
     con_t * c = ev->data;
 
     int rc = net_check_ssl_valid(c);
-    if(rc<0) {
+    if(rc!=OK) {
         if(rc==AGAIN) {
             timer_set_data( &ev->timer, c );
             timer_set_pt( &ev->timer, webser_timeout_con );
@@ -834,7 +833,6 @@ status webser_accept_cb_ssl( event_t * ev )
         net_free(c);
         return ERROR;
     }
-
     if( OK != ssl_create_connection( c, L_SSL_SERVER ) ) {
         err("webser ssl con create failed\n");
         net_free(c);

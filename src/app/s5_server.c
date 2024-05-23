@@ -980,7 +980,6 @@ static status s5_server_accept_cb_check( event_t * ev )
 
     down->recv = ssl_read;
     down->send = ssl_write;
-    down->recv_chain = NULL;
     down->send_chain = ssl_write_chain;
 
     ev->read_pt = s5_server_start;
@@ -997,7 +996,7 @@ status s5_server_accept_cb( event_t * ev )
     return ev->read_pt( ev );
 #endif
     int rc = net_check_ssl_valid(down);
-    if(rc<0) {
+    if(rc!=OK) {
         if(rc == AGAIN) {
             timer_set_data( &ev->timer, down );
             timer_set_pt( &ev->timer, net_timeout );
@@ -1008,7 +1007,6 @@ status s5_server_accept_cb( event_t * ev )
         net_free( down );
         return ERROR;
     }
-
     if( OK != ssl_create_connection( down, L_SSL_SERVER ) ) {
         err("s5 server down ssl con create failed\n");
         net_free( down );

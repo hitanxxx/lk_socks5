@@ -46,23 +46,20 @@ static status listen_open( listen_t * lev )
             err("listen open listen socket failed\n");
             break;
         }
-        if( OK != net_socket_nbio( lev->fd ) )  {
+        if( OK != net_socket_nbio( lev->fd ) ) {
             err("listen set socket non blocking failed\n");
             break;
         }
         
-        if( OK != net_socket_reuseaddr( lev->fd ) )    {
+        if( OK != net_socket_reuseaddr( lev->fd ) ) {
             err("listen set socket reuseaddr failed\n" );
             break;
-        }
-        
-            
+        }  
         /*
             set reuseport flag, socket listen by all process.
             kernel will be process thundering herd 
         */
-        
-        if( OK != net_socket_reuseport( lev->fd ) )    {
+        if( OK != net_socket_reuseport( lev->fd ) ) {
             err("listen set socket reuseport failed\n" );
             break;
         }
@@ -70,11 +67,10 @@ static status listen_open( listen_t * lev )
             err("listen set socket fastopen failed\n" );
             break;
         }
-        if( OK != net_socket_nodelay( lev->fd ) ){
+        if( OK != net_socket_nodelay( lev->fd ) ) {
             err("listen set socket nodelay failed\n" );
             break;
         }
-        
         if( OK != bind( lev->fd, (struct sockaddr *)&lev->server_addr, sizeof(struct sockaddr) ) ) {
             err("listen bind failed, [%d]\n", errno );
             break;
@@ -124,7 +120,7 @@ status listen_init( void )
     }
     // s5 server listen
     if( config_get()->s5_mode == SOCKS5_SERVER ) {
-        listen_add( config_get()->s5_serv_port, s5_server_accept_cb, S5_SSL );  //// server ssl
+        listen_add( config_get()->s5_serv_port, s5_server_accept_cb, S5_SSL );      /// server ssl
     }
     // webserver listen
     for( i = 0; i < config_get()->http_num; i ++ ) {

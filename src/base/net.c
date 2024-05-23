@@ -8,9 +8,8 @@ status net_socket_nbio( int32 fd )
         err("fcntl get failed. [%d]\n", errno );
         return ERROR;
     }
-    int rc = fcntl( fd, F_SETFL, flags | O_NONBLOCK );
-    if( -1 == rc ) {
-        err("fcntl set nonblk failed. [%d]\n", errno );
+    if( -1 == fcntl( fd, F_SETFL, flags | O_NONBLOCK ) ) {
+        err("fcntl set non-blocking failed. [%d]\n", errno );
         return ERROR;
     } 
     return OK;
@@ -64,13 +63,9 @@ status net_socket_lowat_send( int32 fd )
 
 status net_socket_check_status( int32 fd )
 {
-    int    err = 0;
-    socklen_t  len = sizeof(int);
-
-    if (getsockopt( fd, SOL_SOCKET, SO_ERROR, (void *) &err, &len) == -1 ) {
-        err = errno;
-    }
-    if (err) {
+    int err = 0;
+    socklen_t errn = sizeof(int);
+    if (getsockopt( fd, SOL_SOCKET, SO_ERROR, (void *)&err, &errn) == -1) {
         err("socket get a error, %d\n", errno );
         return ERROR;
     }
@@ -79,15 +74,13 @@ status net_socket_check_status( int32 fd )
 
 status net_check_ssl_valid( con_t * c )
 {
-    ssize_t n = 0;
-    unsigned char buf = 0;
-    
-    n = recv( c->fd, (char*)&buf, 1, MSG_PEEK );
-    if( n <= 0 ) {
-        if( (n < 0) && ( (errno == AGAIN) || (errno == EWOULDBLOCK) ) ) {
+    unsigned char buf = 0;    
+    int n = recv(c->fd, (char*)&buf, 1, MSG_PEEK );
+    if(n<=0) {
+        if((n < 0) && ((errno == AGAIN)||(errno == EWOULDBLOCK)) ) {
             return AGAIN;
         }    
-        err("net check ssl recv failed, [%d: %s]\n", errno, strerror(errno) );
+        err("peek recv failed, <%d: %s>\n", errno, strerror(errno) );
         return ERROR;
     }
     /* 0x80:SSLv2  0x16:SSLv3/TLSv1 */
@@ -99,75 +92,59 @@ status net_check_ssl_valid( con_t * c )
 
 status net_connect( con_t * c, struct sockaddr_in * addr )
 {
-    status rc = 0;
-    int ret = ERROR;
-    
-    c->fd = socket( AF_INET, SOCK_STREAM , 0 );
-    do {
-        if( -1 == c->fd ) {
-            err("net connect open socket failed, [%d]\n", errno );
-            break;
-        }
-        if( OK != net_socket_reuseaddr( c->fd ) ) {
-            err("net connect net socket reuseaddr failed\n" );
-            break;
-        }
-        if( OK != net_socket_nbio( c->fd ) ) {
-            err("net connect set socket nonblock failed\n" );
-            break;
-        }
-        if( OK != net_socket_fastopen( c->fd ) ) {
-            err("net connect fastopen socket failed\n");
-        }
-        while(1) {
-            rc = connect( c->fd, (struct sockaddr*)&c->addr, sizeof(struct sockaddr_in) );
-            if( 0 == rc ) {
-                ret = OK;
-            } else {
-                if ( errno == EINTR ) {
-                    continue;
-                } else if ( (errno == EAGAIN) || (errno == EALREADY) || (errno == EINPROGRESS) ) {
-                    ret = AGAIN;
-                } else {
-                    err("net connect failed, [%d]\n", errno );
-                }
-            }
-            break;
-        }
-    } while(0);
-
-    if( ret == ERROR ) {
-        if( c->fd ) {
-            close(c->fd);
-            c->fd = 0;
-        }
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    if(fd==-1) {
+        err("socket open failed. [%d]\n", errno );
         return ERROR;
     }
-
-    c->con_type = TYPE_TCP;
-    c->send = sends;
-    c->recv = recvs;
-    c->send_chain = send_chains;
-    c->recv_chain = NULL;
-
-    return ret;    
+    if(OK!=net_socket_nbio(fd)) {
+        err("socket non-blocking failed. [%d]\n", errno );
+        close(fd);
+        return ERROR;
+    }
+    if(OK!=net_socket_reuseaddr(fd)) {
+        err("socket reuseaddr failed. [%d]\n", errno );
+        close(fd);
+        return ERROR;
+    }
+    if(OK!=net_socket_fastopen(fd)) {
+        err("socket fastopen failed. [%d]\n", errno );
+        close(fd);
+        return ERROR;
+    }
+    for(;;) {
+        int rc = connect(fd, (struct sockaddr*)&c->addr, sizeof(struct sockaddr_in));
+        if(rc!=0) {
+            if(errno==EINTR) { ///irq by signal
+                continue;
+            } else if((errno == EAGAIN) || (errno == EALREADY) || (errno == EINPROGRESS)) {
+                c->fd = fd;
+                return AGAIN;
+            }
+            err("connect failed, [%d]\n", errno );
+            close(fd);
+            return ERROR;
+        }
+        c->fd = fd;
+        c->send = sends;
+        c->recv = recvs;
+        c->send_chain = send_chains;
+        return OK;
+    }
 }
 
 status net_accept( event_t * ev )
 {
-
     listen_t * listen = ev->data;
-    int32 c_fd;
-    con_t * c;
-    socklen_t len = sizeof( struct sockaddr_in );
+    int32 cfd;
+    con_t * ccon;
+    struct sockaddr_in caddr;
+    socklen_t caddrn = sizeof(struct sockaddr_in);
     
-    while( 1 )  {
-        
-        struct sockaddr_in c_addr;
-        memset( &c_addr, 0, len );
-        c_fd = accept( listen->fd, (struct sockaddr *)&c_addr, &len );
-
-        if( -1 == c_fd ) {
+    for(;;) {
+        memset( &caddr,0x0,caddrn);
+        cfd = accept( listen->fd, (struct sockaddr *)&caddr, &caddrn );
+        if(-1 == cfd) {
             if( errno == EWOULDBLOCK ||
                 errno == EAGAIN ||
                 errno == EINTR ||
@@ -179,50 +156,46 @@ status net_accept( event_t * ev )
             err("accept failed, [%d]\n", errno );
             return ERROR;
         }
-        
-        if( ERROR == net_alloc( &c ) )  {
+        if( ERROR == net_alloc( &ccon ) )  {
             err("net alloc faield\n");
-            close( c_fd );
+            close(cfd);
             return ERROR;
         }
-        memcpy( &c->addr, &c_addr, len );
-        c->fd = c_fd;
-        if( OK != net_socket_nbio( c->fd ) )  {
-            err("socket set nonblock failed\n" );
-            net_free( c );
+        memcpy(&ccon->addr,&caddr,caddrn);
+        ccon->fd=cfd;
+        if( OK != net_socket_nbio( ccon->fd ) )  {
+            err("socket set nonblock failed\n");
+            net_free(ccon);
             return ERROR;
         }
-        if( OK != net_socket_nodelay( c->fd ) ) {
+        if( OK != net_socket_nodelay( ccon->fd ) ) {
             err("socket set nodelay failed\n");
-            net_free(c);
+            net_free(ccon);
             return ERROR;
         }
-        if( OK != net_socket_fastopen( c->fd ) ) {
+        if( OK != net_socket_fastopen( ccon->fd ) ) {
             err("socket set fastopen failed\n");
         }
-        if( OK != net_socket_lowat_send( c->fd ) ) {
+        if( OK != net_socket_lowat_send( ccon->fd ) ) {
             err("socket set lowat 0 failed\n");
             return ERROR;
         }
-        
-        c->con_type = TYPE_TCP;
-        c->recv = recvs;
-        c->send = sends;
-        c->recv_chain = NULL;
-        c->send_chain = send_chains;
-        c->fssl = (listen->fssl) ? 1 : 0;
+        ccon->recv = recvs;
+        ccon->send = sends;
+        ccon->send_chain = send_chains;
+        ccon->fssl = (listen->fssl)?1:0;
 
-        c->event->read_pt = listen->handler;
-        c->event->write_pt = NULL;
+        ccon->event->read_pt = listen->handler;
+        ccon->event->write_pt = NULL;
         
-        event_opt( c->event, c->fd, EV_R );
-        event_post_event( c->event );
+        event_opt( ccon->event, cfd, EV_R );
+        event_post_event( ccon->event );
     }
     return OK;
 }
 
 
-static status net_free_cb( event_t * ev )
+static status net_free_final( event_t * ev )
 {
     con_t * c = ev->data;
     
@@ -243,7 +216,6 @@ static status net_free_cb( event_t * ev )
         close( c->fd );
         c->fd = 0;
     }
-    c->con_type = 0;
     c->data = NULL;
     memset( &c->addr, 0, sizeof(struct sockaddr_in) );
 
@@ -257,7 +229,6 @@ static status net_free_cb( event_t * ev )
     c->send = NULL;
     c->send_chain = NULL;
     c->recv = NULL;
-    c->recv_chain = NULL;
 
     mem_pool_free(c);
     return OK;
@@ -266,50 +237,33 @@ static status net_free_cb( event_t * ev )
 void net_free_ssl_timeout( void * data )
 {
     con_t * c = data;
-
-    if(c->ssl) {
-        if( AGAIN == ssl_shutdown( c->ssl ) ) {
-            c->ssl->cb = net_free_cb;
-            timer_set_data( &c->event->timer, c );
-            timer_set_pt( &c->event->timer, net_free_ssl_timeout );
-            timer_add( &c->event->timer, L_NET_TIMEOUT );
-            return;
-        }
-    }
-        
-    c->event->write_pt = NULL;
-    c->event->read_pt = net_free_cb;
-    c->event->read_pt( c->event );
+    if(c->ssl) ssl_shutdown(c->ssl);
+    net_free_final(c->event);
 }
 
 status net_free( con_t * c )
 {
     sys_assert(c!=NULL);
-
     if( c->ssl && c->fssl ) {
         int rc = ssl_shutdown(c->ssl);
         if(rc == AGAIN) {
-            c->ssl->cb = net_free_cb;
+            c->ssl->cb = net_free_final;
             timer_set_data( &c->event->timer, c );
             timer_set_pt( &c->event->timer, net_free_ssl_timeout );
             timer_add( &c->event->timer, L_NET_TIMEOUT );
             return AGAIN;
         }
     }
-    /// ERROR and OK all do this
-    c->event->write_pt = NULL;
-    c->event->read_pt = net_free_cb;
-    return c->event->read_pt( c->event );
+    return net_free_final(c->event);   ///ERROR or OK will do
 }
 
 status net_alloc( con_t ** c )
 {
-    con_t * nc = mem_pool_alloc( sizeof(con_t) );
+    con_t * nc = mem_pool_alloc(sizeof(con_t));
     if(!nc) {
         err("net alloc nc failed\n");
         return ERROR;
     }
-
     if(!nc->event) {
         if(OK != event_alloc(&nc->event)) {
             err("net alloc nc evt failed\n");
@@ -324,9 +278,8 @@ status net_alloc( con_t ** c )
 
 void net_timeout( void * data )
 {
-    net_free( (con_t *)data );
+    net_free((con_t *)data);
 }
-
 
 status net_init( void )
 {

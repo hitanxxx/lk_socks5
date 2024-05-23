@@ -81,8 +81,6 @@ status timer_expire( int32 * timer )
     }
 }
 
-
-
 status timer_init( void )
 {
     heap_create( &g_heap, MAX_NET_CON*2 );

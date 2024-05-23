@@ -185,7 +185,7 @@ void * mem_pool_alloc(int size)
     queue_remove( &obj->queue );
     queue_insert_tail( &g_mem_ctx.blks[obj_block].inuse, &obj->queue );
 
-    memset( obj->addr, 0, obj_size );
+    memset(obj->addr, 0x0, obj_size);
     pthread_mutex_unlock(&g_mp_thread_lock);
     return obj->addr;
 }

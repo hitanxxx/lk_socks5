@@ -17,18 +17,13 @@ typedef ssize_t ( *net_cb_rw ) ( con_t * c, unsigned char * start, uint32 len );
 
 struct net_connection_t
 {
-    queue_t             queue;
-    
-    int32               fd;
-    uint32              con_type;	// enum connection_type
-    void*               data;
-    meta_t*             meta;
-
-    struct sockaddr_in  addr;
-    event_t*            event;
+    int fd;
+    struct sockaddr_in addr;
+    void*   data;
+    meta_t* meta;
+    event_t* event;
 
     net_cb_rw_chain      send_chain;
-    net_cb_rw_chain      recv_chain;
     net_cb_rw            send;
     net_cb_rw            recv;
 

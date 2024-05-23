@@ -131,11 +131,13 @@ status proc_cmd_option( int argc, char * argv[] )
 
 int32 main( int argc, char ** argv )
 {
-    ahead_dbg(">>>>> S5. [%s %s]\n", __DATE__, __TIME__ );
-    /// set higiest process priority
-    setpriority(PRIO_PROCESS, 0, -20 );
-    /// refresh system time info
-    systime_update( );
+    ahead_dbg(" /\\_/\\\n");   
+    ahead_dbg("( o.o )\n"); 
+    ahead_dbg(" > ^ <\n");
+    ahead_dbg("Welcome. s5 buildts <%s %s>\n", __DATE__, __TIME__ );
+    
+    setpriority(PRIO_PROCESS, 0, -20 ); /// set higiest process priority
+    systime_update( ); /// refresh system time info
     
 #if defined (TEST)
     test_start();

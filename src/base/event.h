@@ -7,11 +7,10 @@ extern "C"
 #endif
     
 
-/// event options 
 #define EV_NONE         0x0
 #if defined(EVENT_EPOLL)
-#define EV_R            EPOLLIN
-#define EV_W            EPOLLOUT
+#define EV_R        EPOLLIN
+#define EV_W        EPOLLOUT
 #else
 #define EV_R            0x001
 #define EV_W            0x004
@@ -24,24 +23,20 @@ struct l_event
 #ifndef EVENT_EPOLL
     queue_t     queue;
 #endif
+    int fd;
+    ev_timer_t timer;  /// every event should have a timer to control network time out
+	void * data;
+	int opt;    /// cache previously event option (EV_R,EV_W,EV_NONE)
 
-    int32           fd;
-    // every event should have a timer to control network time out
-    ev_timer_t      timer;
-	void *          data;
-    /// cache previously event option (EV_R,EV_W,EV_NONE)
-	int 			opt;
+    int idxr;
+    int idxw;
 
-    event_pt        read_pt;
-    event_pt        write_pt;
+    event_pt  read_pt;
+    event_pt  write_pt;
 
-    /// listen event yes or not 
-    char    f_listen:1;
-    /// event can disable by other events 
-	char    f_active:1;  
-    /// mark readable, writable
-    char    f_read:1;
-    char    f_write:1;
+    char    flisten:1; /// listen event yes or not 
+    char    fread:1;   /// mark readable, writable
+    char    fwrite:1;
 };
 typedef status (*event_handler_init) (void);
 typedef status (*event_handler_end) (void);
@@ -64,8 +59,6 @@ status event_init( void );
 status event_end( void );
 
 status event_post_event( event_t * ev );
-status event_post_backevent( event_t * ev ) ;
-
 
 #ifdef __cplusplus
 }
