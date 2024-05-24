@@ -7,11 +7,10 @@
 static status s5_local_auth_send( event_t * ev )
 {
     con_t* up = ev->data;
-    socks5_cycle_t * s5 = up->data;
+    s5_session_t * s5 = up->data;
     meta_t * meta = s5->up->meta;
-    status rc = 0;
 
-    rc = up->send_chain( up, meta );
+    int rc = up->send_chain( up, meta );
     if( rc < 0 ) {
         if( rc == ERROR ) {
             err("s5 local send authorization data failed\n");
@@ -24,8 +23,6 @@ static status s5_local_auth_send( event_t * ev )
         return AGAIN;
     }
     timer_del( &ev->timer );
-    /// s5 auth request send finish, goto recv the response
-    /// reset the meta
     meta->pos = meta->last = meta->start;
     s5->down->event->read_pt = s5_traffic_process;
     s5->down->event->write_pt = NULL;
@@ -35,14 +32,12 @@ static status s5_local_auth_send( event_t * ev )
 static status s5_local_auth_build( event_t * ev )
 {
     con_t* up = ev->data;
-    socks5_cycle_t * s5 = up->data;
+    s5_session_t * s5 = up->data;
     meta_t * meta = s5->up->meta;
-
-    s5_auth_t * auth = NULL;
 
     /// fill in s5_auth_t
     meta->pos = meta->last = meta->start;
-    auth = (s5_auth_t*)meta->last;
+    s5_auth_t * auth = (s5_auth_t*)meta->last;
     auth->magic = htonl(S5_AUTH_LOCAL_MAGIC);
     memset( auth->key, 0, sizeof(auth->key) );
     memcpy( (char*)auth->key, config_get()->s5_local_auth, sizeof(auth->key) );
@@ -78,7 +73,7 @@ static inline void s5_local_up_addr_get( struct sockaddr_in * addr )
 static status s5_local_up_connect_ssl( event_t * ev )
 {
     con_t* up = ev->data;
-    socks5_cycle_t * cycle = up->data;
+    s5_session_t * cycle = up->data;
 
     if( !up->ssl->f_handshaked ) {
         err("s5 local to s5 server. ssl handshake err\n" );
@@ -98,18 +93,16 @@ static status s5_local_up_connect_ssl( event_t * ev )
 static status s5_local_up_connect_check( event_t * ev )
 {
     con_t* up = ev->data;
-    socks5_cycle_t * s5 = up->data;
-    status rc;
-
     timer_del( &ev->timer );
-    net_socket_nodelay( up->fd );
     
-    if( OK != net_socket_check_status( up->fd ) ) {
+    s5_session_t * s5 = up->data;    
+    if( OK != net_socket_check_status(up->fd) ) {
         err("s5 local connect check status failed\n");
         s5_free(s5);
         return ERROR;
     }
-
+    net_socket_nodelay(up->fd);
+    
     up->fssl = 1;
 #ifndef S5_OVER_TLS
     up->fssl = 0;
@@ -120,7 +113,7 @@ static status s5_local_up_connect_check( event_t * ev )
             s5_free(s5);
             return ERROR;
         }
-        rc = ssl_handshake( up->ssl );
+        int rc = ssl_handshake( up->ssl );
         if(rc<0) {
             if(rc==AGAIN) {
                 up->ssl->cb = s5_local_up_connect_ssl;
@@ -143,7 +136,7 @@ static status s5_local_down_recv( event_t * ev )
 {
     /// cache read data
     con_t * down = ev->data;
-    socks5_cycle_t * s5 = down->data;
+    s5_session_t * s5 = down->data;
     meta_t * meta = down->meta;
     int readn = 0;
 
@@ -175,54 +168,47 @@ static status s5_local_down_recv( event_t * ev )
 status s5_local_accept_cb( event_t * ev )
 {
     con_t * down = ev->data;
-    socks5_cycle_t * s5 = NULL;
-
-    down->event->read_pt = s5_local_down_recv;
-    down->event->write_pt = NULL;
-    event_opt( down->event, down->fd, EV_R );
-
-    /// alloc down mem and meta
     if(!down->meta) {
-        if(OK != meta_alloc( &down->meta, 8192 )) {
+        if(OK != meta_alloc(&down->meta, 8192)) {
             err("s5 local alloc down meta failed\n");
             net_free(down);
             return ERROR;
         }
     }
+    down->event->read_pt = s5_local_down_recv;
+    down->event->write_pt = NULL;
+    event_opt( down->event, down->fd, EV_R );
     
+    
+    s5_session_t * s5 = NULL;
     if( OK != s5_alloc(&s5) ) {
         err("s5 cycle alloc failed\n");
-        net_free( down );
+        net_free(down);
         return ERROR;
     }
     s5->typ = SOCKS5_CLIENT;
     s5->down = down;
     down->data = s5;
-
-    if( OK != net_alloc( &s5->up ) ) {
+    if( OK != net_alloc(&s5->up) ) {
         err("s5 up alloc failed\n");
         s5_free(s5);
         return ERROR;
     }
     s5->up->data = s5;
-    if( !s5->up->meta ) {
-        if( OK != meta_alloc( &s5->up->meta, 8192 ) ) {
+    if(!s5->up->meta) {
+        if( OK != meta_alloc(&s5->up->meta, 8192) ) {
             err("s5 up meta alloc failed\n");
             s5_free(s5);
             return ERROR;
         }
     }
-    s5_local_up_addr_get( &s5->up->addr );
-
     s5->up->event->read_pt	= NULL;
     s5->up->event->write_pt	= s5_local_up_connect_check;
-        
+    s5_local_up_addr_get( &s5->up->addr );
     int rc = net_connect( s5->up, &s5->up->addr );
     if(rc<0) {
         if(rc == AGAIN) {
-            if( s5->up->event->opt != EV_W ) {
-                event_opt( s5->up->event, s5->up->fd, EV_W );
-            }
+            if( s5->up->event->opt != EV_W ) event_opt( s5->up->event, s5->up->fd, EV_W );
             timer_set_data( &s5->up->event->timer, s5 );
             timer_set_pt( &s5->up->event->timer, s5_timeout_cb );
             timer_add( &s5->up->event->timer, S5_TIMEOUT );

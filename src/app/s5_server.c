@@ -11,9 +11,9 @@ typedef struct
 } g_s5_t;
 static g_s5_t * g_s5_ctx = NULL;
 
-status s5_alloc( socks5_cycle_t ** s5 )
+status s5_alloc( s5_session_t ** s5 )
 {
-    socks5_cycle_t * ns5 = mem_pool_alloc(sizeof(socks5_cycle_t));
+    s5_session_t * ns5 = mem_pool_alloc(sizeof(s5_session_t));
     if(!ns5) {
         err("ns5 alloc failed\n");
         return ERROR;
@@ -23,7 +23,7 @@ status s5_alloc( socks5_cycle_t ** s5 )
 }
 
 
-status s5_free( socks5_cycle_t * s5 )
+status s5_free( s5_session_t * s5 )
 {
     memset( &s5->phase1, 0x0, sizeof(s5_rfc_phase1_req_t) );
     memset( &s5->phase2, 0x0, sizeof(s5_rfc_phase2_req_t) );
@@ -47,14 +47,14 @@ status s5_free( socks5_cycle_t * s5 )
         net_free( s5->up );
         s5->up = NULL;
     }
-    if( s5->dns_cycle ) {
-        dns_over( s5->dns_cycle );
-        s5->dns_cycle = NULL;
+    if( s5->dns_session ) {
+        dns_over( s5->dns_session );
+        s5->dns_session = NULL;
     }
 
     s5->state = 0;
-    s5->recv_down_err = 0;
-    s5->recv_up_err = 0;
+    s5->frecv_err_down = 0;
+    s5->frecv_err_up = 0;
 
     mem_pool_free(s5);
     return OK;
@@ -62,14 +62,14 @@ status s5_free( socks5_cycle_t * s5 )
 
 void s5_timeout_cb( void * data )
 {
-    s5_free( (socks5_cycle_t *)data );
+    s5_free( (s5_session_t *)data );
 }
 
 
 static status s5_traffic_recv( event_t * ev )
 {
     con_t * c = ev->data;
-    socks5_cycle_t * s5 = c->data;
+    s5_session_t * s5 = c->data;
     con_t * down = s5->down;
     con_t * up = s5->up;
     
@@ -85,7 +85,7 @@ static status s5_traffic_recv( event_t * ev )
         if( recvn < 0 ) {
             if( recvn == ERROR ) {
                 err("s5 down recv error\n");
-                s5->recv_down_err = 1;
+                s5->frecv_err_down = 1;
             }
             /// means again
             break;
@@ -115,7 +115,7 @@ static status s5_traffic_recv( event_t * ev )
         event_opt( up->event, up->fd, up->event->opt|EV_W );
         return up->event->write_pt(up->event);
     } else {
-        if( s5->recv_down_err == 1 ) {
+        if(s5->frecv_err_down) {
             s5_free(s5);
             return ERROR;
         }
@@ -127,7 +127,7 @@ static status s5_traffic_recv( event_t * ev )
 static int s5_traffic_send( event_t * ev )
 {	
     con_t * c = ev->data;
-    socks5_cycle_t * s5 = c->data;
+    s5_session_t * s5 = c->data;
     con_t * down = s5->down;
     con_t * up = s5->up;
     ssize_t sendn = 0;
@@ -150,7 +150,7 @@ static int s5_traffic_send( event_t * ev )
         down->meta->pos += sendn;
     }
 
-    if( s5->recv_down_err == 1 ) {
+    if(s5->frecv_err_down) {
         err("s5 up send, down already error\n");
         s5_free(s5);
         return ERROR;
@@ -166,7 +166,7 @@ static int s5_traffic_send( event_t * ev )
 static status s5_traffic_back_recv( event_t * ev )
 {
     con_t * c = ev->data;
-    socks5_cycle_t * s5 = c->data;
+    s5_session_t * s5 = c->data;
     con_t * down = s5->down;
     con_t * up = s5->up;
     
@@ -181,7 +181,7 @@ static status s5_traffic_back_recv( event_t * ev )
         if( recvn < 0 ) {
             if( recvn == ERROR ) {   
                 err("s5 up recv error\n");
-                s5->recv_up_err = 1;
+                s5->frecv_err_up = 1;
             }
             break;
         }
@@ -210,7 +210,7 @@ static status s5_traffic_back_recv( event_t * ev )
         event_opt( down->event, down->fd, down->event->opt|EV_W );
         return down->event->write_pt( down->event );
     } else {
-        if( s5->recv_up_err == 1 ) {
+        if(s5->frecv_err_up) {
             s5_free(s5);
             return ERROR;
         }
@@ -221,7 +221,7 @@ static status s5_traffic_back_recv( event_t * ev )
 static int s5_traffic_back_send( event_t * ev )
 {
     con_t * c = ev->data;
-    socks5_cycle_t * s5 = c->data;
+    s5_session_t * s5 = c->data;
     con_t * down = s5->down;
     con_t * up = s5->up;
     
@@ -245,7 +245,7 @@ static int s5_traffic_back_send( event_t * ev )
         up->meta->pos += sendn;
     }
 
-    if( s5->recv_up_err == 1 ) {
+    if(s5->frecv_err_up) {
         err("s5 down send, up already error\n");
         s5_free(s5);
         return ERROR;
@@ -261,11 +261,10 @@ static int s5_traffic_back_send( event_t * ev )
 status s5_traffic_process( event_t * ev )
 {
     con_t * c = ev->data;
-    socks5_cycle_t * s5 = c->data;
+    s5_session_t * s5 = c->data;
     con_t * down = s5->down;
     con_t * up = s5->up;
 
-    // init down stream traffic buffer
     if( !down->meta ) {
         if( OK != meta_alloc( &down->meta, 8192 ) ) {
             err("s5 down meta alloc failed\n");
@@ -273,8 +272,6 @@ status s5_traffic_process( event_t * ev )
             return ERROR;
         }
     }
-    
-    // init up stream traffic buffer
     if( !up->meta ) {
         if( OK != meta_alloc( &up->meta, 8192 ) ) {
             err("s5 alloc up meta failed\n");
@@ -337,7 +334,7 @@ status s5_traffic_process( event_t * ev )
 static status s5_server_rfc_phase2_send( event_t * ev )
 {
     con_t * down = ev->data;
-    socks5_cycle_t * s5 = down->data;
+    s5_session_t * s5 = down->data;
     status rc = 0;
     meta_t * meta = down->meta;
 
@@ -368,7 +365,7 @@ static status s5_server_rfc_phase2_send( event_t * ev )
 static status s5_server_rfc_phase2_resp_build( event_t * ev )
 {
     con_t * up = ev->data;
-    socks5_cycle_t * s5 = up->data;
+    s5_session_t * s5 = up->data;
     con_t * down = s5->down;
     meta_t * meta = down->meta;
 
@@ -397,7 +394,7 @@ static status s5_server_rfc_phase2_resp_build( event_t * ev )
 static status s5_server_connect_check( event_t * ev )
 {
     con_t* up = ev->data;
-    socks5_cycle_t * s5 = up->data;
+    s5_session_t * s5 = up->data;
 
     if( OK != net_socket_check_status( up->fd ) ) {
         err("s5 server connect remote failed\n" );
@@ -415,7 +412,7 @@ static status s5_server_connect_check( event_t * ev )
 static status s5_server_connect( event_t * ev )
 {
     con_t * up = ev->data;
-    socks5_cycle_t * s5 = up->data;
+    s5_session_t * s5 = up->data;
     status rc = 0;
 
     rc = net_connect( s5->up, &s5->up->addr );
@@ -439,7 +436,7 @@ static status s5_server_connect( event_t * ev )
 static status s5_server_try_read( event_t * ev  )
 {
     con_t * down = ev->data;
-    socks5_cycle_t * s5 = down->data;
+    s5_session_t * s5 = down->data;
 
     if( OK != net_socket_check_status( down->fd ) ) {
         err("s5 server check down fd status error\n");
@@ -452,8 +449,8 @@ static status s5_server_try_read( event_t * ev  )
 
 static void s5_server_address_get_cb( void * data )
 {
-    socks5_cycle_t * s5 = data;
-    dns_cycle_t * dns_cycle = s5->dns_cycle;
+    s5_session_t * s5 = data;
+    dns_cycle_t * dns_cycle = s5->dns_session;
     char ipstr[128] = {0};
 
     if( dns_cycle ) {
@@ -485,7 +482,7 @@ static void s5_server_address_get_cb( void * data )
 static status s5_server_address_get( event_t * ev )
 {
     con_t * down = ev->data;
-    socks5_cycle_t * s5 = down->data;
+    s5_session_t * s5 = down->data;
     char ipstr[128] = {0};
     status rc = 0;
 
@@ -544,16 +541,16 @@ static status s5_server_address_get( event_t * ev )
         
         } else {
             /// dns cache find failed, goto dns query  
-            rc = dns_create( &s5->dns_cycle );
+            rc = dns_create( &s5->dns_session );
             if( rc == ERROR ) {
                 err("s5 server dns cycle create failed\n");
                 s5_free(s5);
                 return ERROR;
             }
-            strncpy( (char*)s5->dns_cycle->query, (char*)s5->phase2.dst_addr, sizeof(s5->dns_cycle->query) );
-            s5->dns_cycle->cb = s5_server_address_get_cb;
-            s5->dns_cycle->cb_data = s5;
-            return dns_start( s5->dns_cycle );
+            strncpy( (char*)s5->dns_session->query, (char*)s5->phase2.dst_addr, sizeof(s5->dns_session->query) );
+            s5->dns_session->cb = s5_server_address_get_cb;
+            s5->dns_session->cb_data = s5;
+            return dns_start( s5->dns_session );
         }
     }
 
@@ -567,7 +564,7 @@ static status s5_server_rfc_phase2_recv( event_t * ev )
 {
     unsigned char * p = NULL;
     con_t * down = ev->data;
-    socks5_cycle_t * s5 = down->data;
+    s5_session_t * s5 = down->data;
     meta_t * meta = down->meta;
     enum {
         VER = 0,
@@ -738,7 +735,7 @@ static status s5_server_rfc_phase2_recv( event_t * ev )
 static status s5_server_rfc_phase1_send( event_t * ev )
 {
     con_t * down = ev->data;
-    socks5_cycle_t * s5 = down->data;
+    s5_session_t * s5 = down->data;
     status rc = 0;
     meta_t * meta = down->meta;
 
@@ -772,7 +769,7 @@ static status s5_server_rfc_phase1_send( event_t * ev )
 static status s5_server_rfc_phase1_recv( event_t * ev )
 {
     con_t * down = ev->data;
-    socks5_cycle_t * s5 = down->data;
+    s5_session_t * s5 = down->data;
     unsigned char * p = NULL;
     meta_t * meta = down->meta;
     /*
@@ -860,7 +857,7 @@ static status s5_server_rfc_phase1_recv( event_t * ev )
 static status s5_server_auth_recv( event_t * ev )
 {
     con_t * down = ev->data;
-    socks5_cycle_t * s5 = down->data;
+    s5_session_t * s5 = down->data;
     ssize_t rc = 0;
     meta_t * meta = down->meta;
     
@@ -912,8 +909,14 @@ static status s5_server_auth_recv( event_t * ev )
 static status s5_server_start( event_t * ev )
 {
     con_t * down = ev->data;
-    socks5_cycle_t * s5 = NULL;
-
+    if( !down->meta ) {
+        if( OK != meta_alloc(&down->meta, 8192) ) {
+            err("alloc down meta failed\n");
+            net_free(down);
+            return ERROR;
+        }
+    }
+    s5_session_t * s5 = NULL;
     if( OK != s5_alloc(&s5) ) {
         err("s5 server alloc cycle failed\n");
         net_free( down );
@@ -921,15 +924,7 @@ static status s5_server_start( event_t * ev )
     }
     s5->down = down;
     down->data = s5;
-
-   
-    if( !down->meta ) {
-        if( OK != meta_alloc( &down->meta, 8192 ) ) {
-            err("s5 alloc down meta failed\n");
-            s5_free(s5);
-            return ERROR;
-        }
-    }
+    
 #ifndef S5_OVER_TLS
     if( !s5->cipher_enc ) {
         if( 0 != sys_cipher_ctx_init( &s5->cipher_enc, 0 ) ) {
@@ -953,7 +948,7 @@ static status s5_server_start( event_t * ev )
 status s5_server_transport( event_t * ev )
 {
     con_t * down = ev->data;
-    socks5_cycle_t * s5 = NULL;
+    s5_session_t * s5 = NULL;
     
     if( OK != s5_alloc(&s5) ) {
         err("s5 server http conv s5 alloc cycle failed\n");

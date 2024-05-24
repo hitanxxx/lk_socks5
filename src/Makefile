@@ -46,6 +46,7 @@ LDFLAGS += -lcrypto -lssl -lpthread -lm -ldl
 
 CFLAGS += -Wall -ffunction-sections -fdata-sections $(DEFINE) $(INCLUDE)
 CFLAGS += -O2
+
 .c.o:
 	@echo "> $<"
 	@$(CC) -c $(CFLAGS)  -o $@ $<

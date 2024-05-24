@@ -70,20 +70,20 @@ typedef struct
 
     con_t * down;
     con_t * up;
-    dns_cycle_t * dns_cycle;
+    dns_cycle_t * dns_session;
 
 #ifndef S5_OVER_TLS
     sys_cipher_t * cipher_enc;  /// cipher ctx for encrypt data
     sys_cipher_t * cipher_dec;  /// cipher ctx for decrypt data
 #endif
     
-	char		recv_down_err:1;
-	char		recv_up_err:1;
-} socks5_cycle_t;
+	char frecv_err_down:1;
+	char frecv_err_up:1;
+} s5_session_t;
 
 
-status s5_free( socks5_cycle_t * s5 );
-status s5_alloc( socks5_cycle_t ** s5 );
+status s5_free( s5_session_t * s5 );
+status s5_alloc( s5_session_t ** s5 );
 void s5_timeout_cb( void * data );
 
 
