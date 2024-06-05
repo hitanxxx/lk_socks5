@@ -21,10 +21,10 @@ typedef struct mem_arr_t
 } mem_arr_t;
 
 // fixed-length
-status mem_arr_create( mem_arr_t ** l, uint32	size );
-void * mem_arr_push( mem_arr_t * l );
-status mem_arr_free( mem_arr_t * l );
-void * mem_arr_get( mem_arr_t * list, uint32 index );
+int mem_arr_create(mem_arr_t ** l, int size);
+void * mem_arr_push(mem_arr_t * l);
+int mem_arr_free(mem_arr_t * l);
+void * mem_arr_get(mem_arr_t * list, int index);
 
 #ifdef __cplusplus
 }

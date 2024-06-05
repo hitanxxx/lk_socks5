@@ -52,26 +52,21 @@ typedef struct {
 } webser_t;
 
 
-void webser_timeout_cycle( void * data );
-status webser_free( webser_t * webser );
-
-status webser_rsp_send( event_t * ev );
-
-void webser_rsp_body_push( webser_t * webser, const char * str, ... );
-status webser_req_body_proc( webser_t * web );
-status webser_rsp_body_dump( webser_t *webser);
-status webser_req_header_dump( webser_t * webser, int http_code );
-
+void webser_timeout_cycle(void * data);
+int webser_free(webser_t * webser);
+int webser_rsp_send(event_t * ev);
+void webser_rsp_body_push(webser_t * webser, const char * str, ...);
+int webser_req_body_proc(webser_t * web);
+int webser_rsp_body_dump(webser_t *webser);
+int webser_req_header_dump(webser_t * webser, int http_code);
 void webser_rsp_mime(webser_t *webser, char *mimetype);
 
+int webser_init(void);
+int webser_end(void);
 
-status webser_init(void);
-status webser_end(void);
-
-status webser_accept_cb(event_t *ev);
-status webser_accept_cb_ssl(event_t *ev);
-
-status webser_api_reg( char * key, event_pt cb, enum http_process_status method_type, char body_need );
+int webser_accept_cb(event_t *ev);
+int webser_accept_cb_ssl(event_t *ev);
+int webser_api_reg(char * key, event_pt cb, enum http_process_status method_type, char body_need);
 
 
 #ifdef __cplusplus

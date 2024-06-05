@@ -12,8 +12,8 @@ typedef struct shm_t {
     char *      data;
 } sys_shm_t;
 
-status sys_shm_alloc( sys_shm_t * shm, uint32 size );
-status sys_shm_free( sys_shm_t * shm );
+int sys_shm_alloc(sys_shm_t * shm, int size);
+int sys_shm_free(sys_shm_t * shm);
 
 #ifdef __cplusplus
 }

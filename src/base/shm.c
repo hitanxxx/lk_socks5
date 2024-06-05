@@ -1,20 +1,20 @@
 #include "common.h"
 
 
-status sys_shm_alloc( sys_shm_t * shm, uint32 size )
+int sys_shm_alloc(sys_shm_t * shm, int size)
 {
-    shm->data = (char*) mmap (NULL, size, PROT_READ|PROT_WRITE, MAP_ANON|MAP_SHARED, -1, 0);
+    shm->data = (char*)mmap(NULL, size, PROT_READ|PROT_WRITE, MAP_ANON|MAP_SHARED, -1, 0);
     if( shm->data == MAP_FAILED ) {
-        err(" shm alloc failed, [%d]\n", errno );
-        return ERROR;
+        err("shm alloc failed, [%d]\n", errno);
+        return -1;
     }
-    memset( shm->data, 0, shm->size );
+    memset(shm->data, 0, shm->size);
     shm->size = size;
-    return OK;
+    return 0;
 }
 
-status sys_shm_free( sys_shm_t * shm )
+int sys_shm_free(sys_shm_t * shm)
 {
-    munmap((void *) shm->data, shm->size );
-    return OK;
+    munmap((void *)shm->data, shm->size);
+    return 0;
 }

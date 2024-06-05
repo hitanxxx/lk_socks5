@@ -21,12 +21,12 @@ typedef struct
     ezhash_obj_t ** buckets;
 } ezhash_t;
 
-int ezhash_create( ezhash_t ** hash, int size );
-int ezhash_free( ezhash_t * hash );
+int ezhash_create(ezhash_t ** hash, int size);
+int ezhash_free(ezhash_t * hash);
 
-int ezhash_add( ezhash_t * hash, char * key, char * value );
-int ezhash_del( ezhash_t * hash, char * key );
-char * ezhash_find( ezhash_t * hash, char * key );
+int ezhash_add(ezhash_t * hash, char * key, char * value);
+int ezhash_del(ezhash_t * hash, char * key);
+char * ezhash_find(ezhash_t * hash, char * key);
 
 #ifdef __cplusplus
 }

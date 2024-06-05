@@ -6,11 +6,11 @@ extern "C"
 {
 #endif
 
-status modules_process_init( void );
-status modules_pocess_exit( void );
+int modules_process_init(void);
+int modules_pocess_exit(void);
 
-status modules_core_init( void );
-status modules_core_exit( void );	
+int modules_core_init(void);
+int modules_core_exit(void);
 
 
 #ifdef __cplusplus

@@ -9,17 +9,17 @@ static uint32_t FNV1a(const uint8_t* data, size_t size) {
     return h;
 }
 
-int ezhash_create( ezhash_t ** hash, int range )
+int ezhash_create(ezhash_t ** hash, int range)
 {
-    ezhash_t * new_hash = mem_pool_alloc( sizeof(ezhash_t) );
-    if( !new_hash ) {
-        err("alloc new hash failed. [%d]\n", errno );
+    ezhash_t * new_hash = mem_pool_alloc(sizeof(ezhash_t));
+    if(!new_hash) {
+        err("alloc new hash failed. [%d]\n", errno);
         return -1;
     }
     new_hash->range = range;
     
-    new_hash->buckets = mem_pool_alloc( new_hash->range *sizeof(ezhash_obj_t*) );
-    if( !new_hash->buckets ) {
+    new_hash->buckets = mem_pool_alloc(new_hash->range *sizeof(ezhash_obj_t*));
+    if(!new_hash->buckets) {
         err("alloc new hash's buckets failed\n");
         mem_pool_free(new_hash);
         return -1;
@@ -29,20 +29,20 @@ int ezhash_create( ezhash_t ** hash, int range )
 }
 
 
-int ezhash_free( ezhash_t * hash )
+int ezhash_free(ezhash_t * hash)
 {
-    if( hash ) {
+    if(hash) {
         /// free list
         int i = 0;
         while(i < hash->range) {
             ezhash_obj_t * p = hash->buckets[i];
-            while( p ) {            
-                if(p->key.data) {
+            while(p) {            
+                if(p->key.data) 
                     mem_pool_free(p->key.data);
-                }
-                if(p->value.data) {
+                
+                if(p->value.data)
                     mem_pool_free(p->value.data);
-                }
+                
                 p = p->next;
             }
             i++;
@@ -53,76 +53,70 @@ int ezhash_free( ezhash_t * hash )
     return 0;
 }
 
-int ezhash_del( ezhash_t * hash, char * key )
+int ezhash_del(ezhash_t * hash, char * key)
 {
     uint32_t hash_val = FNV1a( (unsigned char*)key, strlen(key) );
     int idx = hash_val%hash->range;
-
     if(!hash->buckets[idx]) {  /// do nothing
-        return ERROR;
+        return -1;
     }
-
     ezhash_obj_t * h = hash->buckets[idx];
     ezhash_obj_t * p = NULL;
     while(h) {
-
-        if( h->key.len == strlen(key) && 0 == strncmp( (char*)h->key.data, key, strlen(key) ) ) {
-            if( h == hash->buckets[idx] ) {
+        if(h->key.len == strlen(key) && !strncmp((char*)h->key.data, key, strlen(key))) {
+            if(h == hash->buckets[idx]) {
                 hash->buckets[idx] = h->next;
-                
             } else {
                 p->next = h->next;
             }
             /// free h
-            if(h->key.data) {
+            if(h->key.data)
                 mem_pool_free(h->key.data);
-            }
-            if(h->value.data) {
+            
+            if(h->value.data)
                 mem_pool_free(h->value.data);
-            }
+            
             mem_pool_free(h);
-            return OK;
+            return 0;
         }
-
         p = h;
         h = h->next;
     }
-    
     return -1;
 }
 
-int ezhash_add( ezhash_t * hash, char * key, char * value )
+int ezhash_add(ezhash_t * hash, char * key, char * value)
 {
     uint32_t hash_value = FNV1a( (unsigned char*)key, strlen(key) );
     int idx = hash_value%hash->range;
     /// hash number -> range number 
     
-    ezhash_obj_t * nhash = mem_pool_alloc( sizeof(ezhash_obj_t) );
+    ezhash_obj_t * nhash = mem_pool_alloc(sizeof(ezhash_obj_t));
     if(!nhash) {
         err("nhash alloc failed\n");
         return -1;
     }
     nhash->next = NULL;
     nhash->key.len = strlen(key);
-    nhash->key.data = mem_pool_alloc( nhash->key.len + 1 );
+    nhash->key.data = mem_pool_alloc(nhash->key.len + 1);
     if(!nhash->key.data) {
         err("nhash alloc key data failed\n");
         mem_pool_free(nhash);
         return -1;
     }
-    strncpy( (char*)nhash->key.data, key, nhash->key.len );
+    strncpy((char*)nhash->key.data, key, nhash->key.len);
 
     nhash->value.len = strlen(value);
-    nhash->value.data = mem_pool_alloc( nhash->value.len + 1 );
+    nhash->value.data = mem_pool_alloc(nhash->value.len + 1);
     if(!nhash->value.data) {
         err("nhash alloc value data failed\n");
         mem_pool_free(nhash->key.data);
         mem_pool_free(nhash);
         return -1;
     }
-    strncpy( (char*)nhash->value.data, value, nhash->value.len );
+    strncpy((char*)nhash->value.data, value, nhash->value.len);
 
-    if( hash->buckets[idx] == NULL ) {
+    if(!hash->buckets[idx]) {
         hash->buckets[idx] = nhash;
     } else {
         ezhash_obj_t * p = hash->buckets[idx];
@@ -134,16 +128,15 @@ int ezhash_add( ezhash_t * hash, char * key, char * value )
     return 0;
 }
 
-
-char * ezhash_find( ezhash_t * hash, char * key )
+char * ezhash_find(ezhash_t * hash, char * key)
 {
     uint32_t hash_value = FNV1a( (unsigned char*)key, strlen(key) );
     int idx = hash_value%hash->range;
 
-    if( hash->buckets[idx] ) {
+    if(hash->buckets[idx]) {
         ezhash_obj_t * p = hash->buckets[idx];
-        while ( p ) {
-            if( strlen(key) == p->key.len && strncmp( (char*)p->key.data, key, strlen(key) ) == 0 ) {
+        while (p) {
+            if(strlen(key) == p->key.len && !strncmp((char*)p->key.data, key, strlen(key))) {
                 return (char*)p->value.data;
             }
             p = p->next;

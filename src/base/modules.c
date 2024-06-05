@@ -29,26 +29,26 @@
 /// @brief core modules means need by all process include master process and worke process
 /// @param  
 /// @return 
-status modules_core_init( void )
+int modules_core_init(void)
 {
     SYS_FUNC_CHK(log_init());
     SYS_FUNC_CHK(process_init());
     SYS_FUNC_CHK(listen_init());
-    return OK;
+    return 0;
 }
 
-status modules_core_exit( void )
+int modules_core_exit(void)
 {
     SYS_FUNC_CHK(log_end());
     SYS_FUNC_CHK(process_end());
     SYS_FUNC_CHK(listen_end());
-    return OK;
+    return 0;
 }
 
 /// @brief modules process means only need in worker process
 /// @param  
 /// @return 
-status modules_process_init( void )
+int modules_process_init(void)
 {
     SYS_FUNC_CHK(mem_pool_init());
     SYS_FUNC_CHK(ssl_init());
@@ -61,10 +61,10 @@ status modules_process_init( void )
     SYS_FUNC_CHK(http_body_init_module());
     SYS_FUNC_CHK(webser_init());
     SYS_FUNC_CHK(dns_init());
-    return OK;
+    return 0;
 }
 
-status modules_pocess_exit( void )
+int modules_pocess_exit(void)
 {
     SYS_FUNC_CHK(ssl_end());
     SYS_FUNC_CHK(timer_end());
@@ -77,6 +77,6 @@ status modules_pocess_exit( void )
     SYS_FUNC_CHK(webser_end());
     SYS_FUNC_CHK(dns_end());
     SYS_FUNC_CHK(mem_pool_deinit());
-    return OK;
+    return 0;
 }
 

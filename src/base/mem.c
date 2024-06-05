@@ -23,50 +23,50 @@ typedef struct
     int pn;
 } mem_block_t;
 
-typedef struct 
+typedef struct
 {
-    mem_block_t * blks;
-    /*
-        0:512   byte
-        1:1024  
-        2:2048
-        3:4096
-        4:8192
-        5:16384
+    /* byte
+    |------------------------------|
+    | 0  | 1  | 2  | 3  | 4  | 5   |
+    |----|----|----|----|----|-----|
+    | 512|1024|2048|4096|8192|16384|
+    |------------------------------|
     */
+    mem_block_t * blks;
 } mem_ctx_t;
 
 static mem_ctx_t g_mem_ctx;
 
 
-void * sys_alloc( int size )
+void * sys_alloc(int size)
 {
-    assert( size > 0 );
-    pthread_mutex_lock( &g_sys_thread_lock );
-    char * addr = calloc( 1, size );
-    pthread_mutex_unlock( &g_sys_thread_lock );
-    if( !addr ) {
-        err("sys alloc failed. [%d]\n", errno );
+    assert(size > 0);
+    pthread_mutex_lock(&g_sys_thread_lock);
+    char * addr = malloc(size);
+    pthread_mutex_unlock(&g_sys_thread_lock);
+    if(!addr) {
+        err("sys alloc failed. [%d]\n", errno);
         return NULL;
     }
+    memset(addr, 0x0, size);
     return addr;
 }
 
-void sys_free( void * addr )
+void sys_free(void * addr)
 {
-    if( addr ) {
-        pthread_mutex_lock( &g_sys_thread_lock );
+    if(addr) {
+        pthread_mutex_lock(&g_sys_thread_lock);
         free(addr);
-        pthread_mutex_unlock( &g_sys_thread_lock );
+        pthread_mutex_unlock(&g_sys_thread_lock);
     }
 }
 
 int mem_pool_deinit()
 {
-    int i = 0;
-    if( g_mem_ctx.blks ) {
-        for( i = 0; i < MP_BLK_MAX; i ++ ) {
-            if( g_mem_ctx.blks[i].p ) {
+    if(g_mem_ctx.blks) {
+        int i = 0;
+        for(i = 0; i < MP_BLK_MAX; i++) {
+            if(g_mem_ctx.blks[i].p) {
                 free(g_mem_ctx.blks[i].p);
             }
         }
@@ -80,21 +80,19 @@ int mem_pool_init()
     int i = 0;
     int j = 0;
 
-    g_mem_ctx.blks = malloc( sizeof(mem_block_t)*MP_BLK_MAX );
-    if( !g_mem_ctx.blks ) {
+    g_mem_ctx.blks = malloc(sizeof(mem_block_t)*MP_BLK_MAX);
+    if(!g_mem_ctx.blks) {
         err("malloc blks failed.\n");
         return -1;
     }
-    memset( g_mem_ctx.blks, 0x0, sizeof(mem_block_t)*MP_BLK_MAX );
-    
-
-    for( i = 0; i < MP_BLK_MAX; i ++) {        
+    memset(g_mem_ctx.blks, 0x0, sizeof(mem_block_t)*MP_BLK_MAX);
+   
+    for(i = 0; i < MP_BLK_MAX; i++) {        
         int obj_space = 0;
         int obj_n = MP_OBJ_MAX;
-    
         if(i == 0) {
             obj_space = 512;   
-            obj_n *= 2; /// double for small obj
+            obj_n *= 2; ///small obj * 2
         } else if (i == 1) {
             obj_space = 1024;
         } else if (i == 2) {
@@ -106,86 +104,78 @@ int mem_pool_init()
         } else if (i == 5) {
             obj_space = 16384; 
         }
-
         g_mem_ctx.blks[i].pn = (sizeof(mem_obj_t)+obj_space)*obj_n;
-        g_mem_ctx.blks[i].p = malloc( g_mem_ctx.blks[i].pn );
+        g_mem_ctx.blks[i].p = malloc(g_mem_ctx.blks[i].pn);
         if(!g_mem_ctx.blks[i].p) {
-            err("mempool blk [%d] p alloc failed\n", i, errno );
+            err("mempool blk [%d] alloc failed\n", i, errno);
             mem_pool_deinit();
             return -1;
         }
-        memset( g_mem_ctx.blks[i].p, 0x0, g_mem_ctx.blks[i].pn );
-
-        queue_init( &g_mem_ctx.blks[i].usable );
-        queue_init( &g_mem_ctx.blks[i].inuse );
+        memset(g_mem_ctx.blks[i].p, 0x0, g_mem_ctx.blks[i].pn);
+        queue_init(&g_mem_ctx.blks[i].usable);
+        queue_init(&g_mem_ctx.blks[i].inuse);
         char * p = g_mem_ctx.blks[i].p;
-        for( j = 0; j < obj_n; j ++) {
-
+        for(j = 0; j < obj_n; j++) {
             mem_obj_t * obj = (mem_obj_t*)p;
             obj->blk_idx = i;
-            queue_insert_tail( &g_mem_ctx.blks[i].usable, &obj->queue );
-        
+            queue_insert_tail(&g_mem_ctx.blks[i].usable, &obj->queue);
             p += (sizeof(mem_obj_t)+obj_space);
         }
     }
     return 0;
 }
 
-int mem_pool_free( void * p )
+int mem_pool_free(void * p)
 {
     pthread_mutex_lock(&g_mp_thread_lock);
-    mem_obj_t * obj = (mem_obj_t*)(p-offsetof(mem_obj_t, addr)); /// address offset
-    queue_remove( &obj->queue );
-    queue_insert_tail( &g_mem_ctx.blks[obj->blk_idx].usable, &obj->queue );
+    mem_obj_t * obj = ptr_get_struct(p, mem_obj_t, addr);
+    queue_remove(&obj->queue);
+    queue_insert_tail(&g_mem_ctx.blks[obj->blk_idx].usable, &obj->queue);
     pthread_mutex_unlock(&g_mp_thread_lock);
     return 0;
 }
 
 void * mem_pool_alloc(int size)
 {
-    int obj_block = 0;
-    int obj_size = 0;
+    int blk_idx = 0;
+    int blk_size = 0;
     assert(size > 0);
 
     pthread_mutex_lock(&g_mp_thread_lock);
-    /// find which block
-    if( size <= 512 ) {
-        obj_block = 0;
-        obj_size = 512;
-    } else if ( size > 512 && size <= 1024 ) {
-        obj_block = 1;
-        obj_size = 1024;
-    } else if ( size > 1024 && size <= 2048 ) {
-        obj_block = 2;
-        obj_size = 2048;
-    } else if ( size > 2048 && size <= 4096 ) {
-        obj_block = 3;
-        obj_size = 4096;
-    } else if ( size > 4096 && size <= 8192 ) {
-        obj_block = 4;
-        obj_size = 8192;
-    } else if ( size > 8192 && size <= 16384 ) {
-        obj_block = 5;
-        obj_size = 16384;
+    ///choice block
+    if(size <= 512) {
+        blk_idx = 0;
+        blk_size = 512;
+    } else if (size > 512 && size <= 1024) {
+        blk_idx = 1;
+        blk_size = 1024;
+    } else if (size > 1024 && size <= 2048) {
+        blk_idx = 2;
+        blk_size = 2048;
+    } else if (size > 2048 && size <= 4096) {
+        blk_idx = 3;
+        blk_size = 4096;
+    } else if (size > 4096 && size <= 8192) {
+        blk_idx = 4;
+        blk_size = 8192;
+    } else if (size > 8192 && size <= 16384) {
+        blk_idx = 5;
+        blk_size = 16384;
     } else {
-        err("alloc size [%d] too big. not support\n", size );
+        err("alloc size [%d] too big. not support\n", size);
         pthread_mutex_unlock(&g_mp_thread_lock);
         return NULL;
     }
-
-    if( queue_empty( &g_mem_ctx.blks[obj_block].usable ) ) {
-        err("mempool alloc size [%d] failed. no space\n", size );
+    if(queue_empty(&g_mem_ctx.blks[blk_idx].usable)) {
+        err("mempool alloc size [%d] failed. no space\n", size);
         pthread_mutex_unlock(&g_mp_thread_lock);
         return NULL;
     }
-
-    queue_t * q = queue_head( &g_mem_ctx.blks[obj_block].usable );
-    mem_obj_t * obj = ptr_get_struct( q, mem_obj_t, queue);
-    
-    queue_remove( &obj->queue );
-    queue_insert_tail( &g_mem_ctx.blks[obj_block].inuse, &obj->queue );
-
-    memset(obj->addr, 0x0, obj_size);
+    queue_t * q = queue_head(&g_mem_ctx.blks[blk_idx].usable);
+    mem_obj_t * obj = ptr_get_struct(q, mem_obj_t, queue);
+    queue_remove(&obj->queue);
+    queue_insert_tail(&g_mem_ctx.blks[blk_idx].inuse, &obj->queue);
+    memset(obj->addr, 0x0, blk_size);
     pthread_mutex_unlock(&g_mp_thread_lock);
     return obj->addr;
 }

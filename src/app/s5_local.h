@@ -6,9 +6,9 @@ extern "C"
 {
 #endif
 
-status socks5_local_init( void );
-status socks5_local_end( void );
-status s5_local_accept_cb( event_t * ev );
+int socks5_local_init(void);
+int socks5_local_end(void);
+int s5_local_accept_cb(event_t * ev);
 
 
 

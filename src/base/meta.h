@@ -19,9 +19,8 @@ struct meta
     unsigned char       data[0];
 };
 
-status meta_alloc_form_mempage( mem_page_t * page, uint32 size, meta_t ** out );
-status meta_alloc( meta_t ** meta, uint32 size );
-void meta_free( meta_t * meta );
+int meta_alloc(meta_t ** meta, int size);
+void meta_free(meta_t * meta);
 
 #ifdef __cplusplus
 }

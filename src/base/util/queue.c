@@ -1,13 +1,13 @@
 #include "common.h"
 
 // queue_init --------------------
-void queue_init( queue_t * q )
+void queue_init(queue_t * q)
 {
 	q->prev = q;
 	q->next = q;
 }
 // queue_insert ------------------
-void queue_insert( queue_t * h, queue_t * q )
+void queue_insert(queue_t * h, queue_t * q)
 {
 	q->next = h->next;
 	q->prev = h;
@@ -16,7 +16,7 @@ void queue_insert( queue_t * h, queue_t * q )
 	h->next = q;
 }
 // queue_insert_tail --------------
-void queue_insert_tail( queue_t * h, queue_t * q )
+void queue_insert_tail(queue_t * h, queue_t * q)
 {
 	queue_t * last;
 
@@ -29,16 +29,13 @@ void queue_insert_tail( queue_t * h, queue_t * q )
 	last->next = q;
 }
 // queue_remove ------------------
-void queue_remove( queue_t * q )
+void queue_remove(queue_t * q)
 {
 	if( q->prev ) 
-	{
 		q->prev->next = q->next;
-	}
+
 	if( q->next )
-	{
 		q->next->prev = q->prev;
-	}
 
 	q->prev = NULL;
 	q->next = NULL;
@@ -46,7 +43,7 @@ void queue_remove( queue_t * q )
 // queue_empty -------------------
 status queue_empty( queue_t * h )
 {
-	return ( (h == h->prev) ? 1 : 0 );
+	return ((h == h->prev) ? 1 : 0);
 }
 // queue_head -------------------
 queue_t * queue_head( queue_t * h )

@@ -3,12 +3,9 @@
 
 typedef struct
 {
-    /// accept evt action array
-    event_t * ev_arr_accept[128];
+    event_t * ev_arr_accept[128]; ///accept evt action array
     short ev_arr_acceptn;
-
-    /// evt action array
-    event_t * ev_arr[MAX_NET_CON*2];
+    event_t * ev_arr[MAX_NET_CON*2]; ///evt action array
     short ev_arrn;
 #if defined(EVENT_EPOLL)
     int           event_fd;
@@ -25,136 +22,131 @@ static g_event_t * g_event_ctx = NULL;
 
 
 #if defined(EVENT_EPOLL)
-static status event_epoll_init(     )
+static int event_epoll_init(     )
 {
-    g_event_ctx->events = (struct epoll_event*) mem_pool_alloc ( sizeof(struct epoll_event)*(MAX_NET_CON+128) );
-    if( NULL == g_event_ctx->events ) {
-        err("ev epoll malloc events pool failed\n" );
-        return ERROR;
+    g_event_ctx->events = (struct epoll_event*) mem_pool_alloc(sizeof(struct epoll_event)*(MAX_NET_CON+128));
+    if(!g_event_ctx->events) {
+        err("ev epoll malloc events pool failed\n");
+        return -1;
     }
     g_event_ctx->event_fd = epoll_create1(0);
-    if( g_event_ctx->event_fd == ERROR ) {
-        err("ev epoll open event fd faield, [%d]\n", errno );
-        return ERROR;
+    if(g_event_ctx->event_fd == -1) {
+        err("ev epoll open event fd faield, [%d]\n", errno);
+        return -1;
     }
-    return OK;
+    return 0;
+}
+static int event_epoll_end()
+{
+    if(g_event_ctx->event_fd)
+        close(g_event_ctx->event_fd);
+    
+    if(g_event_ctx->events)
+        mem_pool_free( g_event_ctx->events);
+
+    return 0;
 }
 
-static status event_epoll_end( )
+static int event_epoll_opt(event_t * ev, int fd, int want_opt)
 {
-    if( g_event_ctx->event_fd ) {
-        close( g_event_ctx->event_fd );
-    }
-    if( g_event_ctx->events ) {
-        mem_pool_free( g_event_ctx->events );
-    }
-    return OK;
-}
-
-static status event_epoll_opt( event_t * ev, int32 fd, int want_opt )
-{
-    /// want type not same as record type
-    if( ev->opt != want_opt ) {
-        if(want_opt==EV_NONE) {
-            if( -1 == epoll_ctl( g_event_ctx->event_fd, EPOLL_CTL_DEL, fd, NULL ) ) {
-                err("evt epoll_ctl fd [%d] error. want_opt [%x], errno [%d] [%s]\n", fd, want_opt, errno, strerror(errno) );
-                return ERROR;
+    if(ev->opt != want_opt) { ///want type not same as record type
+        if(want_opt == EV_NONE) {
+            if(-1 == epoll_ctl(g_event_ctx->event_fd, EPOLL_CTL_DEL, fd, NULL)) {
+                err("evt epoll_ctl fd [%d] error. want_opt [%x], errno [%d] [%s]\n", fd, want_opt, errno, strerror(errno));
+                return -1;
             }
         } else {
             struct epoll_event evsys;
-            memset( &evsys, 0, sizeof(struct epoll_event) );
+            memset(&evsys, 0, sizeof(struct epoll_event));
             evsys.data.ptr = (void*)ev;
             evsys.events = EPOLLET|want_opt;
-            if(-1 == epoll_ctl(g_event_ctx->event_fd, (ev->opt!=EV_NONE?EPOLL_CTL_MOD:EPOLL_CTL_ADD), fd, &evsys) ) {
-                err("evt epoll_ctl fd [%d] error. want_opt [%x], errno [%d] [%s]\n", fd, want_opt, errno, strerror(errno) );
-                return ERROR;
+            if(-1 == epoll_ctl(g_event_ctx->event_fd, (ev->opt != EV_NONE ? EPOLL_CTL_MOD : EPOLL_CTL_ADD), fd, &evsys)) {
+                err("evt epoll_ctl fd [%d] error. want_opt [%x], errno [%d] [%s]\n", fd, want_opt, errno, strerror(errno));
+                return -1;
             }
         }
-        if(!ev->fd) ev->fd=fd;
-        ev->opt=want_opt;
+        if(!ev->fd) ev->fd = fd;
+        ev->opt = want_opt;
     }
-    return OK;
+    return 0;
 }
 
-status event_epoll_run( time_t msec )
+int event_epoll_run(time_t msec)
 {
-    int32 i = 0, all = 0;
-
-    all = epoll_wait( g_event_ctx->event_fd, g_event_ctx->events, MAX_NET_CON+128, (int)msec ); 
-    if(all<=0) {
-        if(all==0) {
-            return (msec==-1)?ERROR:AGAIN;
+    int i = 0;
+    int all = epoll_wait(g_event_ctx->event_fd, g_event_ctx->events, MAX_NET_CON+128, (int)msec); 
+    if(all <= 0) {
+        if(all == 0) {
+            return (msec == -1) ? -1 : -11;
         }
-        if(errno==EINTR) {
-            err("evt epoll_wait irq by [sig]\n");
-            return OK;
+        if(errno == EINTR) {
+            err("evt epoll_wait irq by [syscall]\n");
+            return 0;
         }
-        err("evt epoll_wait irq by [err], [%d] [%s]", errno, strerror(errno) );
-        return ERROR;
+        err("evt epoll_wait irq by [err], [%d] [%s]", errno, strerror(errno));
+        return -1;
     }
-
-    for(i=0;i<all;i++) {
+    for(i=0; i < all; i++) {
         event_t * ev = g_event_ctx->events[i].data.ptr;
         if(ev->flisten) {
-            ev->fread=1;
+            ev->fread = 1;
             g_event_ctx->ev_arr_accept[g_event_ctx->ev_arr_acceptn++] = ev;
         } else {
             int opt = g_event_ctx->events[i].events;
-            if(opt&EV_R) {
-                ev->fread=1;
-                ev->idxr=g_event_ctx->ev_arrn;
+            if(opt & EV_R) {
+                ev->fread = 1;
+                ev->idxr = g_event_ctx->ev_arrn;
                 g_event_ctx->ev_arr[g_event_ctx->ev_arrn++] = ev;
             }
-            if(opt&EV_W) {
-                ev->fwrite=1;
-                ev->idxw=g_event_ctx->ev_arrn;
+            if(opt & EV_W) {
+                ev->fwrite = 1;
+                ev->idxw = g_event_ctx->ev_arrn;
                 g_event_ctx->ev_arr[g_event_ctx->ev_arrn++] = ev;
             }
         }
     }
-    return OK;
+    return 0;
 }
 #else
-static status event_select_init( void )
+static int event_select_init(void)
 {
-    FD_ZERO( &g_event_ctx->rfds );
-    FD_ZERO( &g_event_ctx->wfds );
-    return OK;
+    FD_ZERO(&g_event_ctx->rfds);
+    FD_ZERO(&g_event_ctx->wfds);
+    return 0;
 }
 
-static status event_select_end( void )
+static int event_select_end(void)
 {
-    FD_ZERO( &g_event_ctx->rfds );
-    FD_ZERO( &g_event_ctx->wfds );
-    return OK;
+    FD_ZERO(&g_event_ctx->rfds);
+    FD_ZERO(&g_event_ctx->wfds);
+    return 0;
 }
 
-static status event_select_opt( event_t * ev, int32 fd, int want_opt )
+static int event_select_opt(event_t * ev, int fd, int want_opt)
 {
-    if( ev->opt != want_opt ) {
-        if( want_opt == (EV_R|EV_W) ) {
-            if( !(ev->opt & EV_R) ) {
-                FD_SET( fd, &g_event_ctx->rfds );
+    if(ev->opt != want_opt) {
+        if(want_opt == (EV_R|EV_W)) {
+            if(!(ev->opt & EV_R)) {
+                FD_SET(fd, &g_event_ctx->rfds);
             }
-            if( !(ev->opt & EV_W) ) {
-                FD_SET( fd, &g_event_ctx->wfds );
+            if(!(ev->opt & EV_W)) {
+                FD_SET(fd, &g_event_ctx->wfds);
             }
-        } else if ( want_opt == EV_R ) {
-            if( !(ev->opt & EV_R) ) {
-                FD_SET( fd, &g_event_ctx->rfds );
+        } else if (want_opt == EV_R) {
+            if(!(ev->opt & EV_R)) {
+                FD_SET(fd, &g_event_ctx->rfds);
             }
-            if( ev->opt & EV_W ) {
-                FD_CLR( fd, &g_event_ctx->wfds );
+            if(ev->opt & EV_W) {
+                FD_CLR(fd, &g_event_ctx->wfds);
             }
-        } else if ( want_opt == EV_W ) {
-            if( !(ev->opt & EV_W) ) {
-                FD_SET( fd, &g_event_ctx->wfds );
+        } else if (want_opt == EV_W) {
+            if(!(ev->opt & EV_W)) {
+                FD_SET(fd, &g_event_ctx->wfds);
             }
-            if( ev->opt & EV_R ) {
-                FD_CLR( fd, &g_event_ctx->rfds );
+            if(ev->opt & EV_R) {
+                FD_CLR(fd, &g_event_ctx->rfds);
             }
-        } else {
-            /// EV_NONE
+        } else { ///EV_NONE
             if( ev->opt & EV_W ) {
                 FD_CLR( fd, &g_event_ctx->wfds );
             }
@@ -162,13 +154,13 @@ static status event_select_opt( event_t * ev, int32 fd, int want_opt )
                 FD_CLR( fd, &g_event_ctx->rfds );
             }
         }
-        if( 0 == ev->fd ) ev->fd = fd;
+        if(0 == ev->fd) ev->fd = fd;
         ev->opt = want_opt;
     }
-    return OK;
+    return 0;
 }
 
-status event_select_run( time_t msec )
+int event_select_run(time_t msec)
 {
     struct timeval wait_tm;
     int fdmax = -1;
@@ -178,52 +170,49 @@ status event_select_run( time_t msec )
   
     fd_set rfds;
     fd_set wfds;
-
-    memset( &wait_tm, 0, sizeof(struct timeval) );
-    if(msec>0) {
+    memset(&wait_tm, 0, sizeof(struct timeval));
+    if(msec > 0) {
         wait_tm.tv_sec = msec/1000;
         wait_tm.tv_usec = (msec%1000)*1000;
     }
     
-    /// find max fd in listen events
-    listen_t * p = g_listens;
+    listen_t * p = g_listens; ///find max fd in listen events
     while(p) {
         ev = &p->event;
-        if(ev->fd>fdmax) {
-            fdmax=ev->fd;
+        if(ev->fd > fdmax) {
+            fdmax = ev->fd;
         }
         p = p->next;
     }
-    /// find max fd in event queue
-    q = queue_head(&g_event_ctx->evqueue);
-    while( q != queue_tail( &g_event_ctx->evqueue )) {
-        ev = ptr_get_struct( q, event_t, queue );
-        if(ev->fd>fdmax) {
+    
+    q = queue_head(&g_event_ctx->evqueue); ///find max fd in event queue
+    while(q != queue_tail(&g_event_ctx->evqueue)) {
+        ev = ptr_get_struct(q, event_t, queue);
+        if(ev->fd > fdmax) {
             fdmax = ev->fd;
         }
         q = queue_next(q);
     }
 
-    /// select return will be change read fds and write fds
-    memcpy( &rfds, &g_event_ctx->rfds, sizeof(fd_set) );
-    memcpy( &wfds, &g_event_ctx->wfds, sizeof(fd_set) );
-    actall = select( fdmax + 1, &rfds, &wfds, NULL, msec!=-1?&wait_tm:NULL );
-    if(actall<= 0) {
-        if(actall==0) {
-            return msec==-1?ERROR:AGAIN;
+    memcpy(&rfds, &g_event_ctx->rfds, sizeof(fd_set)); ///select return will be change read fds and write fds
+    memcpy(&wfds, &g_event_ctx->wfds, sizeof(fd_set));
+    actall = select(fdmax + 1, &rfds, &wfds, NULL, (msec != -1) ? &wait_tm : NULL);
+    if(actall <= 0) {
+        if(actall == 0) {
+            return (msec == -1) ? -1 : -11;
         }
-        if( errno == EINTR ) {
-            err("evt select irq by [sig]\n");
-            return OK;
+        if(errno == EINTR) {
+            err("evt select irq by [syscall]\n");
+            return 0;
         }
-        err("evt select irq by [err], [%d] [%s]\n", errno, strerror(errno) );
-        return ERROR;
+        err("evt select irq by [err], [%d] [%s]\n", errno, strerror(errno));
+        return -1;
     }
     
     p = g_listens;
     while(p && actn < actall) {
         ev = &p->event;
-        if( FD_ISSET(ev->fd, &rfds) ) {
+        if(FD_ISSET(ev->fd, &rfds)) {
             ev->fread = 1;
             g_event_ctx->ev_arr_accept[g_event_ctx->ev_arr_acceptn++] = ev;
             actn ++;
@@ -232,59 +221,59 @@ status event_select_run( time_t msec )
     }
 
     q = queue_head(&g_event_ctx->evqueue);
-    while( q != queue_tail( &g_event_ctx->evqueue ) && actn < actall ) {
-        ev = ptr_get_struct( q, event_t, queue );
+    while(q != queue_tail(&g_event_ctx->evqueue) && actn < actall) {
+        ev = ptr_get_struct(q, event_t, queue);
         if(FD_ISSET(ev->fd, &rfds)) {
-            ev->fread=1;
-            ev->idxr=g_event_ctx->ev_arrn;
+            ev->fread = 1;
+            ev->idxr = g_event_ctx->ev_arrn;
             g_event_ctx->ev_arr[g_event_ctx->ev_arrn++] = ev;
         }
         if(FD_ISSET(ev->fd, &wfds)) {
-            ev->fwrite=1;
-            ev->idxw=g_event_ctx->ev_arrn;
+            ev->fwrite = 1;
+            ev->idxw = g_event_ctx->ev_arrn;
             g_event_ctx->ev_arr[g_event_ctx->ev_arrn++] = ev;
         }
         q = queue_next(q);
     }
-    return OK;
+    return 0;
 }
 #endif
 
-status event_post_event(  event_t * ev )
+int event_post_event(  event_t * ev)
 {    
     g_event_ctx->ev_arr[g_event_ctx->ev_arrn++] = ev;
-    return OK;
+    return 0;
 }
 
-status event_opt( event_t * event, int32 fd, int want_opt )
+int event_opt(event_t * event, int fd, int want_opt)
 {
-    return g_event_ctx->g_event_handler.opt( event, fd, want_opt );
+    return g_event_ctx->g_event_handler.opt(event, fd, want_opt);
 }
 
-status event_run( time_t msec )
+int event_run(time_t msec)
 {    
     int i = 0;
     event_t *ev = NULL;
     g_event_ctx->ev_arr_acceptn = 0;
     g_event_ctx->ev_arrn = 0;
-    g_event_ctx->g_event_handler.run( msec );
-    systime_update( );
+    g_event_ctx->g_event_handler.run(msec);
+    systime_update();
     
-    for(i=0;i<g_event_ctx->ev_arr_acceptn;i++) {
+    for(i = 0; i < g_event_ctx->ev_arr_acceptn; i++) {
         ev = g_event_ctx->ev_arr_accept[i];
-        if(ev&&ev->fread) {
+        if(ev && ev->fread) {
             if(ev->read_pt) ev->read_pt(ev);
             ev->fread= 0;
         }
     }
-    for(i=0;i<g_event_ctx->ev_arrn;i++) {
+    for(i = 0; i<g_event_ctx->ev_arrn; i++) {
         ev = g_event_ctx->ev_arr[i];
         if(ev) {
             if(ev->fread) {
-                ev->fread=0;
+                ev->fread = 0;
                 if(ev->read_pt) ev->read_pt(ev);
             } else if (ev->fwrite) {
-                ev->fwrite=0;
+                ev->fwrite = 0;
                 if(ev->write_pt) ev->write_pt(ev);
             }
         }
@@ -292,51 +281,50 @@ status event_run( time_t msec )
     return 0;
 }
 
-status event_alloc( event_t ** ev )
+int event_alloc(event_t ** ev)
 {
-    event_t * nev = mem_pool_alloc( sizeof(event_t) );
+    event_t * nev = mem_pool_alloc(sizeof(event_t));
     if(!nev){
         err("evt alloc nev failed\n");
-        return ERROR;
+        return -1;
     }
     g_event_ctx->queue_use_num ++;
 #ifndef EVENT_EPOLL
-    queue_insert_tail( &g_event_ctx->evqueue, &nev->queue );
+    queue_insert_tail(&g_event_ctx->evqueue, &nev->queue);
 #endif
     *ev = nev;
-    return OK;
+    return 0;
 }
 
-status event_free( event_t * ev )
+int event_free(event_t * ev)
 {
-    if( ev ) {
-        timer_del( &ev->timer );
+    if(ev) {
+        timer_del(&ev->timer);
         if(!ev->flisten) {
             if(ev->idxr) g_event_ctx->ev_arr[ev->idxr] = NULL;
             if(ev->idxw) g_event_ctx->ev_arr[ev->idxw] = NULL;
         }
-        if(ev->opt!=EV_NONE) event_opt(ev, ev->fd, EV_NONE);       
+        if(ev->opt != EV_NONE) event_opt(ev, ev->fd, EV_NONE);       
         g_event_ctx->queue_use_num--;
 #ifndef EVENT_EPOLL
         queue_remove(&ev->queue);
 #endif
         mem_pool_free(ev);
     }
-    return OK;
+    return 0;
 }
 
-status event_init( void )
+int event_init(void)
 {    
-    if( g_event_ctx ) {
+    if(g_event_ctx) {
         err("g_event_ctx not empty\n");
-        return ERROR;
+        return -1;
     }
-    g_event_ctx = mem_pool_alloc( sizeof(g_event_t) );
-    if( !g_event_ctx ) {
-        err("event alloc this failed\n" );
-        return ERROR;
+    g_event_ctx = mem_pool_alloc(sizeof(g_event_t));
+    if(!g_event_ctx) {
+        err("event alloc this failed\n");
+        return -1;
     }
-
 #if defined(EVENT_EPOLL)
     g_event_ctx->g_event_handler.init = event_epoll_init;
     g_event_ctx->g_event_handler.end = event_epoll_end;
@@ -349,8 +337,7 @@ status event_init( void )
     g_event_ctx->g_event_handler.run = event_select_run;
     queue_init(&g_event_ctx->evqueue);
 #endif
-    // init event, and add listen into event
-    g_event_ctx->g_event_handler.init();
+    g_event_ctx->g_event_handler.init(); ///init event, and add listen into event
 
     /// all worker process will be add listen fd into event.
     /// listen fd set by SO_REUSEPORT. 
@@ -360,36 +347,29 @@ status event_init( void )
         p->event.data = p;
         p->event.read_pt = net_accept;
         p->event.flisten = 1;
-        event_opt( &p->event, p->fd, EV_R );
+        event_opt(&p->event, p->fd, EV_R);
         p = p->next;
     }
-    return OK;
+    return 0;
     
 }
 
-status event_end( void )
+int event_end(void)
 {
-    if( g_event_ctx ) {
-        process_lock();
-        if( process_mutex_value_get() == proc_pid() ) {
-            listen_t * p = g_listens;
-            while(p) {
-                p->event.data = p;
-                p->event.read_pt = net_accept;
-                p->event.flisten = 1;
-                event_opt( &p->event, p->fd, EV_NONE );
-                p = p->next;
-            }
-            process_mutex_value_set(0);
+    if(g_event_ctx) {
+        listen_t * p = g_listens;
+        while(p) {
+            p->event.data = p;
+            p->event.read_pt = net_accept;
+            p->event.flisten = 1;
+            event_opt(&p->event, p->fd, EV_NONE);
+            p = p->next;
         }
-        process_unlock();
-        
-        if( g_event_ctx->g_event_handler.end ) {
+        if(g_event_ctx->g_event_handler.end) {
             g_event_ctx->g_event_handler.end();
         }
-        mem_pool_free( g_event_ctx );
+        mem_pool_free(g_event_ctx);
         g_event_ctx = NULL;
     }
-
-    return OK;
+    return 0;
 }

@@ -1,24 +1,22 @@
 #include "common.h"
 
-
-status meta_alloc( meta_t ** meta, uint32 datan )
+int meta_alloc(meta_t ** meta, int datan)
 {
     if(meta) {
         meta_t * t = mem_pool_alloc(sizeof(meta_t)+datan);
         if(!t) {
-            return ERROR;
+            return -1;
         }
         t->start = t->pos = t->last = t->data;
         t->end = t->start + datan;
         *meta = t;
-        return OK;
+        return 0;
     }
-    return ERROR;
+    return -1;
 }
 
-void meta_free( meta_t * meta )
+void meta_free(meta_t * meta)
 {
-    if(meta) {
+    if(meta)
         mem_pool_free(meta);
-    }
 }

@@ -1,7 +1,7 @@
 #include "common.h"
 
 
-int mem_list_free( mem_list_t * h )
+int mem_list_free(mem_list_t * h)
 {
     mem_list_t * p = h;
     mem_list_t * n = NULL;
@@ -14,18 +14,17 @@ int mem_list_free( mem_list_t * h )
     return 0;
 }
 
-int mem_list_push( mem_list_t ** h, char * data )
+int mem_list_push(mem_list_t ** h, char * data)
 {
     int datan = strlen(data);
-    
-    mem_list_t * nl = mem_pool_alloc( sizeof(mem_list_t)+datan+1 );
+    mem_list_t * nl = mem_pool_alloc(sizeof(mem_list_t)+datan+1);
     if(!nl) {
         err("alloc memlist nl failed\n");
         return -1;
     }
     nl->next = NULL;
     nl->datan = datan;
-    memcpy( nl->data, data, datan );
+    memcpy(nl->data, data, datan);
 
     if(!*h) {
         *h = nl;

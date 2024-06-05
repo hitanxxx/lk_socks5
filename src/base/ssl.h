@@ -12,7 +12,6 @@ extern "C"
 #define L_SSL_SERVER        0x02
 
 
-typedef status ( * ssl_layer_done_pt )( event_t * ev );
 typedef struct {
     SSL_CTX	* session_ctx;
     SSL* con;
@@ -21,31 +20,31 @@ typedef struct {
     int cache_ev_typ;
     event_pt cache_ev_readpt;
     event_pt cache_ev_writept;
-    ssl_layer_done_pt cb;
+    event_pt cb;
     
 	char    f_handshaked:1;
     char    f_shutdown_send:1;  ///initiative shutdown
 } ssl_con_t;
 
-status ssl_init( void );
-status ssl_end( void );
+int ssl_init(void);
+int ssl_end(void);
 
-status ssl_client_ctx( SSL_CTX ** s );
-status ssl_server_ctx( SSL_CTX ** s );
+int ssl_client_ctx(SSL_CTX ** s);
+int ssl_server_ctx(SSL_CTX ** s);
 
-status ssl_handshake( ssl_con_t * ssl );
-status ssl_shutdown( ssl_con_t * ssl );
+int ssl_handshake(ssl_con_t * ssl);
+int ssl_shutdown(ssl_con_t * ssl);
 
-ssize_t ssl_read( con_t * c, unsigned char * start, uint32 len );
-ssize_t ssl_write( con_t * c, unsigned char * start, uint32 len );
-status ssl_write_chain( con_t * c, meta_t * meta );
+int ssl_read(con_t * c, unsigned char * buf, int bufn);
+int ssl_write(con_t * c, unsigned char * data, int datan);
+int ssl_write_chain(con_t * c, meta_t * meta);
 
-status ssl_create_connection( con_t * c, uint32 flag );
-status ssl_conf_set_crt ( string_t * value );
-status ssl_conf_set_key ( string_t * value );
+int ssl_create_connection(con_t * c, int flag);
+int ssl_conf_set_crt(string_t * value);
+int ssl_conf_set_key(string_t * value);
 
-status ssl_load_ctx_certificate( SSL_CTX ** ctx, int flag );
-status ssl_load_con_certificate( SSL_CTX * ctx, int flag, SSL ** ssl );
+int ssl_load_ctx_certificate(SSL_CTX ** ctx, int flag);
+int ssl_load_con_certificate(SSL_CTX * ctx, int flag, SSL ** ssl);
 
 #ifdef __cplusplus
 }

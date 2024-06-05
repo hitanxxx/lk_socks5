@@ -5,10 +5,6 @@
 extern "C"
 {
 #endif
-    
-
-#define CONF_SETTING_LENGTH (32*1024)  // 32KB size limit
-
 
 typedef struct gobal_conf
 {
@@ -42,9 +38,9 @@ typedef struct gobal_conf
 	
 }config_t;
 
-config_t * config_get( void );
-status config_init( void );
-status config_end( void );
+config_t * config_get(void);
+int config_init(void);
+int config_end(void);
 
 #ifdef __cplusplus
 }

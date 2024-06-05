@@ -15,34 +15,33 @@ static test_init_pt init_t[] = {
 };
 
 
-status test_add ( test_pt pt )
+int test_add(test_pt pt)
 {
     manager.test[manager.num].pt = pt;
     manager.num ++;
-    return OK;
+    return 0;
 }
 
-status test_run( void )
+int test_run(void)
 {
-    uint32 i = 0;
-
-    t_echo ( "===== test start =====\n" );
-    for( i = 0; i < manager.num; i ++ ) {
-        manager.test[i].pt( );
+    int i = 0;
+    t_echo ("===== test start =====\n");
+    for(i = 0; i < manager.num; i++) {
+        manager.test[i].pt();
     }
-    t_echo ( "===== test fin =====\n" );
-    t_echo ( "unit num: [%d]\n", manager.num );
-    return OK;
+    t_echo("===== test fin =====\n");
+    t_echo("unit num: [%d]\n", manager.num);
+    return 0;
 }
 
-status test_start( void )
+int test_start(void)
 {
-    uint32 i;
+    int i = 0;
     mem_pool_init();
-    for( i = 0; init_t[i]; i ++ ) {
-        init_t[i]( );
+    for(i = 0; init_t[i]; i++) {
+        init_t[i]();
     }
     test_run();
     mem_pool_deinit();
-    return OK;
+    return 0;
 }

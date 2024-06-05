@@ -4,17 +4,17 @@
 static bst_t  tree;
 static bst_node_t arr[7], arr1[10];
 // -------------------
-static void ts_bst_start( void )
+static void ts_bst_start(void)
 {
-    bst_create( &tree, NULL );
+    bst_create(&tree, NULL);
 }
 // -------------------
-static void ts_bst_add( void )
+static void ts_bst_add(void)
 {
-    t_assert( 0 == tree.elem_num );
+    t_assert(0 == tree.elem_num);
     uint32 i = 0;
 
-    memset( arr, 0, sizeof(arr) );
+    memset(arr, 0, sizeof(arr));
     arr[0].num = 1;
     arr[1].num = 2;
     arr[2].num = 3;
@@ -23,36 +23,36 @@ static void ts_bst_add( void )
     arr[5].num = 6;
     arr[6].num = 7;
 
-    while( i < 7 ) {
-        bst_insert( &tree, &arr[i] );
-        i ++;
+    while(i < 7) {
+        bst_insert(&tree, &arr[i]);
+        i++;
     }
-    t_assert( 7 == tree.elem_num );
+    t_assert(7 == tree.elem_num);
 
-    bst_travesal_breadth( &tree );
+    bst_travesal_breadth(&tree);
 }
 // -------------------
 static void ts_bst_del( void )
 {
     uint32 i = 0;
-    while( i < 7 ) {
-        bst_del( &tree, &arr[i] );
+    while(i < 7) {
+        bst_del(&tree, &arr[i]);
         i++;
     }
-    t_assert( NULL == tree.head.right );
-    t_assert( 0 == tree.elem_num );
+    t_assert(NULL == tree.head.right);
+    t_assert(0 == tree.elem_num);
 }
 // -------------------
 static void ts_bst_insert_repeat( void )
 {
     status rc;
 
-    t_assert( 0 == tree.elem_num );
-    t_assert( NULL == tree.head.right );
+    t_assert(0 == tree.elem_num);
+    t_assert(NULL == tree.head.right);
 
-    rc = bst_insert( &tree, &arr[0] );
-    t_assert( rc == OK );
-    t_assert( tree.elem_num == 1 );
+    rc = bst_insert(&tree, &arr[0]);
+    t_assert(rc == OK);
+    t_assert(tree.elem_num == 1);
 
     rc = bst_insert( &tree, &arr[0] );
     t_assert( rc == ERROR );

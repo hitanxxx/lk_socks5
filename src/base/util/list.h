@@ -14,8 +14,8 @@ struct mem_list
 	char	 			data[0];
 };
 
-int mem_list_push( mem_list_t ** h, char * data );
-int mem_list_free( mem_list_t * h );
+int mem_list_push(mem_list_t ** h, char * data);
+int mem_list_free(mem_list_t * h);
 
 
 

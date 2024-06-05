@@ -55,7 +55,7 @@ typedef struct dns_cycle
     con_t *  c;
     dns_callback    cb;
     void *          cb_data;
-    status          dns_status; // OK:success 	ERROR:error
+    int          dns_status; // OK:success 	-1:error
     
 	meta_t          dns_meta;
     unsigned char   dns_buffer[DNS_BUFFER_LEN];
@@ -65,16 +65,16 @@ typedef struct dns_cycle
     dns_record_t    answer;	/// dns answer
 } dns_cycle_t;
 
-status dns_start( dns_cycle_t * cycle );
-status dns_create( dns_cycle_t ** dns_cycle );
-status dns_over( dns_cycle_t * cycle );
-int dns_request_host2qname( unsigned char * host, unsigned char * qname );
+int dns_start(dns_cycle_t * cycle);
+int dns_create(dns_cycle_t ** dns_cycle);
+int dns_over(dns_cycle_t * cycle);
+int dns_request_host2qname(unsigned char * host, unsigned char * qname);
 
 
-status dns_init( void );
-status dns_end( void );
+int dns_init(void);
+int dns_end(void);
 
-status dns_rec_find( char * query, char * out_addr );
+int dns_rec_find(char * query, char * out_addr);
 
     
 #ifdef __cplusplus

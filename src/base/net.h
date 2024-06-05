@@ -12,8 +12,8 @@ extern "C"
 
 #define L_NET_TIMEOUT 5
 
-typedef status ( *net_cb_rw_chain ) ( con_t * c, meta_t * meta );
-typedef ssize_t ( *net_cb_rw ) ( con_t * c, unsigned char * start, uint32 len );
+typedef int (*net_cb_rw_chain) (con_t * c, meta_t * meta);
+typedef int (*net_cb_rw) (con_t * c, unsigned char * buf, int bufn);
 
 struct net_connection_t
 {
@@ -32,25 +32,25 @@ struct net_connection_t
 };
 
 
-status net_socket_nbio( int32 fd );
-status net_socket_reuseport( int32 fd );
-status net_socket_reuseaddr( int32 fd );
-status net_socket_fastopen( int32 fd );
-status net_socket_nodelay(  int32 fd );
-status net_socket_nopush( int32 fd );
-status net_socket_lowat_send( int32 fd );
-status net_socket_check_status( int32 fd );
-status net_check_ssl_valid( con_t * c );
+int net_socket_nbio(int fd);
+int net_socket_reuseport(int fd);
+int net_socket_reuseaddr(int fd);
+int net_socket_fastopen(int fd);
+int net_socket_nodelay(  int fd);
+int net_socket_nopush(int fd);
+int net_socket_lowat_send(int fd);
+int net_socket_check_status(int fd);
+int net_check_ssl_valid(con_t * c);
 
-status net_accept( event_t * event );
-status net_connect( con_t * c, struct sockaddr_in * addr);
+int net_accept(event_t * event);
+int net_connect(con_t * c, struct sockaddr_in * addr);
 
-status net_alloc( con_t ** connection );
-status net_free( con_t * connection );
+int net_alloc(con_t ** connection);
+int net_free(con_t * connection);
 
-void net_timeout( void * data );
-status net_init( void );
-status net_end( void );
+void net_timeout(void * data);
+int net_init(void);
+int net_end(void);
     
 #ifdef __cplusplus
 }

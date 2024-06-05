@@ -1,29 +1,26 @@
 #include "common.h"
 
-
-ssize_t recvs( con_t * c, unsigned char * buffer, uint32 len )
+int recvs(con_t * c, unsigned char * buf, int bufn)
 {
-    ssize_t rc;
+    int rc;
+    sys_assert(bufn > 0);
+    sys_assert(buf != NULL);
+    sys_assert(c != NULL);
 
-    sys_assert( len > 0 );
-    sys_assert( buffer != NULL );
-    sys_assert( c != NULL );
-
-    
-    while(1) {
-        rc = recv( c->fd, buffer, len, 0 );
-        if( rc <= 0 ) {
-            if( rc == 0 ) {
-                err("recv 0. closed by peer\n");
-                return ERROR;
+    for(;;) {
+        rc = recv(c->fd, buf, bufn, 0);
+        if(rc <= 0) {
+            if(rc == 0) {
+                err("peer closed\n");
+                return -1;
             } else {
-                if( (errno == EAGAIN) || (errno == EWOULDBLOCK) ) {
-                    return AGAIN;
-                } else if ( errno == EINTR ) {
+                if((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
+                    return -11;
+                } else if (errno == EINTR) {
                     continue;
                 } else {
-                    err("rec errno. [%d] [%s]\n", errno, strerror(errno) );
-                    return ERROR;
+                    err("rec failed. [%d] [%s]\n", errno, strerror(errno));
+                    return -1;
                 }
             }
         }
@@ -32,117 +29,111 @@ ssize_t recvs( con_t * c, unsigned char * buffer, uint32 len )
 }
 
 
-ssize_t sends( con_t * c, unsigned char * buffer, uint32 len )
+int sends(con_t * c, unsigned char * buf, int bufn)
 {
-    ssize_t rc;
+    int rc;
     
-    sys_assert( len > 0 );
-    sys_assert( buffer != NULL );
-    sys_assert( len > 0 );
+    sys_assert(bufn > 0);
+    sys_assert(buf != NULL);
+    sys_assert(c != NULL);
 
-    while(1) {
-        rc = send( c->fd, buffer, len, 0 );
-        if( rc < 0 ) {
-            if( (errno == EAGAIN) || (errno == EWOULDBLOCK) ) {
-                return AGAIN;
-            } else if ( errno == EINTR ) {
+    for(;;) {
+        rc = send(c->fd, buf, bufn, 0);
+        if(rc < 0) {
+            if((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
+                return -11;
+            } else if (errno == EINTR) {
                 continue;
             } else {
-                err("send errno. [%d] [%s]\n", errno, strerror(errno) );
-                return ERROR;
+                err("send failed. [%d] [%s]\n", errno, strerror(errno));
+                return -1;
             }
         }
         return rc;
     };
 }
 
-inline static status meta_need_send( meta_t * meta )
+inline static int meta_need_send(meta_t * meta)
 {
-    return( meta->last > meta->pos ) ? OK : ERROR;
+    return(meta->last > meta->pos) ? 1 : 0;
 }
 
-status send_chains( con_t * c, meta_t * head )
+int send_chains(con_t * c, meta_t * head)
 {
     meta_t * cur = NULL;
-    ssize_t size = 0;
     
-    sys_assert( c != NULL );
-    sys_assert( head != NULL );
+    sys_assert(c != NULL);
+    sys_assert(head != NULL);
 
-    while(1) {
+    for(;;) {
         cur = head;
-        while( cur ) {
-            if( OK == meta_need_send(cur) ) {
+        while(cur) {
+            if(meta_need_send(cur))
                 break;
-            }
+           
             cur = cur->next;
         }
+        if(!cur)
+            return 1;
 
-        if( cur == NULL ) {
-            return DONE;
-        }
-
-        size = sends( c, cur->pos, meta_len( cur->pos, cur->last ) );
-        if( size < 0 ) {
-            if( AGAIN == size ) {
-                return AGAIN;
+        int sendn = sends(c, cur->pos, meta_len(cur->pos, cur->last));
+        if(sendn < 0) {
+            if(-11 == sendn) {
+                return -11;
             }
-            return ERROR;
+            return -1;
         }
-        cur->pos += size;
+        cur->pos += sendn;
     };
 }
 
-ssize_t udp_recvs( con_t * c, unsigned char * buffer, uint32 len )
+int udp_recvs(con_t * c, unsigned char * buf, int bufn)
 {
-    ssize_t rc;
     socklen_t socklen = sizeof(struct sockaddr);
+    
+    sys_assert(c != NULL);
+    sys_assert(buf != NULL);
+    sys_assert(bufn > 0);
 
-    sys_assert( c != NULL );
-    sys_assert( buffer != NULL );
-    sys_assert( len > 0 );
-
-    while(1) {
-        rc = recvfrom( c->fd, buffer, len, 0, (struct sockaddr*)&c->addr, &socklen );
-        if( rc <= 0 ) {
-            if( rc == 0 ) {
-                return ERROR;
+    for(;;) {
+        int recvd = recvfrom(c->fd, buf, bufn, 0, (struct sockaddr*)&c->addr, &socklen);
+        if(recvd <= 0) {
+            if(recvd == 0) {
+                return -1;
             } else {
-                if( (errno == EAGAIN) || (errno == EWOULDBLOCK) ) {
-                    return AGAIN;
-                } else if ( errno == EINTR ) {
+                if((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
+                    return -11;
+                } else if (errno == EINTR) {
                     continue;
                 } else {
-                    return ERROR;
+                    return -1;
                 }
             }
         }
-        return rc;
+        return recvd;
     };
 }
 
-
-ssize_t udp_sends( con_t * c, unsigned char * buffer, uint32 len )
+int udp_sends(con_t * c, unsigned char * buf, int bufn)
 {
-    ssize_t rc;
     socklen_t socklen = sizeof(struct sockaddr);
 
-    sys_assert( c != NULL);
-    sys_assert( buffer != NULL);
-    sys_assert( len > 0 );
+    sys_assert(c != NULL);
+    sys_assert(buf != NULL);
+    sys_assert(bufn > 0);
 
-    while(1) {
-        rc = sendto( c->fd, buffer, len, 0, (struct sockaddr*)&c->addr, socklen );
-        if( rc < 0 ) {
-            if( (errno == EAGAIN) || (errno == EWOULDBLOCK)) {
-                return AGAIN;
-            } else if ( errno == EINTR ) {
+    for(;;) {
+        int sendn = sendto(c->fd, buf, bufn, 0, (struct sockaddr*)&c->addr, socklen);
+        if(sendn < 0) {
+            if((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
+                return -11;
+            } else if (errno == EINTR) {
                 continue;
             } else {
-                return ERROR;
+                return -1;
             }
         }
-        return rc;
+        return sendn;
     };
 }
 

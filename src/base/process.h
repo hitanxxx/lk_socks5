@@ -15,23 +15,14 @@ typedef struct {
 	int32			exited;
 } process_t ;
 
-void proc_master_run( void );
-void proc_worker_run( void );
+void proc_master_run(void);
+void proc_worker_run(void);
 
-status proc_pid( );
-status proc_pid_form_file( pid_t * pid );
-
-status proc_signal_send( pid_t pid, int32 signal );
-
-status process_end( void );
-status process_init( void );
-
-void process_lock( );
-void process_unlock( );
-
-void process_mutex_value_set( int v );
-int process_mutex_value_get( );
-
+int proc_pid();
+int proc_pid_form_file(pid_t * pid);
+int proc_signal_send(pid_t pid, int signal);
+int process_end(void);
+int process_init(void);
 
 #ifdef __cplusplus
 }

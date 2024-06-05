@@ -82,17 +82,17 @@ typedef struct
 } s5_session_t;
 
 
-status s5_free( s5_session_t * s5 );
-status s5_alloc( s5_session_t ** s5 );
-void s5_timeout_cb( void * data );
+int s5_free(s5_session_t * s5);
+int s5_alloc(s5_session_t ** s5);
+void s5_timeout_cb(void * data);
 
 
-status s5_traffic_process( event_t * ev );
-status s5_server_transport( event_t * ev );
-status s5_server_accept_cb( event_t * ev );
+int s5_traffic_process(event_t * ev);
+int s5_server_transport(event_t * ev);
+int s5_server_accept_cb(event_t * ev);
 
-status socks5_server_init( void );
-status socks5_server_end( void );
+int socks5_server_init(void);
+int socks5_server_end(void);
 
 
 #ifdef __cplusplus

@@ -7,17 +7,17 @@ extern "C"
 #endif
     
 
-#define EV_NONE         0x0
+#define EV_NONE  0x0
 #if defined(EVENT_EPOLL)
-#define EV_R        EPOLLIN
-#define EV_W        EPOLLOUT
+#define EV_R   EPOLLIN
+#define EV_W   EPOLLOUT
 #else
-#define EV_R            0x001
-#define EV_W            0x004
+#define EV_R   0x001
+#define EV_W   0x004
 #endif
 
 typedef struct l_event event_t;
-typedef status ( *event_pt ) ( event_t * event );
+typedef status (*event_pt) (event_t * event);
 struct l_event 
 {
 #ifndef EVENT_EPOLL
@@ -38,10 +38,10 @@ struct l_event
     char    fread:1;   /// mark readable, writable
     char    fwrite:1;
 };
-typedef status (*event_handler_init) (void);
-typedef status (*event_handler_end) (void);
-typedef status (*event_handler_opt)( event_t * ev, int32 fd, int type );
-typedef status (*event_handler_run)( time_t msec );
+typedef int (*event_handler_init) (void);
+typedef int (*event_handler_end) (void);
+typedef int (*event_handler_opt)(event_t * ev, int fd, int type);
+typedef int (*event_handler_run)(time_t msec);
 typedef struct event_handler {
     event_handler_init      init;
     event_handler_end       end;
@@ -49,16 +49,16 @@ typedef struct event_handler {
     event_handler_run       run;
 } event_handler_t;
 
-status event_opt( event_t * event, int32 fd, int type );
-status event_run( time_t msec );
+int event_opt(event_t * event, int fd, int type);
+int event_run(time_t msec);
 
-status event_alloc( event_t ** ev );
-status event_free( event_t * ev );
+int event_alloc(event_t ** ev);
+int event_free(event_t * ev);
 
-status event_init( void );
-status event_end( void );
+int event_init(void);
+int event_end(void);
 
-status event_post_event( event_t * ev );
+int event_post_event(event_t * ev);
 
 #ifdef __cplusplus
 }

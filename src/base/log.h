@@ -11,16 +11,15 @@ extern "C"
 #define LOG_ID_MAIN			0
 #define LOG_ID_ACCESS		1
 
-enum e_log_level
-{   
+enum e_log_level {   
     LOG_LEVEL_ERROR = 0x0,
     LOG_LEVEL_INFO,
     LOG_LEVEL_DEBUG
 };
 
-#define err( ... )  		{(log_print( LOG_ID_MAIN, LOG_LEVEL_ERROR, __func__, __LINE__, ##__VA_ARGS__ ));}
-#define dbg( ... )  		{(log_print( LOG_ID_MAIN, LOG_LEVEL_DEBUG, __func__, __LINE__, ##__VA_ARGS__ ));}
-#define access_log( ... ) 	{(log_print( LOG_ID_ACCESS, LOG_LEVEL_INFO, __func__, __LINE__, ##__VA_ARGS__ ));}
+#define err(...)  		log_print(LOG_ID_MAIN, LOG_LEVEL_ERROR, __func__, __LINE__, ##__VA_ARGS__)
+#define dbg(...)  		log_print(LOG_ID_MAIN, LOG_LEVEL_DEBUG, __func__, __LINE__, ##__VA_ARGS__)
+#define access_log(...)   log_print(LOG_ID_ACCESS, LOG_LEVEL_INFO, __func__, __LINE__, ##__VA_ARGS__)
 
 
 typedef struct 
@@ -38,9 +37,9 @@ typedef struct
 	char * 		last;
 } log_content_t;
 
-status log_print( uint32 id, uint32 level,  const char * func, int line, const char * str, ... );
-status log_init( void );
-status log_end( void );
+int log_print(int id, int level,  const char * func, int line, const char * str, ...);
+int log_init(void);
+int log_end(void);
 
 #ifdef __cplusplus
 }
