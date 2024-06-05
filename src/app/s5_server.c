@@ -398,7 +398,7 @@ static int s5_server_connect(event_t * ev)
     status rc = 0;
 
     rc = net_connect(s5->up, &s5->up->addr);
-    if(rc == -11) {
+    if(rc == -1) {
         err("s5 server connect up failed\n");
         s5_free(s5);
         return -1;
