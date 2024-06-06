@@ -199,15 +199,20 @@ static int webser_try_read(event_t * ev)
     char buf[1] = {0};
 
     int n = recv(c->fd, buf, 1, MSG_PEEK);
-    if(n <= 0) {
-        if((n < 0) && ((errno == EAGAIN) || (errno == EWOULDBLOCK))) {
-           return -11;
+    if(n < 0) {
+        if((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
+            return -11;
         }
-        err("webser peek recv failed. [%d] [%s]\n", errno, strerror(errno));
+        err("peek recv err. <%d:%s>\n", errno, strerror(errno));
         webser_free(webser);
         return -1;
     }
-    return 0;
+    if (n == 1) {
+        return 0;
+    }
+    err("peek recv peer closed\n");
+    webser_free(webser);
+    return -1;
 }
 
 static int webser_keepalive(event_t * ev)

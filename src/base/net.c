@@ -75,18 +75,22 @@ int net_check_ssl_valid(con_t * c)
 {
     unsigned char buf = 0;
     int n = recv(c->fd, (char*)&buf, 1, MSG_PEEK);
-    if(n <= 0) {
-        if((n < 0) && ((errno == EAGAIN) || (errno == EWOULDBLOCK))) {
+    if(n < 0) {
+        if((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
             return -11;
-        }    
-        err("peek recv failed, <%d: %s>\n", errno, strerror(errno));
+        }
+        err("peek recv err. <%d:%s>\n", errno, strerror(errno));
         return -1;
     }
-    /* 0x80:SSLv2  0x16:SSLv3/TLSv1 */
-    if(!(buf&0x80) && (buf != 0x16)) {
-        return -1;
+    if (n == 1) {
+        if(!(buf & 0x80) && (buf != 0x16)) { ///0x80:SSLv2  0x16:SSLv3/TLSv1
+            return -1;
+        } else {
+            return 0;
+        }
     }
-    return 0;
+    err("peek recv peer closed\n");
+    return -1;
 }
 
 int net_connect(con_t * c, struct sockaddr_in * addr)
