@@ -849,7 +849,7 @@ static int s5_server_auth_recv(event_t * ev)
     timer_del(&ev->timer);
 
     s5_auth_t * auth = (s5_auth_t*)meta->pos;
-    if(htonl(auth->magic) != htonl(S5_AUTH_LOCAL_MAGIC)) {
+    if(htonl(S5_AUTH_LOCAL_MAGIC) != auth->magic) {
         err("s5 server. auth check. magic [0x%x] != [0x%x]\n", auth->magic, S5_AUTH_LOCAL_MAGIC);
         s5_free(s5);
         return -1;

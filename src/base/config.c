@@ -84,12 +84,12 @@ static int config_parse(char * str)
         if(http_index)
             strncpy(g_config.http_index, cJSON_GetStringValue(http_index), sizeof(g_config.http_index)-1);
         g_config.http_num = cJSON_GetArraySize(http_arr);
-        for(i = 0; i < g_config.http_num; i++)
-            ///dbg("[%hd] \n", g_config.http_arr[i]);
+        ///for(i = 0; i < g_config.http_num; i++) 
+        ///    dbg("[%d]\n", g_config.http_arr[i]);
             
         g_config.https_num = cJSON_GetArraySize(https_arr);
-        for(i = 0; i < g_config.https_num; i++)
-            ///dbg("[%hd] \n", g_config.https_arr[i]);
+        ///for(i = 0; i < g_config.https_num; i++)
+        ///    dbg("[%d]\n", g_config.https_arr[i]);
             
         ///dbg("http_home: [%s]\n", g_config.http_home);
         ///dbg("http_index: [%s]\n", g_config.http_index);

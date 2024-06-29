@@ -113,7 +113,7 @@ int main(int argc, char ** argv)
 #else
 int main(int argc, char ** argv)
 {
-	ahead_dbg("Welcome to <sssss>, buildts <%s %s>\n", __DATE__, __TIME__);
+    ahead_dbg("Welcome to <sssss>, buildts <%s %s>\n", __DATE__, __TIME__);
     ahead_dbg(" /\\_/\\\n");   
     ahead_dbg("( o.o )\n"); 
     ahead_dbg(" > ^ <\n");

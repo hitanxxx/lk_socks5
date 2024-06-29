@@ -701,12 +701,12 @@ static int webser_transfer_to_s5(event_t * ev)
     }
     timer_del(&ev->timer);
 
-	s5_auth_t * header = (s5_auth_t*)meta->pos;
-    if(htonl(S5_AUTH_LOCAL_MAGIC) != htonl(header->magic)) {
-		ev->read_pt = webser_start;
+    s5_auth_t * header = (s5_auth_t*)meta->pos;
+    if(htonl(S5_AUTH_LOCAL_MAGIC) != header->magic) {
+	ev->read_pt = webser_start;
     	return ev->read_pt(ev);
-	} 
-	ev->read_pt = s5_server_transport;
+    } 
+    ev->read_pt = s5_server_transport;
     return ev->read_pt(ev);
 }
 
@@ -732,7 +732,6 @@ static int webser_accept_cb_ssl_check(event_t * ev)
 int webser_accept_cb_ssl(event_t * ev)
 {
     con_t * c = ev->data;
-
     int rc = net_check_ssl_valid(c);
     if(rc != 0) {
         if(rc == -11) {
