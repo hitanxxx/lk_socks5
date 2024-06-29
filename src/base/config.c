@@ -16,9 +16,9 @@ static int config_parse(char * str)
             g_config.sys_process_num = sys_process->valueint;
         if(sys_loglevel)
             g_config.sys_log_level = sys_loglevel->valueint;
-        dbg("sys_daemon: [%d]\n", g_config.sys_daemon);
-        dbg("sys_process: [%d]\n", g_config.sys_process_num);
-        dbg("sys_log_level: [%d]\n", g_config.sys_log_level);
+        ///dbg("sys_daemon: [%d]\n", g_config.sys_daemon);
+        ///dbg("sys_process: [%d]\n", g_config.sys_process_num);
+        ///dbg("sys_log_level: [%d]\n", g_config.sys_log_level);
 
 
         cJSON * ssl_crt_path = cJSON_GetObjectItem(root, "ssl_crt_path");
@@ -27,8 +27,8 @@ static int config_parse(char * str)
             strncpy(g_config.ssl_crt_path, cJSON_GetStringValue(ssl_crt_path), sizeof(g_config.ssl_crt_path)-1);
         if(ssl_key_path)
             strncpy(g_config.ssl_key_path, cJSON_GetStringValue(ssl_key_path), sizeof(g_config.ssl_key_path)-1);
-        dbg("ssl_crt_path: [%s]\n", g_config.ssl_crt_path);
-        dbg("ssl_key_path: [%s]\n", g_config.ssl_key_path);
+        ///dbg("ssl_crt_path: [%s]\n", g_config.ssl_crt_path);
+        //dbg("ssl_key_path: [%s]\n", g_config.ssl_key_path);
 
 
         cJSON * s5_mode = cJSON_GetObjectItem(root, "s5_mode");
@@ -43,10 +43,10 @@ static int config_parse(char * str)
             strncpy(g_config.s5_serv_auth_path, cJSON_GetStringValue(s5_serv_auth_path), sizeof(g_config.s5_serv_auth_path)-1);
         if( s5_serv_gw )
             strncpy(g_config.s5_serv_gw, cJSON_GetStringValue(s5_serv_gw), sizeof(g_config.s5_serv_gw)-1);
-        dbg("s5_mode: [%d]\n", g_config.s5_mode);
-        dbg("s5_serv_port: [%hd]\n", g_config.s5_serv_port);
-        dbg("s5_serv_auth_path: [%s]\n", g_config.s5_serv_auth_path);
-        dbg("s5_serv_gw: [%s]\n", g_config.s5_serv_gw);
+        ///dbg("s5_mode: [%d]\n", g_config.s5_mode);
+        ///dbg("s5_serv_port: [%d]\n", g_config.s5_serv_port);
+        ///dbg("s5_serv_auth_path: [%s]\n", g_config.s5_serv_auth_path);
+        ///dbg("s5_serv_gw: [%s]\n", g_config.s5_serv_gw);
 
 
         cJSON * s5_local_port = cJSON_GetObjectItem(root, "s5_local_port");
@@ -61,10 +61,10 @@ static int config_parse(char * str)
             strncpy(g_config.s5_local_serv_ip, cJSON_GetStringValue(s5_local_serv_ip), sizeof(g_config.s5_local_serv_ip)-1);
         if(s5_local_auth)
             strncpy(g_config.s5_local_auth, cJSON_GetStringValue(s5_local_auth), sizeof(g_config.s5_local_auth)-1);
-        dbg("s5_local_port: [%hd]\n", g_config.s5_local_port);
-        dbg("s5_local_serv_port: [%hd]\n", g_config.s5_local_serv_port);
-        dbg("s5_local_serv_ip: [%s]\n", g_config.s5_local_serv_ip);
-        dbg("s5_local_auth: [%s]\n", g_config.s5_local_auth);
+        ///dbg("s5_local_port: [%d]\n", g_config.s5_local_port);
+        ///dbg("s5_local_serv_port: [%d]\n", g_config.s5_local_serv_port);
+        ///dbg("s5_local_serv_ip: [%s]\n", g_config.s5_local_serv_ip);
+        //dbg("s5_local_auth: [%s]\n", g_config.s5_local_auth);
         
 
         cJSON * http_arr = cJSON_GetObjectItem(root, "http_arr");
@@ -84,15 +84,15 @@ static int config_parse(char * str)
         if(http_index)
             strncpy(g_config.http_index, cJSON_GetStringValue(http_index), sizeof(g_config.http_index)-1);
         g_config.http_num = cJSON_GetArraySize(http_arr);
-        for(i = 0; i < g_config.http_num; i++) {
-            dbg("[%hd] \n", g_config.http_arr[i]);
-        }
+        for(i = 0; i < g_config.http_num; i++)
+            ///dbg("[%hd] \n", g_config.http_arr[i]);
+            
         g_config.https_num = cJSON_GetArraySize(https_arr);
-        for(i = 0; i < g_config.https_num; i++) {
-            dbg("[%hd] \n", g_config.https_arr[i]);
-        }
-        dbg("http_home: [%s]\n", g_config.http_home);
-        dbg("http_index: [%s]\n", g_config.http_index);
+        for(i = 0; i < g_config.https_num; i++)
+            ///dbg("[%hd] \n", g_config.https_arr[i]);
+            
+        ///dbg("http_home: [%s]\n", g_config.http_home);
+        ///dbg("http_index: [%s]\n", g_config.http_index);
         cJSON_Delete(root);
     } else {
         err("cjson parse config file failed\n");

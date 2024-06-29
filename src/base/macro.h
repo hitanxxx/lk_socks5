@@ -165,11 +165,6 @@ typedef struct net_connection_t   con_t;
 #define l_max(x,y)                          ((x>y)?x:y)
 #define meta_len(start,end)                 ((uint32)l_max(0,((unsigned char*)end-(unsigned char*)start)))
 
-/// improve compile performance
-#define LIKELY(x)  __builtin_expect(!!(x), 1)
-#define UNLIKELY(x)  __builtin_expect(!!(x), 0)
-
-
 #define sys_assert( x ) \
 if( !(x) ) \
 { \

@@ -37,29 +37,22 @@ typedef struct {
     // api data
     webser_api_t * api;
 
-    //easy build rsp header 
-    int             http_rsp_headern;
-    meta_t *        http_rsp_header_meta;
-    mem_list_t *    http_rsp_header_list;
-
-    //easy build rsp body
-    int             http_rsp_bodyn;
-    meta_t *        http_rsp_body_meta;
-    mem_list_t *    http_rsp_body_list;
-
-    int             http_rsp_code;
+	int             http_rsp_code;
     char *          http_rsp_mime;	
+
+
+	meta_t * rsp_meta_header;
+	meta_t * rsp_meta_body;
 } webser_t;
 
 
+void webser_rsp_mime(webser_t *webser, char *mimetype);
 void webser_timeout_cycle(void * data);
+int webser_req_body_proc(webser_t * web);
 int webser_free(webser_t * webser);
 int webser_rsp_send(event_t * ev);
-void webser_rsp_body_push(webser_t * webser, const char * str, ...);
-int webser_req_body_proc(webser_t * web);
-int webser_rsp_body_dump(webser_t *webser);
-int webser_req_header_dump(webser_t * webser, int http_code);
-void webser_rsp_mime(webser_t *webser, char *mimetype);
+int webser_rsp_code(webser_t * webser, int http_code);
+int webser_rsp_body_push(webser_t * webser, const char * str, ...);
 
 int webser_init(void);
 int webser_end(void);

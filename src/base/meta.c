@@ -3,10 +3,10 @@
 int meta_alloc(meta_t ** meta, int datan)
 {
     if(meta) {
-        meta_t * t = mem_pool_alloc(sizeof(meta_t)+datan);
-        if(!t) {
+        meta_t * t = mem_pool_alloc(sizeof(meta_t) + datan);
+        if(!t) 
             return -1;
-        }
+		
         t->start = t->pos = t->last = t->data;
         t->end = t->start + datan;
         *meta = t;

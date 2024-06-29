@@ -27,7 +27,12 @@
 #include "ringbuffer.h"
 #include "cJSON.h"
 
-#define SYS_FUNC_CHK(x) do { int ret = (x); if (0 != ret) { err("sys fuc chk failed. ret [%d]\n", ret );abort(); } } while(0);
+
+/// improve compile performance
+#define LIKELY(x)  __builtin_expect(!!(x), 1)
+#define UNLIKELY(x)  __builtin_expect(!!(x), 0)
+
+#define schk(x, action) do { if(UNLIKELY(!(x))) { err("schk failed. (%s)\n", #x); action; } } while(0);
 #define S5_OVER_TLS
 
 #endif
