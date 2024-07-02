@@ -252,8 +252,8 @@ static int webser_rsp_send_body_file(event_t * ev)
     meta_t * meta = webser->rsp_meta_body;
 
     for(;;) {
-        if(meta->last > meta->pos) {
-            int sendn = c->send(c, meta->pos, meta->last - meta->pos);
+        if(meta_getlen(meta) > 0) {
+            int sendn = c->send(c, meta->pos, meta_getlen(meta));
             if(sendn < 0) {
                 if(sendn == -1) {
                     err("webser file content send error\n");
@@ -265,15 +265,16 @@ static int webser_rsp_send_body_file(event_t * ev)
             }
             meta->pos += sendn;
             webser->fsend += sendn;
-            if(webser->fsend >= webser->fsize)
-                break;
+            if(webser->fsend >= webser->fsize) {
+				break;
+			}
         }
         
-        if(meta->last == meta->pos)
+        if(meta_getlen(meta) == 0)
             meta->last = meta->pos = meta->start;
         
-        if(meta->last < meta->end) {
-            int readn = read(webser->ffd, meta->last, meta->end - meta->last);
+        if(meta_getfree(meta) > 0) {
+            int readn = read(webser->ffd, meta->last, meta_getfree(meta));
             if(readn <= 0) {
                 err("webser read file, errno [%d]\n", errno );
                 webser_free(webser);
@@ -613,7 +614,7 @@ static int webser_req_header_proc(event_t * ev)
     con_t * c = ev->data;
     webser_t * webser = c->data;
 
-    int rc = webser->http_req->cb( webser->http_req );
+    int rc = webser->http_req->cb(webser->http_req);
     if(rc < 0) {
         if(rc == -1) {
             err("webser process request header failed\n");
@@ -684,8 +685,8 @@ static int webser_transfer_to_s5(event_t * ev)
 
     /// try to recv s5 private authorization header 
     meta = c->meta;
-    while(meta_len(meta->pos, meta->last) < sizeof(s5_auth_t)) {
-        rc = c->recv(c, meta->last, meta_len(meta->last, meta->end));
+    while(meta_getlen(meta) < sizeof(s5_auth_t)) {
+        rc = c->recv(c, meta->last, meta_getfree(meta));
         if(rc < 0) {
             if(rc == -1) {
                 err("webser procotol route recv failed\n");

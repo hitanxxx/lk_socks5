@@ -60,10 +60,10 @@ static int http_req_find_header( string_t * str, http_req_value_t ** header)
 
 static int http_req_recv(con_t * c, meta_t * meta)
 {
-    if(meta_len(meta->pos, meta->last) > 0) {
+    if(meta_getlen(meta) > 0) {
         return 0;
     }
-    int recvn = c->recv(c, meta->last, meta_len(meta->last, meta->end));
+    int recvn = c->recv(c, meta->last, meta_getfree(meta));
     if(recvn < 0) {
         if(recvn == -1) {
             return -1;
