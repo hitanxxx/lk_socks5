@@ -74,14 +74,14 @@ static int s5_traffic_recv(event_t * ev)
     timer_set_pt(&ev->timer, s5_timeout_cb);
     timer_add(&ev->timer, S5_TIMEOUT);
 
-    while(down->meta->end > down->meta->last) { /// try recv if have space
-        recvn = down->recv(down, down->meta->last, down->meta->end - down->meta->last);
+    while(meta_getfree(down->meta) > 0) { ///try recv if have space
+        recvn = down->recv(down, down->meta->last, meta_getfree(down->meta));
         if(recvn < 0) {
             if(recvn == -1) {
                 err("s5 down recv error\n");
                 s5->frecv_err_down = 1;
             }
-            break; ///again
+            break; ///until again
         }
 #ifndef S5_OVER_TLS
         if(s5->typ == SOCKS5_CLIENT) { ///down -> up enc
@@ -101,17 +101,17 @@ static int s5_traffic_recv(event_t * ev)
         down->meta->last += recvn;
     }
 
-    if(down->meta->last > down->meta->pos) {
+    if(meta_getlen(down->meta) > 0) {
         event_opt(down->event, down->fd, down->event->opt & (~EV_R));
         event_opt(up->event, up->fd, up->event->opt|EV_W);
         return up->event->write_pt(up->event);
-    } else {
-        if(s5->frecv_err_down) {
-            s5_free(s5);
-            return -1;
-        }
-        return -11;
+    } 
+    
+    if(s5->frecv_err_down) {
+        s5_free(s5);
+        return -1;
     }
+    return -11;
 }
 
 static int s5_traffic_send(event_t * ev)
@@ -126,8 +126,8 @@ static int s5_traffic_send(event_t * ev)
     timer_set_pt(&ev->timer, s5_timeout_cb);
     timer_add(&ev->timer, S5_TIMEOUT);
 
-    while(down->meta->last > down->meta->pos) {
-        sendn = up->send(up, down->meta->pos, down->meta->last - down->meta->pos);
+    while(meta_getlen(down->meta) > 0) {
+        sendn = up->send(up, down->meta->pos, meta_getlen(down->meta));
         if(sendn < 0) {
             if(sendn == -1) {
                 err("s5 up send error\n");
@@ -144,12 +144,11 @@ static int s5_traffic_send(event_t * ev)
         err("s5 up send, down already error\n");
         s5_free(s5);
         return -1;
-    } else {
-        down->meta->last = down->meta->pos = down->meta->start;
-        event_opt(up->event, up->fd, up->event->opt & (~EV_W));
-        event_opt(down->event, down->fd, down->event->opt|EV_R);
-        return down->event->read_pt(down->event);			
     }
+    down->meta->last = down->meta->pos = down->meta->start;
+    event_opt(up->event, up->fd, up->event->opt & (~EV_W));
+    event_opt(down->event, down->fd, down->event->opt|EV_R);
+    return down->event->read_pt(down->event);
 }
 
 static int s5_traffic_back_recv(event_t * ev)
@@ -164,8 +163,8 @@ static int s5_traffic_back_recv(event_t * ev)
     timer_set_pt(&ev->timer, s5_timeout_cb);
     timer_add(&ev->timer, S5_TIMEOUT);
 
-    while(up->meta->end > up->meta->last) {
-        recvn = up->recv(up, up->meta->last, up->meta->end - up->meta->last);
+    while(meta_getfree(up->meta) > 0) {
+        recvn = up->recv(up, up->meta->last, meta_getfree(up->meta));
         if(recvn < 0) {
             if(recvn == -1) {   
                 err("s5 up recv error\n");
@@ -175,7 +174,7 @@ static int s5_traffic_back_recv(event_t * ev)
         }
 #ifndef S5_OVER_TLS
         if(s5->typ == SOCKS5_CLIENT) {  ///up -> down dec
-            if( recvn != sys_cipher_conv(s5->cipher_dec, up->meta->last, recvn)) {
+            if(recvn != sys_cipher_conv(s5->cipher_dec, up->meta->last, recvn)) {
                 err("s5 local cipher dec failed\n");
                 s5_free(s5);
                 return -1;
@@ -191,17 +190,17 @@ static int s5_traffic_back_recv(event_t * ev)
         up->meta->last += recvn;
     }
 
-    if(up->meta->last > up->meta->pos) {
+    if(meta_getlen(up->meta) > 0) {
         event_opt(up->event, up->fd, up->event->opt & (~EV_R));
         event_opt(down->event, down->fd, down->event->opt|EV_W);
         return down->event->write_pt(down->event);
-    } else {
-        if(s5->frecv_err_up) {
-            s5_free(s5);
-            return -1;
-        }
-        return -11;
     }
+    
+    if(s5->frecv_err_up) {
+        s5_free(s5);
+        return -1;
+    }
+    return -11;
 }
 
 static int s5_traffic_back_send(event_t * ev)
@@ -216,8 +215,8 @@ static int s5_traffic_back_send(event_t * ev)
     timer_set_pt(&ev->timer, s5_timeout_cb);
     timer_add(&ev->timer, S5_TIMEOUT);
 
-    while(up->meta->last > up->meta->pos) {
-        sendn = down->send(down, up->meta->pos, up->meta->last - up->meta->pos);
+    while(meta_getlen(up->meta) > 0) {
+        sendn = down->send(down, up->meta->pos, meta_getlen(up->meta));
         if(sendn < 0) {
             if(sendn == -1) {
                 err("s5 down send error\n");
@@ -233,12 +232,11 @@ static int s5_traffic_back_send(event_t * ev)
         err("s5 down send, up already error\n");
         s5_free(s5);
         return -1;
-    } else {
-        up->meta->last = up->meta->pos = up->meta->start;		
-        event_opt(down->event, down->fd, down->event->opt & (~EV_W));
-        event_opt(up->event, up->fd, up->event->opt|EV_R);
-        return up->event->read_pt(up->event);
-    }
+    } 
+    up->meta->last = up->meta->pos = up->meta->start;		
+    event_opt(down->event, down->fd, down->event->opt & (~EV_W));
+    event_opt(up->event, up->fd, up->event->opt|EV_R);
+    return up->event->read_pt(up->event);
 }
 
 int s5_traffic_process(event_t * ev)
@@ -277,7 +275,7 @@ int s5_traffic_process(event_t * ev)
             return -1;
         }
     }
-    int down_remain = down->meta->last - down->meta->pos;
+    int down_remain = meta_getlen(down->meta);
     if(down_remain > 0) {
     	if(s5->typ == SOCKS5_CLIENT) {
     		if(down_remain != sys_cipher_conv(s5->cipher_enc, down->meta->pos, down_remain)) {
@@ -320,8 +318,8 @@ static int s5_server_rfc_phase2_send(event_t * ev)
     status rc = 0;
     meta_t * meta = down->meta;
 
-    while(meta->last - meta->pos > 0) {
-        rc = down->send(down, meta->pos, meta->last - meta->pos);
+    while(meta_getlen(meta) > 0) {
+        rc = down->send(down, meta->pos, meta_getlen(meta));
         if(rc < 0) {
             if(rc == -1) {
                 err("s5 server adv resp send failed\n");
@@ -555,8 +553,8 @@ static int s5_server_rfc_phase2_recv(event_t * ev)
     */
 
     for(;;) {
-        if(meta->pos >= meta->last) {  ///try recv
-            int recvn = down->recv(down, meta->last, meta->end - meta->last);
+        if(meta_getlen(meta) < 1) {  ///try recv
+            int recvn = down->recv(down, meta->last, meta_getfree(meta));
             if(recvn < 0) {
                 if(recvn == -1) {
                     err("s5 server rfc phase2 recv failed\n");
@@ -705,8 +703,8 @@ static int s5_server_rfc_phase1_send(event_t * ev)
     s5_session_t * s5 = down->data;
     meta_t * meta = down->meta;
 
-    while(meta->pos < meta->last) {
-        int sendn = down->send(down, meta->pos, meta->last - meta->pos);
+    while(meta_getlen(meta) > 0) {
+        int sendn = down->send(down, meta->pos, meta_getlen(meta));
         if(sendn < 0) {
             if(sendn == -1) {
                 err("s5 server rfc phase1 resp send failed\n");
@@ -750,8 +748,8 @@ static int s5_server_rfc_phase1_recv(event_t * ev)
     };
 
     for(;;) {
-        if(meta->pos >=  meta->last) { ///try recv
-            int recvn = down->recv(down, meta->last, meta->end - meta->last);
+        if(meta_getlen(meta) < 1) { ///try recv
+            int recvn = down->recv(down, meta->last, meta_getfree(meta));
             if(recvn < 0) {
                 if(recvn == -1) {
                     err("s5 server rfc phase1 recv failed\n");
@@ -824,8 +822,8 @@ static int s5_server_auth_recv(event_t * ev)
     s5_session_t * s5 = down->data;
     meta_t * meta = down->meta;
     
-    while((meta->last - meta->pos) < sizeof(s5_auth_t)) {
-        int recvn = down->recv(down, meta->last, meta->end - meta->last);
+    while(meta_getlen(meta) < sizeof(s5_auth_t)) {
+        int recvn = down->recv(down, meta->last, meta_getfree(meta));
         if(recvn < 0) {
             if(recvn == -11) {
                 timer_set_data(&ev->timer, s5);

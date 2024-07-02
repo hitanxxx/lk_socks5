@@ -323,9 +323,6 @@ int webser_rsp_body_push(webser_t * webser, const char * str, ...)
     const char * args = str;
     char buf[4096] = {0};
 
-	meta_t * m = NULL;
-	meta_t * n = NULL;
-
 	va_start(argslist, str);
     vsnprintf(buf, sizeof(buf)-1, args, argslist);
     va_end(argslist);
@@ -337,10 +334,12 @@ int webser_rsp_body_push(webser_t * webser, const char * str, ...)
 			return -1;
 		}
 	}
-
-	m = webser->rsp_meta_body;
+    
+    meta_t * p = NULL;
+    meta_t * n = NULL;
+	meta_t * m = webser->rsp_meta_body;
 	while(m) {
-		n = m;
+		p = m;
 		int meta_freen = m->end - m->last;
 		if(meta_freen > strlen(buf)) {
 			memcpy(m->last, buf, strlen(buf));
@@ -354,7 +353,7 @@ int webser_rsp_body_push(webser_t * webser, const char * str, ...)
 		webser_free(webser);
 		return -1;
 	}
-	m->next = n;
+	p->next = n;
 	memcpy(n->last, buf, strlen(buf));
 	n->last += strlen(buf);
 	return 0;
@@ -408,9 +407,6 @@ int webser_rsp_push_header(webser_t * webser, const char * str, ...)
     const char * args = str;
     char buf[4096] = {0};
 
-	meta_t * m = NULL;
-	meta_t * n = NULL;
-
 	va_start(argslist, str);
     vsnprintf(buf, sizeof(buf)-1, args, argslist);
     va_end(argslist);
@@ -423,9 +419,11 @@ int webser_rsp_push_header(webser_t * webser, const char * str, ...)
 		}
 	}
 
-	m = webser->rsp_meta_header;
+    meta_t * p = NULL;
+    meta_t * n = NULL;
+	meta_t * m = webser->rsp_meta_header;
 	while(m) {
-		n = m;
+		p = m;
 		int meta_freen = m->end - m->last;
 		if(meta_freen > strlen(buf)) {
 			memcpy(m->last, buf, strlen(buf));
@@ -439,7 +437,7 @@ int webser_rsp_push_header(webser_t * webser, const char * str, ...)
 		webser_free(webser);
 		return -1;
 	}
-	m->next = n;
+	p->next = n;
 	memcpy(n->last, buf, strlen(buf));
 	n->last += strlen(buf);
 	return 0;
@@ -582,8 +580,9 @@ static int webser_req_router(event_t * ev)
 
 int webser_req_body_proc(webser_t * web)
 {
-    if(web->http_req->content_type == HTTP_BODY_TYPE_NULL)
-		return 1;
+    if(web->http_req->content_type == HTTP_BODY_TYPE_NULL) {
+        return 1;
+    }
 	
     if(!web->http_req_body) {
         if(0 != http_body_create(web->c, &web->http_req_body, (web->api->body_need == 1) ? 0 : 1)) {
@@ -591,8 +590,9 @@ int webser_req_body_proc(webser_t * web)
             return -1;
         }
         web->http_req_body->body_type = web->http_req->content_type;
-        if(web->http_req_body->body_type == HTTP_BODY_TYPE_CONTENT)
+        if(web->http_req_body->body_type == HTTP_BODY_TYPE_CONTENT) {
             web->http_req_body->content_len = web->http_req->content_len;
+        }
     }
     int rc = web->http_req_body->cb(web->http_req_body);
     if(rc == -1) {

@@ -22,6 +22,10 @@ struct meta
 int meta_alloc(meta_t ** meta, int size);
 void meta_free(meta_t * meta);
 
+#define meta_getlen(x) (((x)->last) - ((x)->pos))
+#define meta_getfree(x)  (((x)->end) - ((x)->last))
+
+
 #ifdef __cplusplus
 }
 #endif

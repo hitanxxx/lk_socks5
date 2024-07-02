@@ -285,7 +285,7 @@ static int http_body_start(http_body_t * bd)
         bd->body_status |= HTTP_BODY_STAT_DONE_CACHENO;
         return 1;
     } else if (bd->body_type == HTTP_BODY_TYPE_CONTENT || bd->body_type == HTTP_BODY_TYPE_CHUNK) {
-        int remainn = meta_len( bd->c->meta->pos, bd->c->meta->last ); ///get remian body data
+        int remainn = meta_getlen(bd->c->meta);
         if(0 != meta_alloc(&bd->body_head, remainn + ENTITY_BODY_BUFFER_SIZE)) { ///alloc frist meta to stroge the content data
             err("http body alloc header failed\n");
             return -1;
