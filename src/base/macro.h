@@ -161,9 +161,8 @@ typedef struct net_connection_t   con_t;
 #define l_abs(x)                            (((x)>=0)?(x):(-(x)))
 #define l_unused(x)                         ((void)x)
 #define l_strlen(str)                       ((uint32)strlen((char*)str))
-#define l_min(x,y)                          ((x<y)?x:y)
-#define l_max(x,y)                          ((x>y)?x:y)
-#define meta_len(start,end)                 ((uint32)l_max(0,((unsigned char*)end-(unsigned char*)start)))
+#define l_min(x,y)                          (((x)<(y))?(x):(y))
+#define l_max(x,y)                          (((x)>(y))?(x):(y))
 
 #define sys_assert( x ) \
 if( !(x) ) \

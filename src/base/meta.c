@@ -17,6 +17,47 @@ int meta_alloc(meta_t ** meta, int datan)
 
 void meta_free(meta_t * meta)
 {
-    if(meta)
-        mem_pool_free(meta);
+    meta_t * m = meta;
+    meta_t * n = NULL;
+
+    while(m) {
+        n = m->next;
+        mem_pool_free(m);
+        m = n;
+    }
+    return;
+}
+
+
+int meta_dump_free(meta_t * meta)
+{
+    meta_free(meta);
+    return 0;
+}
+
+meta_t * meta_dump(meta_t * meta)
+{
+    if(!meta->next) return meta;
+
+    meta_t * cur = NULL;
+    meta_t * nmeta = NULL;
+    int len = 0;
+
+    cur = meta;
+    while(cur) {
+        len += meta_getlen(cur);
+        cur = cur->next;
+    }
+    if(0 != meta_alloc(&nmeta, len)) {
+        err("meta alloc failed\n");
+        return NULL;
+    }
+    
+    cur = meta;
+    while(cur) {
+        memcpy(nmeta->last, cur->pos, meta_getlen(cur));
+        nmeta->last += meta_getlen(cur);
+        cur = cur->next;
+    }
+    return nmeta;
 }

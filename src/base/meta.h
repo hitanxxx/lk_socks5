@@ -19,11 +19,15 @@ struct meta
     unsigned char       data[0];
 };
 
+#define meta_getlen(x) ((x)->last - (x)->pos)
+#define meta_getfree(x)  ((x)->end - (x)->last)
+#define meta_clr(x) ((x)->pos = (x)->last = (x)->start)
+
 int meta_alloc(meta_t ** meta, int size);
 void meta_free(meta_t * meta);
+meta_t * meta_dump(meta_t * meta);
+int meta_dump_free(meta_t * meta);
 
-#define meta_getlen(x) (((x)->last) - ((x)->pos))
-#define meta_getfree(x)  (((x)->end) - ((x)->last))
 
 
 #ifdef __cplusplus

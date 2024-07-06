@@ -27,7 +27,7 @@ typedef struct {
     int type;
 
     http_req_t *http_req;
-    http_body_t *http_req_body;
+    http_payload_t *http_payload;
 
     // static file data
     int ffd;        // file fd  

@@ -3,7 +3,7 @@
 #include "dns.h"
 #include "s5_server.h"
 #include "http_req.h"
-#include "http_body.h"
+#include "http_payload.h"
 #include "webser.h"
 
 
@@ -34,7 +34,7 @@ static int webser_api_find(webser_t * web)
         if(strncmp(api_entry->key, (char*)web->http_req->uri.data, web->http_req->uri.len))
             continue;
 
-        if(web->http_req->method_type != api_entry->method)
+        if(web->http_req->method_typ != api_entry->method)
             continue;
 
         web->api = api_entry;
@@ -88,9 +88,9 @@ static int webser_over(webser_t * webser)
         http_req_free(webser->http_req);
         webser->http_req = NULL;
     }
-    if(webser->http_req_body) {
-        http_body_free(webser->http_req_body);
-        webser->http_req_body = NULL;
+    if(webser->http_payload) {
+        http_payload_ctx_exit(webser->http_payload);
+        webser->http_payload = NULL;
     }
     webser->api = NULL;
   
@@ -164,7 +164,7 @@ static int webser_keepalive(event_t * ev)
 {
     con_t* c = ev->data;
     webser_t * webser = c->data;
-    uint32 remain = meta_len(c->meta->pos, c->meta->last);
+    uint32 remain = meta_getlen(c->meta);
     if(remain)
         memcpy(c->meta->start, c->meta->pos, remain);
    
@@ -237,7 +237,7 @@ static int webser_rsp_send_body_api(event_t * ev)
     }
     timer_del(&ev->timer);
     
-    if(webser->http_rsp_code == 200 && webser->http_req->keepalive) {
+    if(webser->http_rsp_code == 200 && webser->http_req->fkeepalive) {
         ev->write_pt = webser_keepalive;
         return ev->write_pt(ev);
     }
@@ -246,7 +246,7 @@ static int webser_rsp_send_body_api(event_t * ev)
 }
 
 static int webser_rsp_send_body_file(event_t * ev)
-{	
+{	   
     con_t * c = ev->data;
     webser_t * webser = c->data;
     meta_t * meta = webser->rsp_meta_body;
@@ -270,8 +270,7 @@ static int webser_rsp_send_body_file(event_t * ev)
 			}
         }
         
-        if(meta_getlen(meta) == 0)
-            meta->last = meta->pos = meta->start;
+        if(meta_getlen(meta) == 0) meta_clr(meta);
         
         if(meta_getfree(meta) > 0) {
             int readn = read(webser->ffd, meta->last, meta_getfree(meta));
@@ -285,7 +284,7 @@ static int webser_rsp_send_body_file(event_t * ev)
     }
     timer_del(&ev->timer);
     
-    if(webser->http_rsp_code == 200 && webser->http_req->keepalive) {
+    if(webser->http_rsp_code == 200 && webser->http_req->fkeepalive) {
         ev->write_pt = webser_keepalive;
         return ev->write_pt(ev);
     } 
@@ -341,8 +340,7 @@ int webser_rsp_body_push(webser_t * webser, const char * str, ...)
 	meta_t * m = webser->rsp_meta_body;
 	while(m) {
 		p = m;
-		int meta_freen = m->end - m->last;
-		if(meta_freen > strlen(buf)) {
+		if(meta_getfree(m) > strlen(buf)) {
 			memcpy(m->last, buf, strlen(buf));
 			m->last += strlen(buf);
 			return 0;
@@ -388,7 +386,7 @@ static int webser_rsp_send_header(event_t * ev)
 			have_body = 1;
 	}
 	if(!have_body) {
-        if(webser->http_rsp_code == 200 && webser->http_req->keepalive) {
+        if(webser->http_rsp_code == 200 && webser->http_req->fkeepalive) {
             ev->write_pt = webser_keepalive;
             return ev->write_pt(ev);
         }
@@ -466,7 +464,7 @@ int webser_rsp_send(event_t * ev)
     webser_rsp_push_header(webser, "Accept-Charset: utf-8\r\n");
     webser_rsp_push_header(webser, "Date: %s\r\n", systime_gmt());	
     webser_rsp_push_header(webser, webser->http_rsp_mime ? webser->http_rsp_mime : "Content-type: application/octet-stream\r\n");
-    if(webser->http_req->headers.connection && ((uint32)webser->http_req->headers.connection->len > l_strlen("close"))) {
+    if(webser->http_req->fkeepalive) {
         webser_rsp_push_header(webser, "Connection: keep-alive\r\n");
     } else {
         webser_rsp_push_header(webser, "Connection: close\r\n");
@@ -545,6 +543,7 @@ static int webser_req_file(event_t * ev)
             http_code = 404;
         }
     }
+
    	webser_rsp_code(webser, http_code);
     ev->read_pt = webser_rsp_send;
     return ev->read_pt(ev);
@@ -568,7 +567,7 @@ static int webser_req_router(event_t * ev)
         ev->read_pt = webser_req_api; 
     } else {
         ///static request only support GET method
-        if(webser->http_req->method_type != HTTP_METHOD_GET) {
+        if(webser->http_req->method_typ != HTTP_METHOD_GET) {
             err("webser static req. method not support\n");
             webser_free(webser);
             return -1;
@@ -580,31 +579,21 @@ static int webser_req_router(event_t * ev)
 }
 
 int webser_req_body_proc(webser_t * web)
-{
-    if(web->http_req->content_type == HTTP_BODY_TYPE_NULL) {
-        return 1;
-    }
-	
-    if(!web->http_req_body) {
-        if(0 != http_body_create(web->c, &web->http_req_body, (web->api->body_need == 1) ? 0 : 1)) {
-            err("http_body_create failed\n");
+{	
+    if(!web->http_payload) {
+        if(0 != http_payload_ctx_init(web->c, &web->http_payload, (web->api->body_need == 1) ? 1 : 0)) {
+            err("http_payload_create failed\n");
             return -1;
         }
-        web->http_req_body->body_type = web->http_req->content_type;
-        if(web->http_req_body->body_type == HTTP_BODY_TYPE_CONTENT) {
-            web->http_req_body->content_len = web->http_req->content_len;
-        }
+        web->http_payload->fchunk = web->http_req->payload_typ == HTTP_BODY_TYPE_CHUNK ? 1 : 0;
+        if(!web->http_payload->fchunk) web->http_payload->ilen = web->http_req->payload_contentn;
     }
-    int rc = web->http_req_body->cb(web->http_req_body);
+    int rc = web->http_payload->cb(web->http_payload);
     if(rc == -1) {
-        err("webser process body failed\n");
+        err("webser payload proc failed\n");
         return rc;
     } else if (rc == -11) {
         return -11;
-    } 
-    if(0 != http_body_dump(web->http_req_body)) {
-        err("webser req body dump failed\n");
-        return -1;
     }
     return 1;
 }

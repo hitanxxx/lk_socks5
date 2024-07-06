@@ -3,50 +3,24 @@
 
 
 static int http_req_set_value(http_req_t * request, string_t * value, unsigned int offsetof);
-static int http_req_set_connection(http_req_t * request, string_t * value, unsigned int offsetof);
 
-static http_req_value_t headers[] = 
-{
-    {   string("Host"),              http_req_set_value,         offsetof(http_req_headers_t, host)},
-    {   string("Content-Length"),    http_req_set_value,         offsetof(http_req_headers_t, content_length)},
-    {   string("Connection"),        http_req_set_connection,    offsetof(http_req_headers_t, connection)},
-    {   string("Transfer-Encoding"), http_req_set_value,         offsetof(http_req_headers_t, transfer_encoding)},
-    {   string("User-Agent"),        http_req_set_value,         offsetof(http_req_headers_t, user_agent)}
+static http_req_value_t headers[] = {
+    {   string("Host"),              http_req_set_value,    offsetof(http_req_t, headerhost)},
+    {   string("Content-Length"),    http_req_set_value,    offsetof(http_req_t, content_length)},
+    {   string("Transfer-Encoding"), http_req_set_value,    offsetof(http_req_t, transfer_encoding)},
+    {   string("User-Agent"),        http_req_set_value,    offsetof(http_req_t, user_agent)},
+    {   string("Connection"),        http_req_set_value,    offsetof(http_req_t, connection)}
 };
-
-int http_req_have_body(    http_req_t * req)
-{
-    /// if not POST and not PUT method, then don't need have body
-    if((0 != strncmp((char*)req->method.data, "POST", req->method.len)) &&
-        (0 != strncmp((char*)req->method.data, "PUT", req->method.len))) {
-        //dbg("http req method [%.*s] not allow have body\n", req->method.len, req->method.data );
-        return 0;
-    }
-
-    /// if have content header, means have body
-    if(req->content_type == HTTP_BODY_TYPE_CONTENT ||
-        req->content_type == HTTP_BODY_TYPE_CHUNK) {
-        return 1;
-    }
-    return 0;
-}
 
 static int http_req_set_value(http_req_t * request, string_t * value, unsigned int offsetof)
 {
-    string_t ** h = (string_t**)((void*)&request->headers+offsetof);
-    *h = value;
+    string_t * h = (string_t*)(((char*)request) + offsetof);
+    h->len = value->len;
+    h->data = value->data;
     return 0;
 }
 
-static int http_req_set_connection(http_req_t * request, string_t * value, unsigned int offsetof)
-{
-    string_t ** h = (string_t**)((void*)&request->headers+offsetof);
-    *h = value;
-    request->keepalive = (value->len > (int32)l_strlen("close")) ? 1 : 0;
-    return 0;
-}
-
-static int http_req_find_header( string_t * str, http_req_value_t ** header)
+static int http_req_find_header(string_t * str, http_req_value_t ** header)
 {
     int32 i = 0;
     for(i = 0; i < (int32)(sizeof(headers)/sizeof(headers[0])); i++) {
@@ -77,8 +51,8 @@ static int http_req_recv(con_t * c, meta_t * meta)
 static int http_req_headers_analysis(http_req_t * req, meta_t * meta)
 {
     unsigned char *p = NULL;
-    int line_end = 0;
-    int all_end = 0;
+    int fin_single = 0;
+    int fin_all = 0;
 
     enum {
         s_key_init = 0,
@@ -98,7 +72,7 @@ static int http_req_headers_analysis(http_req_t * req, meta_t * meta)
                 *p == '-' || *p == '@' ||
                 *p == '_'
             ) {
-                req->header_k.data = p;
+                req->k.data = p;
                 state = s_key;
                 continue;
             } else if (*p == CR) {
@@ -116,10 +90,10 @@ static int http_req_headers_analysis(http_req_t * req, meta_t * meta)
                 (*p >= '0' && *p <= '9') ||
                 *p == '-' || *p == '@' ||
                 *p == '_'
-            ) {  /// do nothing
+            ) {
                 continue;
             } else if (*p == ':') {
-                req->header_k.len = p - req->header_k.data;
+                req->k.len = p - req->k.data;
                 state = s_value_init;
                 continue;
             } else {
@@ -141,7 +115,7 @@ static int http_req_headers_analysis(http_req_t * req, meta_t * meta)
                 *p == ':' || *p == '"' ||
                 *p == '?'
             ) {
-                req->header_v.data = p;
+                req->v.data = p;
                 state = s_value;
                 continue;
             } else if (*p == SP) { /// do nothing
@@ -168,7 +142,7 @@ static int http_req_headers_analysis(http_req_t * req, meta_t * meta)
             ) {  /// do nothing 
                 continue;
             } else if (*p == CR) {
-                req->header_v.len = p - req->header_v.data;
+                req->v.len = p - req->v.data;
                 state = s_end;
                 continue;
             } else {
@@ -179,7 +153,7 @@ static int http_req_headers_analysis(http_req_t * req, meta_t * meta)
 
         if(state == s_end) {
             if(*p == LF) {
-                line_end = 1;
+                fin_single = 1;
                 break;
             } else {
                 err("req headers. s_end illegal [%c]\n", *p);
@@ -189,7 +163,7 @@ static int http_req_headers_analysis(http_req_t * req, meta_t * meta)
 
         if(state == s_done) {
             if(*p == LF) {
-                all_end = 1;
+                fin_all = 1;
                 break;
             } else {
                 err("req headers. s_done illegal [%c]\n", *p);
@@ -198,22 +172,20 @@ static int http_req_headers_analysis(http_req_t * req, meta_t * meta)
         }
     }
 
-    if(line_end) {
-        meta->pos = p+1;
+    
+
+    if(fin_single) {
+        meta->pos = ((p < meta->last) ? (p + 1) : p);
         req->state = s_key_init;
         return 0;
-    } else if (all_end) {
-        meta->pos = p;
-        if(p < meta->last) {
-            meta->pos = p+1;
-        }
+    } else if(fin_all) {
+        meta->pos = ((p < meta->last) ? (p + 1) : p);
         req->state = 0;
         return 1;
-    } else {
-        meta->pos = p;
-        req->state = state;
-        return -11;
     }
+    meta->pos = p;
+    req->state = state;
+    return -11;
 }
 
 static int http_req_headers( http_req_t * req)
@@ -222,11 +194,6 @@ static int http_req_headers( http_req_t * req)
     con_t * c = req->c;
     http_req_value_t * headers;
 
-    if(0 != mem_arr_create(&req->headers.list, sizeof(string_t))) {
-        err("http req headers list create failed\n");
-        return -1;
-    }
-        
     for(;;) {
         if(rc == -11) {
             rc = http_req_recv(c, c->meta);
@@ -235,68 +202,50 @@ static int http_req_headers( http_req_t * req)
             }
         }
         rc = http_req_headers_analysis(req, c->meta);
-        if(rc == 0) { ///line fin
-            if(0 == http_req_find_header(&req->header_k, &headers)) {
-                string_t * headers_obj = (string_t*)mem_arr_push(req->headers.list);
-                if(!headers_obj) {
-                    err("http req headers alloc headerobj form mem arr failed\n");
-                    return -1;
-                }
-                headers_obj->data = req->header_v.data;
-                headers_obj->len = req->header_v.len;
-                if(headers->handler)
-                    headers->handler(req, headers_obj, headers->offsetof);
+        if(rc == 0) {   ///single header line fin
+            if(0 == http_req_find_header(&req->k, &headers)) {
+                if(headers->handler) headers->handler(req, &req->v, headers->offsetof);
             }
             continue;
-        } else if(rc == 1) {  ///all fin
-            if(req->headers.user_agent) {     
-                access_log("%.*s - %s - %.*s\n",
-                    meta_len(req->req_line_start, req->req_line_end),
-                    req->req_line_start,
-                    inet_ntoa(req->c->addr.sin_addr),
-                    req->headers.user_agent->len, req->headers.user_agent->data);            
-            } else {
-                access_log("%.*s - %s - null\n", 
-                    meta_len(req->req_line_start, req->req_line_end),
-                    req->req_line_start,
-                    inet_ntoa(req->c->addr.sin_addr));    
+        } else if(rc == 1) {  ///all header line fin
+            req->fkeepalive = (req->connection.len > strlen("close") ? 1 : 0);
+
+            access_log("%.*s %.*s - %s - %.*s\n",
+                req->method.len, req->method.data,
+                req->uri.len, req->uri.data,
+                inet_ntoa(req->c->addr.sin_addr),
+                req->user_agent.len, req->user_agent.data
+            );
+
+            req->payload_typ = HTTP_BODY_TYPE_NULL;
+            if(req->transfer_encoding.len) {
+                req->payload_typ = HTTP_BODY_TYPE_CHUNK;
+            } else if(req->content_length.len) {
+                req->payload_typ = HTTP_BODY_TYPE_CONTENT;
+                char payloadn[32] = {0};
+                memcpy(payloadn, req->content_length.data, req->content_length.len);
+                req->payload_contentn = strtol(payloadn, NULL, 10);
             }
-            req->content_type = HTTP_BODY_TYPE_NULL;
-            if (req->headers.transfer_encoding || req->headers.content_length) {
-                if(req->headers.transfer_encoding) {
-                    req->content_type = HTTP_BODY_TYPE_CHUNK;
-                } else {
-                    req->content_type = HTTP_BODY_TYPE_CONTENT;
-                    char str[32] = {0};
-                    memcpy(str, req->headers.content_length->data, req->headers.content_length->len);
-                    req->content_len = strtol(str, NULL, 10);
-                }
-            } 
             return 1;
         }else if(rc == -1) {
             err("http req headers analysis failed\n");
             return -1;
         }
         
-        if(c->meta->last == c->meta->end) {
+        if(meta_getfree(c->meta) < 1) {
             err("http req headers too large");
             return -1;
         }
     }
 }
 
-/// fsm to analysis the http request request line 
-static int http_req_request_line_analysis(http_req_t * req, meta_t * meta)
+static int http_req_startline_analysis(http_req_t * req, meta_t * meta)
 {
     unsigned char *p = NULL;
     int finish = 0;
 
-    /// complete request line format 
-    /// method URL http_version
-
-    /// complete URL format
-    /// http://www.google.com/key?value
-    /// scheme://host:port/path?query
+    ///reqline example
+    ///GET http://localhost:8080/index.html
     enum {
         s_method_init = 0,
         s_method,
@@ -320,7 +269,6 @@ static int http_req_request_line_analysis(http_req_t * req, meta_t * meta)
             if(*p == CR || *p == LF || *p == SP) {
                 continue;
             } else if (*p >= 'A' && *p <= 'Z') {
-                req->req_line_start = p;
                 req->method.data = p;
                 state = s_method;
                 continue;
@@ -331,7 +279,7 @@ static int http_req_request_line_analysis(http_req_t * req, meta_t * meta)
         }
 
         if(state == s_method) {
-            if(*p >= 'A' && *p <= 'Z') { ///do nothing
+            if(*p >= 'A' && *p <= 'Z') {
                 continue;
             } else if (*p == SP) { ///jump out of method state 
                 req->method.len = p - req->method.data;
@@ -347,7 +295,7 @@ static int http_req_request_line_analysis(http_req_t * req, meta_t * meta)
         }
     
         if(state == s_scheme_init) { ///this state for storge scheme string data
-            if(*p == SP) { ///do nothing
+            if(*p == SP) { 
                 continue;
             } else if ((*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z')) {
                 req->scheme.data = p;
@@ -364,7 +312,7 @@ static int http_req_request_line_analysis(http_req_t * req, meta_t * meta)
         }
 
         if(state == s_scheme) {
-            if((*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z')) {  ///do nothing
+            if((*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z')) {
                 continue;
             } else if (*p == ':') {
                 req->scheme.len = p - req->scheme.data;
@@ -420,7 +368,7 @@ static int http_req_request_line_analysis(http_req_t * req, meta_t * meta)
                 *p == '.' ||
                 *p == '-' ||
                 *p == '_'
-            ) { ///do nothing 
+            ) {
                 continue;
             } else if (*p == ':') {
                 req->host.len = p - req->host.data;
@@ -449,7 +397,7 @@ static int http_req_request_line_analysis(http_req_t * req, meta_t * meta)
         }
 
         if(state == s_port) {
-            if(*p >= '0' && *p <= '9') { ///do nothing
+            if(*p >= '0' && *p <= '9') {
                 continue;
             } else if (*p == '/') {
                 req->port.len = p - req->port.data;
@@ -471,7 +419,7 @@ static int http_req_request_line_analysis(http_req_t * req, meta_t * meta)
                 *p == '=' || *p == '/' ||
                 *p == '_' || *p == '-' ||
                 *p == '*' || *p == '+'
-            ) { /// do nothing 
+            ) {
                 continue;
             } else if(*p == SP) {
                 req->uri.len = p - req->uri.data;
@@ -508,7 +456,6 @@ static int http_req_request_line_analysis(http_req_t * req, meta_t * meta)
             } else if (*p == CR) {
                 req->http_ver.len = p - req->http_ver.data;
                 state = s_end;
-                req->req_line_end = p;
                 continue;
             } else {
                 err("http req request line, s_version illegal [%c]\n", *p);
@@ -528,23 +475,19 @@ static int http_req_request_line_analysis(http_req_t * req, meta_t * meta)
     }
 
     if(finish) {
-        meta->pos = p;
-        if(p < meta->last) {
-            meta->pos = p + 1;
-        }
+        meta->pos = ((p < meta->last) ? (p + 1) : p);
         req->state = 0;
         return 1;
-    } else {
-        meta->pos = p;
-        req->state = state;
-        return -11;
     }
+    meta->pos = p;
+    req->state = state;
+    return -11;
 }
 
 
-static int http_req_request_line(http_req_t * req)
+static int http_req_startline(http_req_t * req)
 {
-    int32 rc = -11;
+    int rc = -11;
     con_t * c = req->c;
 
     for(;;) {
@@ -554,21 +497,21 @@ static int http_req_request_line(http_req_t * req)
                 return rc;
             }
         }
-        rc = http_req_request_line_analysis(req, c->meta);
-        if(rc == 1) { ///fin
+        rc = http_req_startline_analysis(req, c->meta);
+        if(rc == 1) { 
             if(req->method.len > 0) {
                 if(req->method.len == strlen("GET") && !strncmp((char*)req->method.data, "GET", req->method.len)) {
-                    req->method_type = HTTP_METHOD_GET;
+                    req->method_typ = HTTP_METHOD_GET;
                 } else if (req->method.len == strlen("POST") && !strncmp((char*)req->method.data, "POST", req->method.len)) {
-                    req->method_type = HTTP_METHOD_POST;
+                    req->method_typ = HTTP_METHOD_POST;
                 } else if (req->method.len == strlen("PUT") && !strncmp((char*)req->method.data, "PUT", req->method.len)) {
-                    req->method_type = HTTP_METHOD_PUT;
+                    req->method_typ = HTTP_METHOD_PUT;
                 } else if (req->method.len == strlen("DELETE") && !strncmp((char*)req->method.data, "DELETE", req->method.len)) {
-                    req->method_type = HTTP_METHOD_DELETE;
+                    req->method_typ = HTTP_METHOD_DELETE;
                 } else if (req->method.len == strlen("CONNECT") && !strncmp((char*)req->method.data, "CONNECT", req->method.len)) {
-                    req->method_type = HTTP_METHOD_CONNECT;
+                    req->method_typ = HTTP_METHOD_CONNECT;
                 } else if (req->method.len == strlen("HEAD") && !strncmp((char*)req->method.data, "HEAD", req->method.len)) {
-                    req->method_type = HTTP_METHOD_HEAD;
+                    req->method_typ = HTTP_METHOD_HEAD;
                 } else {
                     err("http req method not support. [%.*s]\n", req->method.len, req->method.data);
                     return -1;
@@ -580,7 +523,7 @@ static int http_req_request_line(http_req_t * req)
             err("http req line analysis failed\n");
             return -1;
         }
-        if(c->meta->last == c->meta->end) {
+        if(meta_getfree(c->meta) < 1) {
             err("http req line too long\n");
             return -1;
         }
@@ -598,40 +541,11 @@ static int http_req_alloc(http_req_t ** req)
     return 0;
 }
 
-inline static void http_req_clear_string(string_t * str)
-{
-    str->len = 0;
-    str->data = NULL;
-}
-
 int http_req_free(http_req_t * req)
 {
-    req->c = NULL;
-    req->cb = NULL;
-    req->state = 0;
-
-    req->req_line_start = NULL;
-    req->req_line_end = NULL;
-    
-    http_req_clear_string(&req->method);
-    http_req_clear_string(&req->scheme);
-    http_req_clear_string(&req->host);
-    http_req_clear_string(&req->uri);
-    http_req_clear_string(&req->port);
-    http_req_clear_string(&req->http_ver);
-    
-    http_req_clear_string(&req->header_k);
-    http_req_clear_string(&req->header_v);
-    
-    if(req->headers.list) {
-        mem_arr_free(req->headers.list);
-        memset(&req->headers, 0, sizeof(http_req_headers_t));
+    if(req) {
+        mem_pool_free(req);
     }
-    req->keepalive = 0;
-    req->content_len = 0;
-    req->content_type = 0;
-    
-    mem_pool_free(req);
     return 0;
 }
 
@@ -652,7 +566,7 @@ int http_req_create(con_t * c, http_req_t ** request)
     }
     req_n->c = c;
     req_n->state = 0;
-    req_n->cb = http_req_request_line;
+    req_n->cb = http_req_startline;
     *request = req_n;
     return 0;
 }

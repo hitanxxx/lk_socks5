@@ -53,38 +53,31 @@ int sends(con_t * c, unsigned char * buf, int bufn)
     };
 }
 
-inline static int meta_need_send(meta_t * meta)
-{
-    return(meta->last > meta->pos) ? 1 : 0;
-}
-
 int send_chains(con_t * c, meta_t * head)
 {
-    meta_t * cur = NULL;
-    
     sys_assert(c != NULL);
     sys_assert(head != NULL);
-
+    
     for(;;) {
-        cur = head;
-        while(cur) {
-            if(meta_need_send(cur))
+        meta_t * n = head;
+        while(n) {
+            if(meta_getlen(n) > 0) {
                 break;
-           
-            cur = cur->next;
+            }
+            n = n->next;
         }
-        if(!cur)
+        if(!n) {
             return 1;
-
-        int sendn = sends(c, cur->pos, meta_len(cur->pos, cur->last));
+        }
+        int sendn = sends(c, n->pos, meta_getlen(n));
         if(sendn < 0) {
             if(-11 == sendn) {
                 return -11;
             }
             return -1;
         }
-        cur->pos += sendn;
-    };
+        n->pos += sendn;
+    }
 }
 
 int udp_recvs(con_t * c, unsigned char * buf, int bufn)

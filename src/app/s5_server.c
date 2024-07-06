@@ -1005,7 +1005,7 @@ static int s5_serv_usr_db_file_read(meta_t * meta)
         err("usmgr auth open file [%s] failed, errno [%d]\n", config_get()->s5_serv_auth_path, errno);
         return -1;
     }
-    size = read(fd, meta->pos, meta_len(meta->start, meta->end));
+    size = read(fd, meta->pos, meta_getfree(meta));
     close(fd);
     if(size == -1) {
         err("usmgr auth read auth file failed\n");

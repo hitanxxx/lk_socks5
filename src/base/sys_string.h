@@ -7,12 +7,12 @@ extern "C"
 #endif
     
 
-#define string(str)     { sizeof(str)-1, (unsigned char*)str }
-#define string_null     { 0, NULL }
+#define string(str)     {sizeof(str)-1, (unsigned char*)str}
+#define string_null     {0, NULL}
+#define string_clr(x)   {(x)->len = 0; (x)->data = NULL;}
 
-typedef struct string_t
-{
-	uint32           len;
+typedef struct string_t {
+	int  len;
 	unsigned char *  data;
 } string_t;
 

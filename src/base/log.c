@@ -17,18 +17,18 @@ static string_t levels[] = {
 
 static int log_format_prefix(log_content_t *ctx)
 {
-    int n = snprintf(ctx->pos, meta_len(ctx->pos, ctx->last)-1, "%.*s %s <%s:%d> ",
-                levels[ctx->level].len,levels[ctx->level].data,
-                systime_log(),
-                ctx->func, ctx->line
-            );
+    int n = snprintf(ctx->pos, (ctx->last - ctx->pos)-1, "%.*s %s <%s:%d> ",
+        levels[ctx->level].len,levels[ctx->level].data,
+        systime_log(),
+        ctx->func, ctx->line
+    );
     ctx->pos += n;
     return 0;
 }
 
 static int log_format_text(log_content_t * ctx)
 {
-    int n = vsnprintf(ctx->pos, meta_len(ctx->pos, ctx->last)-1, ctx->args, ctx->args_list);
+    int n = vsnprintf(ctx->pos, (ctx->last - ctx->pos)-1, ctx->args, ctx->args_list);
     ctx->pos += n;
     return 0;
 }

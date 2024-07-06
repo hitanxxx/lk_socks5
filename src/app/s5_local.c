@@ -139,15 +139,14 @@ static int s5_local_down_recv(event_t * ev)
     int readn = 0;
 
     for(;;) {
-        /// check meta remain space
-        if(meta->end <= meta->last) {
+        if(meta_getfree(meta) < 1) {
             err("s5 local down recv cache data too much\n");
             s5_free(s5);
             return -1;
         }
 
         /// cache read data
-        readn = down->recv(down, meta->last, meta->end - meta->last);
+        readn = down->recv(down, meta->last, meta_getfree(meta));
         if(readn < 0) {
             if(readn == -11) {
                 timer_set_data(&s5->up->event->timer, s5);

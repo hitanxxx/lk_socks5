@@ -3,7 +3,7 @@
 #include "dns.h"
 #include "s5_server.h"
 #include "s5_local.h"
-#include "http_body.h"
+#include "http_payload.h"
 #include "http_req.h"
 #include "webser.h"
 
@@ -58,7 +58,7 @@ int modules_process_init(void)
     schk(0 == socks5_server_init(), return -1);
     schk(0 == socks5_local_init(), return -1);
     schk(0 == http_req_init_module(), return -1);
-    schk(0 == http_body_init_module(), return -1);
+    schk(0 == http_payload_init_module(), return -1);
     schk(0 == webser_init(), return -1);
     schk(0 == dns_init(), return -1);
     return 0;
@@ -73,7 +73,7 @@ int modules_pocess_exit(void)
     schk(0 == socks5_server_end(), return -1);
     schk(0 == socks5_local_end(), return -1);
     schk(0 == http_req_end_module(), return -1);
-    schk(0 == http_body_end_module(), return -1);
+    schk(0 == http_payload_end_module(), return -1);
     schk(0 == webser_end(), return -1);
     schk(0 == dns_end(), return -1);
     schk(0 == mem_pool_deinit(), return -1);

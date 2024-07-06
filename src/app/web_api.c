@@ -1,5 +1,5 @@
 #include "common.h"
-#include "http_body.h"
+#include "http_payload.h"
 #include "http_req.h"
 #include "webser.h"
 
@@ -9,24 +9,25 @@ static int wapi_echo_post(event_t * ev)
     webser_t * web = c->data;
     
     int rc = webser_req_body_proc(web);
-    if(rc == ERROR) {
+    if(rc == -1) {
         err("web req body proc failed\n");
         webser_free(web);
-        return ERROR;
-    } else if (rc == AGAIN) {
+        return -1;
+    } else if (rc == -11) {
         timer_set_data(&ev->timer, web);
         timer_set_pt(&ev->timer, webser_timeout_cycle);
         timer_add(&ev->timer, WEBSER_TIMEOUT);
-        return AGAIN;
+        return -11;
     }
     timer_del(&ev->timer);
 
     ///show req body
-    dbg("http req data [%s]\n", web->http_req_body->body_dump->pos);
+    dbg("http req data [%s]\n", web->http_payload->payload->pos);
 
     webser_rsp_mime(web, ".html");
 	webser_rsp_code(web, 200);
-    schk(0 == webser_rsp_body_push(web, (char*)web->http_req_body->body_dump->pos), return -1);
+    schk(0 == webser_rsp_body_push(web, (char*)web->http_payload->payload->pos), return -1);
+    schk(0 == webser_rsp_body_push(web, systime_gmt()), return -1);
     
     ev->read_pt = webser_rsp_send;
     return ev->read_pt( ev );

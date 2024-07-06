@@ -237,14 +237,14 @@ int ssl_write_chain(con_t * c, meta_t * meta)
     
     for(;;) {
         for(cl = meta; cl; cl = cl->next) {
-            if(meta_len(cl->pos, cl->last)) {
+            if(meta_getlen(cl)) {
                 break;
             }
         }
         if(!cl)
             return 1;
         
-        sendn = ssl_write(c, cl->pos, meta_len(cl->pos, cl->last));
+        sendn = ssl_write(c, cl->pos, meta_getlen(cl));
         if(sendn < 0) {
             if(-11 == sendn) {
                 return -11;
