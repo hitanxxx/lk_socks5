@@ -275,7 +275,7 @@ int dns_response_recv(event_t * ev)
     size_t want_len = sizeof(dns_header_t) + cycle->qname_len + sizeof(dns_question_t);
 
     while(meta_getlen(meta) < want_len) {
-        int size = udp_recvs(c, meta->last, meta_getlen(meta));
+        int size = udp_recvs(c, meta->last, meta_getfree(meta));
         if(size <= 0) {
             if(size == -11) {
                 // add timer for recv
