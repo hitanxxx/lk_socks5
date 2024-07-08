@@ -110,7 +110,9 @@ static int http_payload_chunk_analysis(http_payload_t * ctx)
 
         if(state == chunk_part) {
             int payloadn = l_min(ctx->ilen - ctx->in, ctx->meta->last - p);
-            if(ctx->fcache) http_payload_push(ctx, (char*)p, payloadn);
+            if(ctx->fcache) {
+                schk(0 == http_payload_push(ctx, (char*)p, payloadn), return -1);
+            }
             p += payloadn;
             ctx->in += payloadn;
             if(ctx->in >= ctx->ilen) {
@@ -181,7 +183,9 @@ static int http_payload_content(http_payload_t * ctx)
             }
             return -11;
         }
-        if(ctx->fcache) http_payload_push(ctx, (char*)buf, recvn);
+        if(ctx->fcache) {
+            schk(0 == http_payload_push(ctx, (char*)buf, recvn), return -1);
+        }
         ctx->in += recvn;
         if(ctx->in > ctx->ilen) {
             return 1;
@@ -198,7 +202,9 @@ static int http_payload_start(http_payload_t * ctx)
     } else {
         if(meta_getlen(ctx->c->meta) > 0) {
             ctx->in += meta_getlen(ctx->c->meta);            
-            if(ctx->fcache) http_payload_push(ctx, (char*)ctx->c->meta->pos, meta_getlen(ctx->c->meta));
+            if(ctx->fcache) {
+                schk(0 == http_payload_push(ctx, (char*)ctx->c->meta->pos, meta_getlen(ctx->c->meta)), return -1);
+            }
             ctx->c->meta->pos += meta_getlen(ctx->c->meta);
         }
         if(ctx->in >= ctx->ilen) {

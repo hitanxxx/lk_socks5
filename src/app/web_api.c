@@ -8,7 +8,7 @@ static int wapi_echo_post(event_t * ev)
     con_t * c = ev->data;
     webser_t * web = c->data;
     
-    int rc = webser_req_body_proc(web);
+    int rc = webser_req_payload(web);
     if(rc == -1) {
         err("web req body proc failed\n");
         webser_free(web);
@@ -26,8 +26,8 @@ static int wapi_echo_post(event_t * ev)
 
     webser_rsp_mime(web, ".html");
 	webser_rsp_code(web, 200);
-    schk(0 == webser_rsp_body_push(web, (char*)web->http_payload->payload->pos), return -1);
-    schk(0 == webser_rsp_body_push(web, systime_gmt()), return -1);
+    schk(0 == webser_rsp_payload_push(web, (char*)web->http_payload->payload->pos), return -1);
+    schk(0 == webser_rsp_payload_push(web, systime_gmt()), return -1);
     
     ev->read_pt = webser_rsp_send;
     return ev->read_pt( ev );
@@ -41,7 +41,7 @@ static int wapi_echo_get(event_t * ev)
     /// build the http rsp body datas
     webser_rsp_mime(web, ".html");
     webser_rsp_code(web, 200);
-    schk(0 == webser_rsp_body_push(web, "Hello World!!! %s", systime_gmt()), return -1);
+    schk(0 == webser_rsp_payload_push(web, "Hello World!!! %s", systime_gmt()), return -1);
     
     ev->read_pt = webser_rsp_send;
     return ev->read_pt(ev);

@@ -114,9 +114,9 @@ int listen_init(void)
     int i = 0;
 
     if(config_get()->s5_mode == SOCKS5_CLIENT) {
-        listen_add(config_get()->s5_local_port, s5_local_accept_cb, S5_NOSSL); 
+        listen_add(config_get()->s5_local_port, s5_loc_accept, S5_NOSSL); 
     } else if (config_get()->s5_mode == SOCKS5_SERVER) { 
-        listen_add(config_get()->s5_serv_port, s5_server_accept_cb, S5_SSL); 
+        listen_add(config_get()->s5_serv_port, s5_srv_accept, S5_SSL); 
     }
     for(i = 0; i < config_get()->http_num; i++) {
         listen_add(config_get()->http_arr[i], webser_accept_cb, S5_NOSSL);

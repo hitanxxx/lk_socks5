@@ -50,8 +50,8 @@ struct http_req {
 	int  payload_contentn;
 };
 
-int http_req_create(con_t * c, http_req_t ** req);
-int http_req_free(http_req_t * req);
+int http_req_ctx_init(con_t * c, http_req_t ** req);
+int http_req_ctx_exit(http_req_t * req);
 int http_req_init_module(void);
 int http_req_end_module(void);
     

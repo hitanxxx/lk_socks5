@@ -530,18 +530,7 @@ static int http_req_startline(http_req_t * req)
     }
 }
 
-static int http_req_alloc(http_req_t ** req)
-{
-    http_req_t * nreq = mem_pool_alloc(sizeof(http_req_t));
-    if(!nreq) {
-        err("http req alloc nreq failed\n");
-        return -1;
-    }
-    *req = nreq;
-    return 0;
-}
-
-int http_req_free(http_req_t * req)
+int http_req_ctx_exit(http_req_t * req)
 {
     if(req) {
         mem_pool_free(req);
@@ -549,25 +538,24 @@ int http_req_free(http_req_t * req)
     return 0;
 }
 
-
-int http_req_create(con_t * c, http_req_t ** request)
+int http_req_ctx_init(con_t * c, http_req_t ** req)
 {
     /*
-        http request 
+        http request format
 
-        <request line>    /// this module process
-        <headers>        /// this module process
-        <request body>    /// process by http body module
+        <start line>    ///this module process
+        <headers>       ///this module process
+        <payload>       ///other mdule do this
     */
-    http_req_t * req_n = NULL;
-    if(0 != http_req_alloc(&req_n)) {
-        err("http req alloc new failed\n");
+    http_req_t * nreq = mem_pool_alloc(sizeof(http_req_t));
+    if(!nreq) {
+        err("http req alloc nreq failed\n");
         return -1;
     }
-    req_n->c = c;
-    req_n->state = 0;
-    req_n->cb = http_req_startline;
-    *request = req_n;
+    nreq->c = c;
+    nreq->state = 0;
+    nreq->cb = http_req_startline;
+    *req = nreq;
     return 0;
 }
 

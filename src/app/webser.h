@@ -48,11 +48,11 @@ typedef struct {
 
 void webser_rsp_mime(webser_t *webser, char *mimetype);
 void webser_timeout_cycle(void * data);
-int webser_req_body_proc(webser_t * web);
+int webser_req_payload(webser_t * web);
 int webser_free(webser_t * webser);
 int webser_rsp_send(event_t * ev);
 int webser_rsp_code(webser_t * webser, int http_code);
-int webser_rsp_body_push(webser_t * webser, const char * str, ...);
+int webser_rsp_payload_push(webser_t * webser, const char * str, ...);
 
 int webser_init(void);
 int webser_end(void);

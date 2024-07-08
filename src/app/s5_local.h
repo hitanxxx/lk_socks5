@@ -8,7 +8,8 @@ extern "C"
 
 int socks5_local_init(void);
 int socks5_local_end(void);
-int s5_local_accept_cb(event_t * ev);
+int s5_loc_accept(event_t * ev);
+
 
 
 

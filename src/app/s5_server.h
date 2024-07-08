@@ -88,8 +88,9 @@ void s5_timeout_cb(void * data);
 
 
 int s5_traffic_process(event_t * ev);
-int s5_server_transport(event_t * ev);
-int s5_server_accept_cb(event_t * ev);
+int s5_srv_transport(event_t * ev);
+int s5_srv_accept(event_t * ev);
+
 
 int socks5_server_init(void);
 int socks5_server_end(void);

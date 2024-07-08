@@ -85,7 +85,7 @@ static int webser_over(webser_t * webser)
     webser->type = 0;
 
     if(webser->http_req) {
-        http_req_free(webser->http_req);
+        http_req_ctx_exit(webser->http_req);
         webser->http_req = NULL;
     }
     if(webser->http_payload) {
@@ -164,43 +164,20 @@ static int webser_keepalive(event_t * ev)
 {
     con_t* c = ev->data;
     webser_t * webser = c->data;
-    uint32 remain = meta_getlen(c->meta);
-    if(remain)
-        memcpy(c->meta->start, c->meta->pos, remain);
-   
-    c->meta->pos = c->meta->start;
-    c->meta->last = c->meta->pos + remain;
-    ///free web cycle. but reuse net connection
-    webser_over(webser);
 
+    if(meta_getlen(c->meta) > 0) {
+        memcpy(c->meta->start, c->meta->pos, meta_getlen(c->meta));
+    }
+    meta_clr(c->meta);
+    c->meta->last += meta_getlen(c->meta);
+    webser_over(webser);
+    
     ev->write_pt = NULL;
     ev->read_pt = webser_start;
     event_opt(ev, c->fd, EV_R);
     return ev->read_pt(ev);
 }
 
-static int webser_mime_init( )
-{
-    if(0 != ezhash_create(&g_web_ctx->mime_hash, 128)) {
-        err("webser create mime hash failed\n");
-        return -1;
-    }    
-    ezhash_add(g_web_ctx->mime_hash, ".html",  "Content-type: text/html\r\n");
-    ezhash_add(g_web_ctx->mime_hash, ".js",    "Content-type: application/x-javascript\r\n");
-    ezhash_add(g_web_ctx->mime_hash, ".json",  "Content-type: application/json\r\n");
-    ezhash_add(g_web_ctx->mime_hash, ".png",   "Content-type: image/png\r\n");
-    ezhash_add(g_web_ctx->mime_hash, ".jpg",   "Content-type: image/jpeg\r\n");
-    ezhash_add(g_web_ctx->mime_hash, ".jpeg",  "Content-type: image/jpeg\r\n");
-    ezhash_add(g_web_ctx->mime_hash, ".gif",   "Content-type: image/gif\r\n");
-    ezhash_add(g_web_ctx->mime_hash, ".ico",   "Content-type: image/x-icon\r\n");
-    ezhash_add(g_web_ctx->mime_hash, ".css",   "Content-type: text/css\r\n");
-    ezhash_add(g_web_ctx->mime_hash, ".txt",   "Content-type: text/plain\r\n");
-    ezhash_add(g_web_ctx->mime_hash, ".htm",   "Content-type: text/html\r\n");
-    ezhash_add(g_web_ctx->mime_hash, ".mp3",   "Content-type: audio/mpeg\r\n");
-    ezhash_add(g_web_ctx->mime_hash, ".m3u8",  "Content-type: application/x-mpegURL\r\n");
-    ezhash_add(g_web_ctx->mime_hash, ".ts",    "Content-type: video/MP2T\r\n");
-    return 0;
-}
 
 static char* webser_rsp_mime_find(unsigned char * str, int len)
 {
@@ -216,7 +193,7 @@ void webser_rsp_mime(webser_t * webser, char * mimetype)
     webser->http_rsp_mime = webser_rsp_mime_find((unsigned char*)mimetype, l_strlen(mimetype));
 }
 
-static int webser_rsp_send_body_api(event_t * ev)
+static int webser_rsp_payload_send_api(event_t * ev)
 {	
     con_t * c = ev->data;
     webser_t * webser = c->data;
@@ -245,7 +222,7 @@ static int webser_rsp_send_body_api(event_t * ev)
     return 0;
 }
 
-static int webser_rsp_send_body_file(event_t * ev)
+static int webser_rsp_payload_send_ff(event_t * ev)
 {	   
     con_t * c = ev->data;
     webser_t * webser = c->data;
@@ -292,7 +269,7 @@ static int webser_rsp_send_body_file(event_t * ev)
     return 0;
 }
 
-static int webser_rsp_send_body(event_t * ev)
+static int webser_rsp_payload_send(event_t * ev)
 {
     con_t * c = ev->data;
     webser_t * webser = c->data;
@@ -303,10 +280,10 @@ static int webser_rsp_send_body(event_t * ev)
             webser_free(webser);
             return -1;
         }
-        ev->write_pt = webser_rsp_send_body_file;
+        ev->write_pt = webser_rsp_payload_send_ff;
         return ev->write_pt(ev);
     } else if (webser->type == WEBSER_API) {
-        ev->write_pt = webser_rsp_send_body_api;
+        ev->write_pt = webser_rsp_payload_send_api;
         return ev->write_pt(ev);
     } 
 	err("webser type not support. [%d]\n", webser->type);
@@ -317,7 +294,7 @@ static int webser_rsp_send_body(event_t * ev)
 /// @brief for easy add http rsp payload string 
 /// @param webser 
 /// @param str 
-int webser_rsp_body_push(webser_t * webser, const char * str, ...)
+int webser_rsp_payload_push(webser_t * webser, const char * str, ...)
 {
     va_list argslist;
     const char * args = str;
@@ -358,7 +335,7 @@ int webser_rsp_body_push(webser_t * webser, const char * str, ...)
 	return 0;
 }
 
-static int webser_rsp_send_header(event_t * ev)
+static int webser_rsp_header_send(event_t * ev)
 {
     con_t * c = ev->data;
     webser_t * webser = c->data;
@@ -377,15 +354,17 @@ static int webser_rsp_send_header(event_t * ev)
     }
     timer_del(&ev->timer);
 
-	int have_body = 0;
+	int fpayload = 0;
 	if(webser->type == WEBSER_FILE) {
-		if(webser->fsize > 0)
-			have_body = 1;
+		if(webser->fsize > 0) {
+            fpayload = 1;
+        }
 	} else if(webser->type == WEBSER_API) {
-		if(webser->rsp_meta_body) 
-			have_body = 1;
+		if(webser->rsp_meta_body) {
+            fpayload = 1;
+        } 
 	}
-	if(!have_body) {
+	if(!fpayload) {
         if(webser->http_rsp_code == 200 && webser->http_req->fkeepalive) {
             ev->write_pt = webser_keepalive;
             return ev->write_pt(ev);
@@ -393,14 +372,14 @@ static int webser_rsp_send_header(event_t * ev)
         webser_free(webser);
         return 0;
     }
-    ev->write_pt = webser_rsp_send_body;
+    ev->write_pt = webser_rsp_payload_send;
     return ev->write_pt(ev);
 }
 
 /// @brief for easy add http rsp header string 
 /// @param webser 
 /// @param str 
-int webser_rsp_push_header(webser_t * webser, const char * str, ...) 
+int webser_rsp_header_push(webser_t * webser, const char * str, ...) 
 {
     va_list argslist;
     const char * args = str;
@@ -448,29 +427,29 @@ int webser_rsp_send(event_t * ev)
 	webser_t * webser = c->data;
 	
 	if(webser->http_rsp_code == 200) {
-		webser_rsp_push_header(webser, "HTTP/1.1 200 OK\r\n");
+		webser_rsp_header_push(webser, "HTTP/1.1 200 OK\r\n");
 	} else if (webser->http_rsp_code == 400) {
-		webser_rsp_push_header(webser, "HTTP/1.1 400 Bad Request\r\n");
+		webser_rsp_header_push(webser, "HTTP/1.1 400 Bad Request\r\n");
 	} else if (webser->http_rsp_code == 404) {
-		webser_rsp_push_header(webser, "HTTP/1.1 404 Not Found\r\n");
+		webser_rsp_header_push(webser, "HTTP/1.1 404 Not Found\r\n");
 	} else if (webser->http_rsp_code == 403) {
-		webser_rsp_push_header(webser, "HTTP/1.1 403 Forbidden\r\n");
+		webser_rsp_header_push(webser, "HTTP/1.1 403 Forbidden\r\n");
 	} else if (webser->http_rsp_code == 500) {
-		webser_rsp_push_header(webser, "HTTP/1.1 500 Internal Server Error\r\n");
+		webser_rsp_header_push(webser, "HTTP/1.1 500 Internal Server Error\r\n");
 	} else {
-		webser_rsp_push_header(webser, "HTTP/1.1 400 Bad Request\r\n");
+		webser_rsp_header_push(webser, "HTTP/1.1 400 Bad Request\r\n");
 	}
-    webser_rsp_push_header(webser, "Server: SSSSS\r\n");
-    webser_rsp_push_header(webser, "Accept-Charset: utf-8\r\n");
-    webser_rsp_push_header(webser, "Date: %s\r\n", systime_gmt());	
-    webser_rsp_push_header(webser, webser->http_rsp_mime ? webser->http_rsp_mime : "Content-type: application/octet-stream\r\n");
+    webser_rsp_header_push(webser, "Server: SSSSS\r\n");
+    webser_rsp_header_push(webser, "Accept-Charset: utf-8\r\n");
+    webser_rsp_header_push(webser, "Date: %s\r\n", systime_gmt());	
+    webser_rsp_header_push(webser, webser->http_rsp_mime ? webser->http_rsp_mime : "Content-type: application/octet-stream\r\n");
     if(webser->http_req->fkeepalive) {
-        webser_rsp_push_header(webser, "Connection: keep-alive\r\n");
+        webser_rsp_header_push(webser, "Connection: keep-alive\r\n");
     } else {
-        webser_rsp_push_header(webser, "Connection: close\r\n");
+        webser_rsp_header_push(webser, "Connection: close\r\n");
     }
 	if(webser->type == WEBSER_FILE) {
-		webser_rsp_push_header(webser, "Content-Length: %d\r\n", webser->fsize);
+		webser_rsp_header_push(webser, "Content-Length: %d\r\n", webser->fsize);
 	} else if (webser->type == WEBSER_API) {
 		int len = 0;
 		meta_t * m = webser->rsp_meta_body;
@@ -478,12 +457,12 @@ int webser_rsp_send(event_t * ev)
 			len += m->last - m->pos;
 			m = m->next;
 		}
-		webser_rsp_push_header(webser, "Content-Length: %d\r\n", len);
+		webser_rsp_header_push(webser, "Content-Length: %d\r\n", len);
 	}
-    webser_rsp_push_header(webser, "\r\n");
+    webser_rsp_header_push(webser, "\r\n");
 	
     ev->read_pt = webser_try_read;
-    ev->write_pt = webser_rsp_send_header;
+    ev->write_pt = webser_rsp_header_send;
     event_opt(ev, c->fd, EV_R|EV_W);
     return ev->write_pt(ev);
 }
@@ -578,7 +557,7 @@ static int webser_req_router(event_t * ev)
     return ev->read_pt(ev);
 }
 
-int webser_req_body_proc(webser_t * web)
+int webser_req_payload(webser_t * web)
 {	
     if(!web->http_payload) {
         if(0 != http_payload_ctx_init(web->c, &web->http_payload, (web->api->body_need == 1) ? 1 : 0)) {
@@ -598,7 +577,7 @@ int webser_req_body_proc(webser_t * web)
     return 1;
 }
 
-static int webser_req_header_proc(event_t * ev)
+static int webser_req_header(event_t * ev)
 {
     con_t * c = ev->data;
     webser_t * webser = c->data;
@@ -645,13 +624,13 @@ static int webser_start(event_t * ev)
     c->data = webser;
 
     ///start http request parse, try to read http request form socket and parse it 
-    if(0 != http_req_create(c, &webser->http_req)) {
+    if(0 != http_req_ctx_init(c, &webser->http_req)) {
         err("webser alloc req failed\n");
         webser_free(webser);
         return -1;
     }
     ev->write_pt = NULL;
-    ev->read_pt = webser_req_header_proc;
+    ev->read_pt = webser_req_header;
     return ev->read_pt(ev);
 }
 
@@ -693,10 +672,10 @@ static int webser_transfer_to_s5(event_t * ev)
 
     s5_auth_t * header = (s5_auth_t*)meta->pos;
     if(htonl(S5_AUTH_LOCAL_MAGIC) != header->magic) {
-	ev->read_pt = webser_start;
+	    ev->read_pt = webser_start;
     	return ev->read_pt(ev);
     } 
-    ev->read_pt = s5_server_transport;
+    ev->read_pt = s5_srv_transport;
     return ev->read_pt(ev);
 }
 
@@ -762,6 +741,30 @@ int webser_accept_cb(event_t * ev)
     return ev->read_pt(ev);
 }
 
+static int webser_init_mimehash( )
+{
+    if(0 != ezhash_create(&g_web_ctx->mime_hash, 128)) {
+        err("webser create mime hash failed\n");
+        return -1;
+    }    
+    ezhash_add(g_web_ctx->mime_hash, ".html",  "Content-type: text/html\r\n");
+    ezhash_add(g_web_ctx->mime_hash, ".js",    "Content-type: application/x-javascript\r\n");
+    ezhash_add(g_web_ctx->mime_hash, ".json",  "Content-type: application/json\r\n");
+    ezhash_add(g_web_ctx->mime_hash, ".png",   "Content-type: image/png\r\n");
+    ezhash_add(g_web_ctx->mime_hash, ".jpg",   "Content-type: image/jpeg\r\n");
+    ezhash_add(g_web_ctx->mime_hash, ".jpeg",  "Content-type: image/jpeg\r\n");
+    ezhash_add(g_web_ctx->mime_hash, ".gif",   "Content-type: image/gif\r\n");
+    ezhash_add(g_web_ctx->mime_hash, ".ico",   "Content-type: image/x-icon\r\n");
+    ezhash_add(g_web_ctx->mime_hash, ".css",   "Content-type: text/css\r\n");
+    ezhash_add(g_web_ctx->mime_hash, ".txt",   "Content-type: text/plain\r\n");
+    ezhash_add(g_web_ctx->mime_hash, ".htm",   "Content-type: text/html\r\n");
+    ezhash_add(g_web_ctx->mime_hash, ".mp3",   "Content-type: audio/mpeg\r\n");
+    ezhash_add(g_web_ctx->mime_hash, ".m3u8",  "Content-type: application/x-mpegURL\r\n");
+    ezhash_add(g_web_ctx->mime_hash, ".ts",    "Content-type: video/MP2T\r\n");
+    return 0;
+}
+
+
 /// @brief webserver module init 
 /// @param  
 /// @return 
@@ -781,7 +784,7 @@ int webser_init(void)
         }
         
         /// init mime hash 
-        if(0 != webser_mime_init()) {
+        if(0 != webser_init_mimehash()) {
             mem_pool_free(g_web_ctx);
             err("webser mime hash init failed\n");
             return -1;

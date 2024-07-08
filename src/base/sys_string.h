@@ -16,7 +16,7 @@ typedef struct string_t {
 	unsigned char *  data;
 } string_t;
 
-unsigned char * l_find_str( unsigned char * str, uint32 str_len, unsigned char * find, uint32 find_len );
+unsigned char * l_find_str(unsigned char * str, uint32 str_len, unsigned char * find, uint32 find_len);
 
 #ifdef __cplusplus
 }
