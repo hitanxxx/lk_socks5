@@ -26,6 +26,7 @@
 #include "net.h"
 #include "ringbuffer.h"
 #include "cJSON.h"
+#include "aho_corasick.h"
 
 
 /// improve compile performance
