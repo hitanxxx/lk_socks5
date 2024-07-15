@@ -7,26 +7,25 @@ extern "C"
 #endif
 
 typedef struct ezhash_obj ezhash_obj_t;
-
-struct ezhash_obj
-{
-    string_t key;
-    string_t value;
+struct ezhash_obj {
     ezhash_obj_t * next;
+    void * key;
+    int keyn;
+    void * val;
+    int valn;
 };
-
-typedef struct 
-{  
-    int range;
-    ezhash_obj_t ** buckets;
+typedef struct {
+    int arrn;  ///recommand set to big prime
+    ezhash_obj_t ** arr;
 } ezhash_t;
 
-int ezhash_create(ezhash_t ** hash, int size);
 int ezhash_free(ezhash_t * hash);
+int ezhash_create(ezhash_t ** hash, int space);
 
-int ezhash_add(ezhash_t * hash, char * key, char * value);
-int ezhash_del(ezhash_t * hash, char * key);
-char * ezhash_find(ezhash_t * hash, char * key);
+void * ezhash_find(ezhash_t * hash, void * key, int keyn);
+int ezhash_add(ezhash_t * hash, void * key, int keyn, void * val, int valn);
+int ezhash_del(ezhash_t * hash, void * key, int keyn);
+
 
 #ifdef __cplusplus
 }

@@ -18,22 +18,22 @@ static void ts_ezhash_deinit( void )
 static void ts_ezhash_add( void )
 {
     int ret = 0;
-    ret = ezhash_add( g_ts_hash, "1", "0" );
+    ret = ezhash_add( g_ts_hash, "1", 1, "0", 1);
     t_assert(OK == ret);
-    ret = ezhash_add( g_ts_hash, "2", "0" );
+    ret = ezhash_add( g_ts_hash, "2", 1, "0", 1);
     t_assert(OK == ret);
-    ret = ezhash_add( g_ts_hash, "3", "0" );
+    ret = ezhash_add( g_ts_hash, "3", 1, "0", 1);
     t_assert(OK == ret);
-    ret = ezhash_add( g_ts_hash, "4", "0" );
+    ret = ezhash_add( g_ts_hash, "4", 1, "0", 1);
     t_assert(OK == ret);
-    ret = ezhash_add( g_ts_hash, "5", "0" );
+    ret = ezhash_add( g_ts_hash, "5", 1, "0", 1);
     t_assert(OK == ret);
 }
 
 static void ts_ezhash_del( void )
 {
     int ret = 0;
-    ret = ezhash_del( g_ts_hash, "1");
+    ret = ezhash_del( g_ts_hash, "1", 1);
     t_assert( OK == ret );
 }
 

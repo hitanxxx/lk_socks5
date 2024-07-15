@@ -178,19 +178,9 @@ static int webser_keepalive(event_t * ev)
     return ev->read_pt(ev);
 }
 
-
-static char* webser_rsp_mime_find(unsigned char * str, int len)
-{
-    if(!str && !len) {
-        return "Content-type: application/octet-stream\r\n";
-    } else {
-        return ezhash_find(g_web_ctx->mime_hash, (char*)str);
-    }
-}
-
 void webser_rsp_mime(webser_t * webser, char * mimetype)
 {
-    webser->http_rsp_mime = webser_rsp_mime_find((unsigned char*)mimetype, l_strlen(mimetype));
+    webser->http_rsp_mime = ezhash_find(g_web_ctx->mime_hash, mimetype, strlen(mimetype));
 }
 
 static int webser_rsp_payload_send_api(event_t * ev)
@@ -442,7 +432,7 @@ int webser_rsp_send(event_t * ev)
     webser_rsp_header_push(webser, "Server: SSSSS\r\n");
     webser_rsp_header_push(webser, "Accept-Charset: utf-8\r\n");
     webser_rsp_header_push(webser, "Date: %s\r\n", systime_gmt());	
-    webser_rsp_header_push(webser, webser->http_rsp_mime ? webser->http_rsp_mime : "Content-type: application/octet-stream\r\n");
+    webser_rsp_header_push(webser, "Content-type: %s\r\n", webser->http_rsp_mime ? webser->http_rsp_mime : "application/octet-stream");
     if(webser->http_req->fkeepalive) {
         webser_rsp_header_push(webser, "Connection: keep-alive\r\n");
     } else {
@@ -496,9 +486,7 @@ static int webser_req_file(event_t * ev)
     
     char * postfix = strrchr(path, '.');
     if(postfix) {
-        webser->http_rsp_mime = webser_rsp_mime_find((unsigned char*)postfix, strlen(postfix));
-    } else {
-        webser->http_rsp_mime = webser_rsp_mime_find((unsigned char*)NULL, 0); 
+        webser_rsp_mime(webser, postfix);
     }
     webser->fsize = webser->fsend = 0;
     struct stat st;
@@ -743,24 +731,51 @@ int webser_accept_cb(event_t * ev)
 
 static int webser_init_mimehash( )
 {
-    if(0 != ezhash_create(&g_web_ctx->mime_hash, 128)) {
+    if(0 != ezhash_create(&g_web_ctx->mime_hash, 97)) {
         err("webser create mime hash failed\n");
         return -1;
     }    
-    ezhash_add(g_web_ctx->mime_hash, ".html",  "Content-type: text/html\r\n");
-    ezhash_add(g_web_ctx->mime_hash, ".js",    "Content-type: application/x-javascript\r\n");
-    ezhash_add(g_web_ctx->mime_hash, ".json",  "Content-type: application/json\r\n");
-    ezhash_add(g_web_ctx->mime_hash, ".png",   "Content-type: image/png\r\n");
-    ezhash_add(g_web_ctx->mime_hash, ".jpg",   "Content-type: image/jpeg\r\n");
-    ezhash_add(g_web_ctx->mime_hash, ".jpeg",  "Content-type: image/jpeg\r\n");
-    ezhash_add(g_web_ctx->mime_hash, ".gif",   "Content-type: image/gif\r\n");
-    ezhash_add(g_web_ctx->mime_hash, ".ico",   "Content-type: image/x-icon\r\n");
-    ezhash_add(g_web_ctx->mime_hash, ".css",   "Content-type: text/css\r\n");
-    ezhash_add(g_web_ctx->mime_hash, ".txt",   "Content-type: text/plain\r\n");
-    ezhash_add(g_web_ctx->mime_hash, ".htm",   "Content-type: text/html\r\n");
-    ezhash_add(g_web_ctx->mime_hash, ".mp3",   "Content-type: audio/mpeg\r\n");
-    ezhash_add(g_web_ctx->mime_hash, ".m3u8",  "Content-type: application/x-mpegURL\r\n");
-    ezhash_add(g_web_ctx->mime_hash, ".ts",    "Content-type: video/MP2T\r\n");
+    ezhash_add(g_web_ctx->mime_hash, ".html", strlen(".html"),
+        "text/html", strlen("text/html"));
+    
+    ezhash_add(g_web_ctx->mime_hash, ".js", strlen(".js"),
+        "application/x-javascript", strlen("application/x-javascript"));
+    
+    ezhash_add(g_web_ctx->mime_hash, ".json", strlen(".json"),
+        "application/json", strlen("application/json"));
+    
+    ezhash_add(g_web_ctx->mime_hash, ".png", strlen(".png"),
+        "image/png", strlen("image/png"));
+    
+    ezhash_add(g_web_ctx->mime_hash, ".jpg", strlen(".jpg"),
+        "image/jpeg", strlen("image/jpeg"));
+    
+    ezhash_add(g_web_ctx->mime_hash, ".jpeg", strlen(".jpeg"),
+        "image/jpeg", strlen("image/jpeg"));
+    
+    ezhash_add(g_web_ctx->mime_hash, ".gif", strlen(".gif"),
+        "image/gif", strlen("image/gif"));
+    
+    ezhash_add(g_web_ctx->mime_hash, ".ico", strlen(".ico"),
+        "image/x-icon", strlen("image/x-icon"));
+    
+    ezhash_add(g_web_ctx->mime_hash, ".css", strlen(".css"),
+        "text/css", strlen("text/css"));
+    
+    ezhash_add(g_web_ctx->mime_hash, ".txt", strlen(".txt"),
+        "text/plain", strlen("text/plain"));
+    
+    ezhash_add(g_web_ctx->mime_hash, ".htm", strlen(".htm"),
+        "text/html", strlen("text/html"));
+    
+    ezhash_add(g_web_ctx->mime_hash, ".mp3", strlen(".mp3"),
+        "audio/mpeg", strlen("audio/mpeg"));
+    
+    ezhash_add(g_web_ctx->mime_hash, ".m3u8", strlen(".m3u8"),
+        "application/x-mpegURL", strlen("application/x-mpegURL"));
+    
+    ezhash_add(g_web_ctx->mime_hash, ".ts", strlen(".ts"),
+        "video/MP2T", strlen("video/MP2T"));
     return 0;
 }
 

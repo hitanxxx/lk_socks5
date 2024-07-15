@@ -5,9 +5,8 @@
 
 #define S5_USER_AUTH_FILE_LEN  (4*1024)
 
-typedef struct 
-{
-    ezhash_t * auth_hash;
+typedef struct {
+    ezac_ctx_t * ac;    
 } g_s5_t;
 static g_s5_t * g_s5_ctx = NULL;
 
@@ -832,12 +831,12 @@ static int s5_srv_auth_req(event_t * ev)
 
     s5_auth_t * auth = (s5_auth_t*)meta->pos;
     if(htonl(S5_AUTH_LOCAL_MAGIC) != auth->magic) {
-        err("s5 server. auth check. magic [0x%x] != [0x%x]\n", auth->magic, S5_AUTH_LOCAL_MAGIC);
+        err("s5 srv. auth check. magic [0x%x] != [0x%x]\n", auth->magic, S5_AUTH_LOCAL_MAGIC);
         s5_free(s5);
         return -1;
     }
-    if(NULL == ezhash_find(g_s5_ctx->auth_hash, (char*)auth->key)) {
-        err("s5 server. auth check, auth key not found\n");
+    if(0 != ezac_find(g_s5_ctx->ac, auth->key, strlen(auth->key))) {
+        err("s5 srv. auth check, auth key not found\n");
         s5_free(s5);
         return -1;
     }
@@ -965,15 +964,15 @@ int s5_srv_accept(event_t * ev)
     return s5_srv_accept_chk(ev); 
 }
 
-static int s5_srv_authhash_fparse(meta_t * meta)
+static int s5_srv_auth_fparse(meta_t * meta)
 {
     cJSON * root = cJSON_Parse((char*)meta->pos);
     if(root) {  /// traversal the array 
         int i = 0;
         for(i = 0; i < cJSON_GetArraySize(root); i++) {
             cJSON * arrobj = cJSON_GetArrayItem(root, i);
-            if(0 != ezhash_add(g_s5_ctx->auth_hash, cJSON_GetStringValue(arrobj), "0")) {
-                err("s5 serve user key [%s] add hash failed\n", cJSON_GetStringValue(arrobj));
+            if(0 != ezac_add(g_s5_ctx->ac, cJSON_GetStringValue(arrobj), strlen(cJSON_GetStringValue(arrobj)))) {
+                err("s5 srv auth add ac err\n", cJSON_GetStringValue(arrobj));
             }
         }
         cJSON_Delete(root);
@@ -981,7 +980,7 @@ static int s5_srv_authhash_fparse(meta_t * meta)
     return 0;
 }
 
-static int s5_srv_authhash_rfile(meta_t * meta)
+static int s5_srv_auth_rfile(meta_t * meta)
 {
     ssize_t size = 0;
     int fd = open((char*)config_get()->s5_serv_auth_path, O_RDONLY);
@@ -999,25 +998,31 @@ static int s5_srv_authhash_rfile(meta_t * meta)
     return 0;
 }
 
-static int s5_srv_authhash_init()
+static int s5_srv_auth_init()
 {
     meta_t * meta = NULL;
     int rc = -1;
     do {
+        g_s5_ctx->ac = ezac_init();
+        if(!g_s5_ctx->ac) {
+            err("s5 srv auth ac init err\n");
+            break;
+        } 
         if(0 != meta_alloc(&meta, S5_USER_AUTH_FILE_LEN)) {
-            err("usmgr auth databse alloc meta failed\n");
+            err("s5 srv auth databse alloc meta failed\n");
             break;
         }
-        if(0 != s5_srv_authhash_rfile(meta)) {
-            err("usmgr auth file load failed\n");
+        if(0 != s5_srv_auth_rfile(meta)) {
+            err("s5 srv auth file load failed\n");
             break;
         }
-        if(0 != s5_srv_authhash_fparse(meta)) {
-            err("usmgr auth file decode failed\n");
+        if(0 != s5_srv_auth_fparse(meta)) {
+            err("s5 srv auth file decode failed\n");
             break;
         }
+        ezac_compiler(g_s5_ctx->ac);
         rc = 0;
-    }while(0);    
+    } while(0);    
     if(meta)
         meta_free(meta);
     return rc;
@@ -1038,12 +1043,8 @@ int socks5_server_init(void)
             return -1;
         }
         if(config_get()->s5_mode > SOCKS5_CLIENT) {
-            if(0 != ezhash_create(&g_s5_ctx->auth_hash, 64)) { /// build a hash table to manager s5 users.     
-                err("s5 serv user hash create failed\n");
-                break;
-            }            
-            if(0 != s5_srv_authhash_init()) { ///init the hash table uses.
-                err("s5 serv usr db init failed\n");
+            if(0 != s5_srv_auth_init()) {
+                err("s5 srv auth init err\n");
                 break;
             }
         } else {
@@ -1054,7 +1055,7 @@ int socks5_server_init(void)
     if(ret == -1) {
         if(g_s5_ctx) {
             if(config_get()->s5_mode > SOCKS5_CLIENT) {
-                ezhash_free(g_s5_ctx->auth_hash);
+                if(g_s5_ctx->ac) ezac_free(g_s5_ctx->ac);
             }
             mem_pool_free(g_s5_ctx);
             g_s5_ctx = NULL;
@@ -1066,10 +1067,7 @@ int socks5_server_init(void)
 int socks5_server_end(void)
 {
     if(g_s5_ctx) {
-        if(g_s5_ctx->auth_hash) {
-            ezhash_free(g_s5_ctx->auth_hash);
-            g_s5_ctx->auth_hash = NULL;
-        }
+        if(g_s5_ctx->ac) ezac_free(g_s5_ctx->ac);
         mem_pool_free((void*)g_s5_ctx);
         g_s5_ctx = NULL;
     }
