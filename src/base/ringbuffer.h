@@ -6,8 +6,8 @@ extern "C"
 {
 #endif
 
-typedef struct
-{
+typedef struct {
+    pthread_mutex_t lock;
 	int space;
 	char * start;
 	char * end;

@@ -6,17 +6,17 @@
 /// @return
 int ringbuffer_alloc(ringbuffer_t **rb, int size)
 {
-    ringbuffer_t *rb_n = calloc(1, sizeof(ringbuffer_t) + size);
-    if (!rb_n) {
-        err("alloc ringbuffer failed. [%d]\n", errno);
+    ringbuffer_t * nrb = mem_pool_alloc(sizeof(ringbuffer_t) + size);
+    if (!nrb) {
+        err("rb alloc err.\n");
         return -1;
     }
-    rb_n->space = size;
-    rb_n->datan = 0;
-    rb_n->pos = rb_n->last = rb_n->start = rb_n->data;
-    rb_n->end = rb_n->start + size;
-
-    *rb = rb_n;
+    nrb->space = size;
+    nrb->datan = 0;
+    nrb->pos = nrb->last = nrb->start = nrb->data;
+    nrb->end = nrb->start + size;
+    pthread_mutex_init(&nrb->lock, NULL);
+    *rb = nrb;
     return 0;
 }
 
@@ -24,27 +24,29 @@ int ringbuffer_alloc(ringbuffer_t **rb, int size)
 /// @param rb
 void ringbuffer_free(ringbuffer_t *rb)
 {
-    if (rb) 
-        free(rb);
+    if (rb) mem_pool_free(rb);
 }
 
-static int rb_full(ringbuffer_t * rb)
+int rb_full(ringbuffer_t * rb)
 {
-    return ( rb->space == rb->datan ? 1 : 0);
+    return (rb->space == rb->datan ? 1 : 0);
 }
 
 int rb_empty(ringbuffer_t * rb)
 {
-    return rb->datan == 0 ? 1 : 0;
+    return (rb->datan == 0 ? 1 : 0);
 }
 int ringbuffer_push(ringbuffer_t *rb,unsigned char *data, int datan)
 {
-    if( rb_full(rb)) {
+    pthread_mutex_lock(&rb->lock);
+    if(rb_full(rb)) {
+        pthread_mutex_unlock(&rb->lock);
         err("rb full\n");
         return -1;
     }
 
     if(datan > rb->space - rb->datan) {
+        pthread_mutex_unlock(&rb->lock);
         err("rb free space not enough\n");
         return -1;
     }
@@ -57,13 +59,15 @@ int ringbuffer_push(ringbuffer_t *rb,unsigned char *data, int datan)
             rb->last += datan;
             rb->datan += datan;
         } else {
-            memcpy(rb->last, data, tailn);
-            rb->last += tailn;
-            rb->datan += tailn;
-
+            if(tailn) {
+                memcpy(rb->last, data, tailn);
+                rb->last += tailn;
+                rb->datan += tailn;
+                rb->last = rb->start;
+            }
             int headn = datan - tailn;
             memcpy(rb->start, data + tailn, headn);
-            rb->last = rb->start + headn;
+            rb->last += headn;
             rb->datan += headn;    
         }
     } else {
@@ -78,18 +82,19 @@ int ringbuffer_push(ringbuffer_t *rb,unsigned char *data, int datan)
 
 int ringbuffer_pull(ringbuffer_t *rb, int datan, unsigned char *data, int *outn)
 {
+    pthread_mutex_lock(&rb->lock);
     if(rb_empty(rb)) {
+        pthread_mutex_unlock(&rb->lock);
         err("rb empty\n");
         return -1;
     }    
 
     if(rb->pos < rb->last) {
         /// start-----pos-----last-----end
-        int pulln = (datan >= (rb->last - rb->pos) ? (rb->last-rb->pos) : datan);
+        int pulln = (datan >= (rb->last - rb->pos) ? (rb->last - rb->pos) : datan);
         memcpy(data, rb->pos, pulln);
         rb->pos += pulln;
         rb->datan -= pulln;
-
         *outn = pulln;
     } else {
         /// start-----last-----pos-----end
@@ -102,10 +107,12 @@ int ringbuffer_pull(ringbuffer_t *rb, int datan, unsigned char *data, int *outn)
             *outn = datan;
         } else {
             // copy all tail
-            memcpy(data, rb->pos, tailn);
-            rb->pos += tailn;
-            rb->datan -= tailn;
-            
+            if(tailn) {
+                memcpy(data, rb->pos, tailn);
+                rb->pos += tailn;
+                rb->datan -= tailn;
+                rb->pos = rb->start;
+            }
             int headn = rb->last - rb->start;
             int pulln = (datan - tailn >= headn ? headn : (datan - tailn));
             memcpy(data + tailn, rb->start, pulln);
