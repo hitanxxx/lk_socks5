@@ -87,7 +87,7 @@ static int s5_traffic_recv(event_t * ev)
     timer_set_pt(&ev->timer, s5_timeout_cb);
     timer_add(&ev->timer, S5_TIMEOUT);
 
-    while(meta_getfree(down->meta) > 0) { ///try recv if have space
+    while(meta_getfree(down->meta) > 0) {
         recvn = down->recv(down, down->meta->last, meta_getfree(down->meta));
         if(recvn < 0) {
             if(recvn == -1) {
@@ -96,6 +96,7 @@ static int s5_traffic_recv(event_t * ev)
             }
             break; ///until again
         }
+        
 #ifndef S5_OVER_TLS
         if(s5->typ == SOCKS5_CLIENT) { ///down -> up enc
             if(recvn != sys_cipher_conv(s5->cipher_enc, down->meta->last, recvn)) {
@@ -258,19 +259,20 @@ int s5_traffic_process(event_t * ev)
     con_t * up = s5->up;
 
     if(!down->meta) {
-        if(0 != meta_alloc(&down->meta, 8192)) {
+        if(0 != meta_alloc(&down->meta, S5_METAN)) {
             err("s5 down meta alloc failed\n");
             s5_free(s5);
             return -1;
         }
     }
     if(!up->meta) {
-        if(0 != meta_alloc(&up->meta, 8192)) {
+        if(0 != meta_alloc(&up->meta, S5_METAN)) {
             err("s5 alloc up meta failed\n");
             s5_free(s5);
             return -1;
         }
     }
+    
 #ifndef S5_OVER_TLS
     if(!s5->cipher_enc) {
         if(0 != sys_cipher_ctx_init(&s5->cipher_enc, 0)) {
@@ -301,7 +303,7 @@ int s5_traffic_process(event_t * ev)
                 return -1;
             }
     	}	
-    } 
+    }
 #endif    
     ///only clear up meta in here. because s5 local run in here too.
     ///local(down) mabey recv some data.
@@ -830,8 +832,8 @@ static int s5_srv_auth_req(event_t * ev)
     timer_del(&ev->timer);
 
     s5_auth_t * auth = (s5_auth_t*)meta->pos;
-    if(htonl(S5_AUTH_LOCAL_MAGIC) != auth->magic) {
-        err("s5 srv. auth check. magic [0x%x] != [0x%x]\n", auth->magic, S5_AUTH_LOCAL_MAGIC);
+    if(htonl(S5_AUTH_MAGIC) != auth->magic) {
+        err("s5 srv. auth check. magic [0x%x] != [0x%x]\n", auth->magic, S5_AUTH_MAGIC);
         s5_free(s5);
         return -1;
     }

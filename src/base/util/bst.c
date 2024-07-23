@@ -1,338 +1,147 @@
 #include "common.h"
 
-static int bst_travesal_print(bst_node_t * node);
+int bst_create(bst_t ** bst)
+{
+    bst_t * nbst = sys_alloc(sizeof(bst_t));
+    if(!nbst) {
+        err("bst alloc err\n");
+        return -1;
+    }
+    nbst->head.num = -1;
+    nbst->head.level = 0;
+    *bst = nbst;
+    return 0;
+}
 
-// bst_create ----------------------
-int bst_create(bst_t * tree, bst_travesal_handler handler)
+int bst_free(bst_t * bst)
 {
-	memset(&tree->head, 0, sizeof(bst_node_t));
-	tree->head.num = -1;
-	tree->elem_num = 0;
-    tree->handler = (handler ? handler : bst_travesal_print);
-	return OK;
-}
-// bst_branch_min ---------------------
-static int bst_branch_min(bst_node_t * node, bst_node_t ** min)
-{
-	assert(NULL != min);
-	while(node->left) {
-		node = node->left;
-	}
-	*min = node;
-	return 0;
-}
-// bst_find -----------------
-static int bst_find(bst_t * tree, bst_node_t * find)
-{
-	bst_node_t * stack[BST_STACK_LENGTH];
-	int n = 0;
-	bst_node_t * node;
+    bst_node_t * stack[8192] = {NULL};
+    int stackn = 0;
 
-	if(!tree->head.right) {
-		return -1;
-	}
-	stack[n++] = tree->head.right;
-	while(n) {
-		node = stack[--n];
-		if (node == find) {
-			return 0;
-		}
-		if(node->left) {
-			stack[n++] = node->left;
-		}
-		if(node->right) {
-			stack[n++] = node->right;
-		}
-	}
-	return -1;
-}
-// bst_insert ---------------
-int bst_insert(bst_t * tree, bst_node_t * insert)
-{
-	bst_node_t * current;
+    if(!bst->head.right) return 0;
+    stack[stackn++] = bst->head.right;
 
-	assert(NULL != tree);
-	assert(NULL != insert);
-	if(0 == bst_find(tree, insert)) {
-		return -1;
-	}
-	insert->parent = NULL;
-	insert->left = NULL;
-	insert->right = NULL;
-	insert->level = 0;
-	insert->type = 0;
-	current = &tree->head;
-	for(;;) {
-		if(insert->num <= current->num) {
-			if(current->left) {
-				current = current->left;
-				continue;
-			}
-			current->left = insert;
-			insert->parent = current;
-			insert->level = current->level + 1;
-			insert->type = BST_LEFT;
-			tree->elem_num ++;
-			return 0;
-		} else {
-			if(current->right) {
-				current = current->right;
-				continue;
-			}
-			current->right = insert;
-			insert->parent = current;
-			insert->level = current->level + 1;
-			insert->type = BST_RIGHT;
-			tree->elem_num ++;
-			return 0;
-		}
-	}
+    while(stackn > 0) {
+        bst_node_t * n = stack[--stackn];
+        if(n->left)
+            stack[stackn++] = n->left;
+        if(n->right)
+            stack[stackn++] = n->right;
+        sys_free(n);
+    }
+    return 0;
 }
-// bst_del -----------------------
-int bst_del(bst_t * tree, bst_node_t * node)
-{
-	bst_node_t * del, *min;
-	assert(NULL != tree);
-	assert(NULL != node);
-	if(node == &tree->head) {
-		return -1;
-	}
-	if(-1 == bst_find(tree, node)) {
-		return -1;
-	}
-	del = node;
-	if(!del->left && !del->right) {
-		(del->type == BST_LEFT) ? (del->parent->left = NULL):(del->parent->right = NULL);
-	} else if (!del->left && del->right) {
-		(del->type == BST_LEFT) ? (del->parent->left = del->right):(del->parent->right = del->right);
-		del->right->parent = del->parent;
-		del->right->type = del->type;
-		del->right->level = del->level;
-	} else if (del->left && !del->right) {
-		(del->type == BST_LEFT) ? (del->parent->left = del->left): (del->parent->right = del->left);
-		del->left->parent = del->parent;
-		del->left->type = del->type;
-		del->left->level = del->level;
-	} else if ( del->left && del->right ) {
-        /// find mininum of right child tree
-		if(0 != bst_branch_min(del->right, &min)) {
-			return -1;
-		}
-		/*
-			the mininum don't have left child,
-			but mininum's type can be BST_LEFT or BST_RIGHT
-		*/
-		if(min->right) {
-			(min->type == BST_LEFT) ? (min->parent->left = min->right):
-				(min->parent->right = min->right);
-			min->right->parent = min->parent;
-			min->right->type = min->type;
-			min->right->level = min->level;
-		} else {
-			(min->type == BST_LEFT) ? (min->parent->left = NULL):
-				(min->parent->right = NULL);
-		}
-		min->parent = del->parent;
-		min->left = del->left;
-		min->right = del->right;
-		min->level = del->level;
-		min->type = del->type;
-		if(del->left) {
-			del->left->parent = min;
-		}
-		if(del->right) {
-			del->right->parent = min;
-		}
-		(del->type == BST_LEFT) ? (del->parent->left = min):
-			(del->parent->right = min);
-	}
-	del->parent = NULL;
-	del->left = NULL;
-	del->right = NULL;
-	del->level = 0;
-	del->type = 0;
-	tree->elem_num --;
-	return 0;
-}
-// bst_min ------------------------
-int bst_min(bst_t * tree, bst_node_t ** min)
-{
-	assert(NULL != tree);
-	assert(NULL != min);
-	if(!tree->head.right) {
-		return -1;
-	}
-	return bst_branch_min(tree->head.right, min);
-}
-// bst_reversal ------------------
-status bst_reversal( bst_t * tree )
-{
-	bst_node_t * stack[BST_STACK_LENGTH];
-	bst_node_t  *temp, *node;
-	uint32 n = 0;
 
-	if(!tree->head.right) {
-		return 0;
-	}
-	stack[n++] = tree->head.right;
-	while(n) {
-		node = stack[--n];
-		if(node->left && !node->right) {
-			node->right = node->left;
-			node->left = NULL;
-			stack[n++] = node->right;
-		} else if(node->right && !node->left) {
-			node->left = node->right;
-			node->right = NULL;
-			stack[n++] = node->left;
-		} else if(node->left && node->right) {
-			temp = node->left;
-			node->left = node->right;
-			node->right = temp;
-			stack[n++] = node->left;
-			stack[n++] = node->right;
-		}
-	}
-	return 0;
-}
-// bst_travesal_print ------
-static status bst_travesal_print( bst_node_t * node )
+int bst_add(bst_t * bst, long long key)
 {
-	char str[BST_STACK_LENGTH+1], *ptr;
-	uint32 level;
+    bst_node_t * n = &bst->head;
+    bst_node_t * p = NULL;
 
-	ptr = str;
-	level = node->level;
-	while(level) {
-		*ptr++ = '+';
-		level --;
-	}
-	*ptr = '\0';
-	dbg("%s %ld\n", str, node->num);
-	return 0;
+    while(n) {
+        p = n;
+        if(key > n->num) {
+            n = n->right;
+        } else {
+            n = n->left;
+        }
+    }
+
+    bst_node_t * v = sys_alloc(sizeof(bst_node_t));
+    if(!v) {
+        err("alloc bst node err\n");
+        return -1;
+    }
+        
+    if(key > p->num) {
+        p->right = v;
+        v->type = BST_RIGHT;
+    } else {
+        p->left = v;
+        v->type = BST_LEFT;
+    }
+    v->num = key;
+    v->level = p->level + 1;
+    v->parent = p;
+    bst->elem_num ++;
+    return 0;
 }
-// bst_travesal_breadth ---------
-status bst_travesal_breadth( bst_t * tree )
+
+
+bst_node_t * bst_min(bst_node_t * n)
 {
-	bst_node_t *stack[2][BST_STACK_LENGTH], *node;
-	uint32 current_level_num, next_level_num, index, i;
-
-	if(!tree->head.right) {
-		return 0;
-	}
-	index = current_level_num = next_level_num = 0;
-	stack[index%2][current_level_num++] = tree->head.right;
-	while(current_level_num) {
-		index++;
-		next_level_num = 0;
-		// travesal current level, take lchild rchild to next level
-		for(i = 0; i < current_level_num; i++) {
-			node = stack[(index-1)%2][i];
-			tree->handler(node);
-			if(node->left) {
-				stack[index%2][next_level_num++] = node->left;
-				if( next_level_num > BST_STACK_LENGTH ) return -1;
-			}
-			if(node->right) {
-				stack[index%2][next_level_num++] = node->right;
-				if( next_level_num > BST_STACK_LENGTH ) return -1;
-			}
-		}
-		current_level_num = next_level_num;
-	}
-	return 0;
+    while(n->left) n = n->left;
+    return n;
 }
-// bst_travesal_deepth_preorder ------
-status bst_travesal_deepth_preorder(bst_t * tree)
+
+bst_node_t * bst_find(bst_t * bst, long long key)
 {
-	bst_node_t * node, *stack[BST_STACK_LENGTH];
-	uint32 n = 0;
+    bst_node_t * stack[8192] = {NULL};
+    int stackn = 0;
 
-	if(!tree->head.right) {
-		return 0;
-	}
-	stack[n++] = tree->head.right;
-	while(n) {
-		node = stack[--n];
-		tree->handler(node);
-		if(node->right) {
-			stack[n++] = node->right;
-			if(n > BST_STACK_LENGTH) return -1;
-		}
-		if(node->left) {
-			stack[n++] = node->left;
-			if(n > BST_STACK_LENGTH) return -1;
-		}
-	}
-	return 0;
+    stack[stackn++] = &bst->head;
+
+    while(stackn > 0) {
+        bst_node_t * n = stack[--stackn];
+        if(n->num == key) return n;
+        if(n->left)
+            stack[stackn++] = n->left;
+        if(n->right)
+            stack[stackn++] = n->right;
+    }
+    return NULL;
 }
-// bst_travesal_deepth_inorder ------
-status bst_travesal_deepth_inorder(bst_t * tree)
+
+int bst_del(bst_t * bst, long long key)
 {
-	bst_node_t * node, *stack[BST_STACK_LENGTH];
-	uint32 n = 0;
+    bst_node_t * n = bst_find(bst, key);
+    if(!n) 
+        return -1;
 
-	if(!tree->head.right) {
-		return 0;
-	}
-	node = tree->head.right;
-	while(node) {
-		stack[n++] = node;
-		if(n > BST_STACK_LENGTH) return -1;
-		node = node->left;
-	}
-	while(n) {
-		node = stack[--n];
-		tree->handler(node);
-		if(node->right) {
-			node = node->right;
-			while(node) {
-				stack[n++] = node;
-				if(n > BST_STACK_LENGTH) return -1;
-				node = node->left;
-			}
-		}
-	}
-	return 0;
-}
-// bst_travesal_deepth_postorder ---------
-status bst_travesal_deepth_postorder(bst_t * tree)
-{
-	bst_node_t * stack[BST_STACK_LENGTH], *node, *prev = NULL;
-	uint32 n = 0;
+    if(n->left && !n->right) {
+        if(n->type == BST_LEFT) 
+            n->parent->left = n->left;
+        else 
+            n->parent->right = n->left;
 
-	if(!tree->head.right) {
-		return 0;
-	}
-	node = tree->head.right;
-	while(node) {
-		stack[n++] = node;
-		if(n > BST_STACK_LENGTH) return -1;
-		if( node->right ) {
-			stack[n++] = node->right;
-			if(n > BST_STACK_LENGTH) return -1;
-		}
-		node = node->left;
-	}
-	while(n) {
-		node = stack[n-1];
-		if(node->right && prev != node->right) {
-			stack[n++] = node->right;
-			if(n > BST_STACK_LENGTH) return -1;
-			node = node->left;
-			while(node) {
-				stack[n++] = node;
-				if( n > BST_STACK_LENGTH ) return -1;
-				if(node->right) {
-					stack[n++] = node->right;
-					if(n > BST_STACK_LENGTH) return -1;
-				}
-				node = node->left;
-			}
-		}
-		node = stack[--n];
-		prev = node;
-		tree->handler( node );
-	}
-	return 0;
+        n->left->parent = n->parent;
+        n->left->level = n->level;
+    } else if (!n->left && n->right) {
+        if(n->type == BST_LEFT) 
+            n->parent->left = n->right;
+        else
+            n->parent->right = n->right;
+
+        n->right->parent = n->parent;
+        n->right->level = n->level;
+    } else {
+        ///find right tree mininum node.
+        bst_node_t * m = bst_min(n->right);
+        ///delete the node
+        if(m->right) {
+            if(m->type == BST_LEFT)
+                m->parent->left = m->right;
+            else
+                m->parent->right = m->right;
+            m->right->parent = m->parent;
+            m->right->level = m->level;
+        } else {
+            m->parent->left = NULL;
+        }
+        ///replace delete node with this node
+        if(n->type == BST_LEFT) 
+            n->parent->left = m;
+        else
+            n->parent->right = m;
+        n->left->parent = m;
+        n->right->parent = m;
+        m->parent = n->parent;
+        m->level = n->level;
+        m->left = n->left;
+        m->right = n->right;
+    }
+    sys_free(n);
+    bst->elem_num --;
+    return 0;
 }
+
+

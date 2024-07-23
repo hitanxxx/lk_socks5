@@ -14,29 +14,25 @@ extern "C"
 typedef struct bst_node_t bst_node_t;
 typedef status (*bst_travesal_handler)(bst_node_t * node);
 struct bst_node_t {
-	int64_t		num;
+    long long num;
 	bst_node_t *parent, *left, *right;
-	uint32				level;
-	uint32				type;
+	int level;
+	int	type;
 };
 
 typedef struct bst_t {
 	bst_node_t		head;
-	uint32			elem_num;
-	bst_travesal_handler handler;
+	int			elem_num;
 } bst_t;
 
-int bst_create(bst_t * tree, bst_travesal_handler handler);
+int bst_create(bst_t ** bst);
+int bst_free(bst_t * bst);
+int bst_add(bst_t * bst, long long key);
+bst_node_t * bst_min(bst_node_t * n);
+bst_node_t * bst_find(bst_t * bst, long long key);
+int bst_del(bst_t * bst, long long key);
 
-int bst_del(bst_t * tree, bst_node_t * node);
-int bst_insert(bst_t * tree, bst_node_t * insert);
-int bst_min(bst_t * tree, bst_node_t ** find);
-int bst_reversal(bst_t * tree);
 
-int bst_travesal_breadth(bst_t * tree);
-int bst_travesal_deepth_preorder(bst_t * tree);
-int bst_travesal_deepth_inorder(bst_t * tree);
-int bst_travesal_deepth_postorder(bst_t * tree);
 
 #ifdef __cplusplus
 }

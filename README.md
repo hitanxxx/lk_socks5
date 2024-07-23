@@ -1,10 +1,16 @@
 # S5
-> S5 is a high-performance. lightly. super fast socks5 tunnel written by language C. it's contains two parts. local and server.
+> S5 is a high-performance. lightly. super fast socks5 proxy server written by language C and relay on OpenSSL.
+
 ## featrue
-> S5 local and S5 server support private authorization.
-> S5 local and S5 server communication with short connection. it's more safe than long connection.
-> S5 local and S5 server use SSL/aes_cfb to protect the transfer data.
-> S5 server contains a https server. so S5 server can be hidden by the https server. the https server support route different request to different service
-> S5 server support dns resovle.
+> Support socks5 ssl/tls tunnel.
+
+> Support private authorization.
+
+> Support SSL or aes cfb protect the tunnel.
+
+> Contains a https server. S5 server can be hidden by the https server.
+
+> Support fast dns resovle and cache.
+
 ## install 
-> goto the project directory. make && make install 
+> make && make install on linux platform

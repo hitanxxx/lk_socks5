@@ -6,15 +6,13 @@ extern "C"
 {
 #endif
 
-typedef struct heap_node_t 
-{
-	int64_t		key;
-	int		index;
+typedef struct {
+	int64_t	 key;
+	int	 index;
 } heap_node_t;
 
 // bheap
-typedef struct heap_t 
-{
+typedef struct {
 	int	index;
 	int	space;
 	heap_node_t	*array[0];

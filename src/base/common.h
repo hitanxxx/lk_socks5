@@ -34,6 +34,6 @@
 #define UNLIKELY(x)  __builtin_expect(!!(x), 0)
 
 #define schk(x, action) do { if(UNLIKELY(!(x))) { err("schk failed. (%s)\n", #x); action; } } while(0);
-#define S5_OVER_TLS
+//#define S5_OVER_TLS
 
 #endif

@@ -36,6 +36,7 @@ int rb_empty(ringbuffer_t * rb)
 {
     return (rb->datan == 0 ? 1 : 0);
 }
+
 int ringbuffer_push(ringbuffer_t *rb,unsigned char *data, int datan)
 {
     pthread_mutex_lock(&rb->lock);
@@ -123,5 +124,15 @@ int ringbuffer_pull(ringbuffer_t *rb, int datan, unsigned char *data, int *outn)
         }
     }
     return 0;
+}
+
+int ringbuffer_getlen(ringbuffer_t * rb)
+{
+    return (rb->datan);
+}
+
+int ringbuffer_getfree(ringbuffer_t * rb)
+{
+    return (rb->space - rb->datan);
 }
 

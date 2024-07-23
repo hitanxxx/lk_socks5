@@ -44,10 +44,12 @@ static int s5_loc_auth_build(event_t * ev)
 
     meta_clr(meta);
     s5_auth_t * auth = (s5_auth_t*)meta->last;
-    auth->magic = htonl(S5_AUTH_LOCAL_MAGIC);
+    auth->magic = htonl(S5_AUTH_MAGIC);
+    memset(auth->secret, 0, sizeof(auth->secret));
     memset(auth->key, 0, sizeof(auth->key));
     memcpy((char*)auth->key, config_get()->s5_local_auth, sizeof(auth->key));
     meta->last += sizeof(s5_auth_t);
+    
 #ifndef S5_OVER_TLS
     if(!s5->cipher_enc) {
         if(0 != sys_cipher_ctx_init(&s5->cipher_enc, 0)) {
@@ -62,7 +64,7 @@ static int s5_loc_auth_build(event_t * ev)
         return -1;
     }
 #endif
-    ev->write_pt = s5_loc_auth_send; /// goto send s5 private authorization login request
+    ev->write_pt = s5_loc_auth_send; ///goto send s5 private authorization login request
     return ev->write_pt(ev);
 }
 
@@ -190,7 +192,7 @@ int s5_loc_accept(event_t * ev)
     }
     s5->up->data = s5;
     if(!s5->up->meta) {
-        if(0 != meta_alloc(&s5->up->meta, 8192)) {
+        if(0 != meta_alloc(&s5->up->meta, S5_METAN)) {
             err("s5 up meta alloc failed\n");
             s5_free(s5);
             return -1;

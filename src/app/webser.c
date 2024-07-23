@@ -659,7 +659,7 @@ static int webser_transfer_to_s5(event_t * ev)
     timer_del(&ev->timer);
 
     s5_auth_t * header = (s5_auth_t*)meta->pos;
-    if(htonl(S5_AUTH_LOCAL_MAGIC) != header->magic) {
+    if(htonl(S5_AUTH_MAGIC) != header->magic) {
 	    ev->read_pt = webser_start;
     	return ev->read_pt(ev);
     } 

@@ -196,20 +196,20 @@ static int http_payload_content(http_payload_t * ctx)
 static int http_payload_start(http_payload_t * ctx)
 {
     if(ctx->fchunk) {
-        memcpy(ctx->meta->last, ctx->c->meta->pos, meta_getlen(ctx->c->meta));
-        ctx->meta->last += meta_getlen(ctx->c->meta);
+        if(meta_getlen(ctx->c->meta)) {
+            memcpy(ctx->meta->last, ctx->c->meta->pos, meta_getlen(ctx->c->meta));
+            ctx->meta->last += meta_getlen(ctx->c->meta);
+            ctx->c->meta->pos += meta_getlen(ctx->c->meta);
+        }
         ctx->cb = http_payload_chunk;
     } else {
         if(meta_getlen(ctx->c->meta) > 0) {
-            ctx->in += meta_getlen(ctx->c->meta);            
-            if(ctx->fcache) {
-                schk(0 == http_payload_push(ctx, (char*)ctx->c->meta->pos, meta_getlen(ctx->c->meta)), return -1);
-            }
-            ctx->c->meta->pos += meta_getlen(ctx->c->meta);
+            int bodyn = l_min(meta_getlen(ctx->c->meta), ctx->ilen);
+            if(ctx->fcache) schk(0 == http_payload_push(ctx, (char*)ctx->c->meta->pos, bodyn), return -1);
+            ctx->c->meta->pos += bodyn;
+            ctx->in += bodyn;
         }
-        if(ctx->in >= ctx->ilen) {
-            return 1;
-        }
+        if(ctx->in >= ctx->ilen) return 1;
         ctx->cb = http_payload_content;
     }
     return ctx->cb(ctx);
