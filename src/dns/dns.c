@@ -32,7 +32,7 @@ static int dns_rec_add(char * query, char * addr, int msec)
     rdns->addr[3] = addr[3];
     rdns->expire_msec = systime_msec() + msec;
     queue_insert_tail(&dns_ctx->record_mng, &rdns->queue);
-    ///dbg("dns cache add entry: [%s]. ttl [%d] msec\n", query, msec );
+    ///dbg("dns cache add entry: [%s]. ttl [%d] msec\n", query, msec);
     return 0;
 }
 

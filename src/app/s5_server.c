@@ -326,7 +326,7 @@ static int s5_srv_ph2_ack(event_t * ev)
 {
     con_t * down = ev->data;
     s5_session_t * s5 = down->data;
-    status rc = 0;
+    int rc = 0;
     meta_t * meta = down->meta;
 
     while(meta_getlen(meta) > 0) {
