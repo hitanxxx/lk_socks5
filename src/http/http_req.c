@@ -548,10 +548,7 @@ int http_req_ctx_init(con_t * c, http_req_t ** req)
         <payload>       ///other mdule do this
     */
     http_req_t * nreq = mem_pool_alloc(sizeof(http_req_t));
-    if(!nreq) {
-        err("http req alloc nreq failed\n");
-        return -1;
-    }
+    schk(nreq, return -1);
     nreq->c = c;
     nreq->state = 0;
     nreq->cb = http_req_startline;

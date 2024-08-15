@@ -8,33 +8,17 @@ int proc_daemon( void )
         return 0;
 
     int rc = fork();
-    if(rc < 0) {
-        err("fork failed, [%d]\n", errno);
-        return -1;
-    } else if(rc == 0) { ///child
-        if(setsid() == ERROR) {
-            err("setsid failed. [%d]\n", errno);
-            return -1;
-        }
+    schk(rc >= 0, return -1);
+
+    if(rc == 0) { ///child
+        schk(setsid() != -1, return -1);
         umask(0);
         int fd = open("/dev/null", O_RDWR);
-        if(fd == -1) {
-            err("open /dev/null failed, [%d]\n", errno);
-            return -1;
-        }
-        if(dup2(fd, STDIN_FILENO) == -1) {
-            err("dup2(STDIN) failed, [%d]\n", errno);
-            return -1;
-        }
-        if(dup2(fd, STDOUT_FILENO) == -1) {
-            err("dup2(STDOUT) failed. [%d]\n", errno);
-            return -1;
-        }
+        schk(fd != -1, return -1);
+        schk(dup2(fd, STDIN_FILENO) != -1, return -1);
+        schk(dup2(fd, STDOUT_FILENO) != -1, return -1);
 #if 0
-        if (dup2(fd, STDERR_FILENO) == -1) {
-            err("dup2(STDERR) failed\n");
-            return -1;
-        }
+        schk(dup2(fd, STDERR_FILENO) != -1, return -1);
 #endif
         close(fd);
     } else if(rc > 0) { ///parent
@@ -50,17 +34,11 @@ int proc_pid_create()
     char str[32] = {0};
 
     int fd = open(S5_PATH_PID, O_CREAT|O_RDWR|O_TRUNC, 0644);
-    if(fd == -1) {
-        err("pidfile [%s] open failed. [%d]\n", S5_PATH_PID, errno);
-        return -1;
-    }
+    schk(fd != -1, return -1);
     sprintf(str, "%d", getpid());
     int writen = write(fd, str, strlen(str));
     close(fd);
-    if(writen != strlen(str)) {
-        err("pidfile [%s] writen [%d]. all [%d]\n", S5_PATH_PID, writen, strlen(str));
-        return -1;
-    }
+    schk(writen == strlen(str), return -1);
     return 0;
 }
 
@@ -78,6 +56,11 @@ status option_parse(int argc, char * argv[])
     if(argc > 2) {
         ahead_dbg("argc [%d] too much. only support 1 parameter\n", argc);
         exit(EXIT_SUCCESS);
+    }
+
+    int i = 0;
+    for(i = 0; i < argc; i++) {
+        dbg("argv[%d] [%s]\n", i, argv[i]);
     }
     
     do {
@@ -113,11 +96,16 @@ int main(int argc, char ** argv)
 #else
 int main(int argc, char ** argv)
 {
-    ahead_dbg("Welcome to <sssss>, buildts <%s %s>\n", __DATE__, __TIME__);
+    ahead_dbg("Welcome to <S5>, buildts <%s %s>\n", __DATE__, __TIME__);
     ahead_dbg(" /\\_/\\\n");   
     ahead_dbg("( o.o )\n"); 
     ahead_dbg(" > ^ <\n");
 
+    setpriority(PRIO_PROCESS, 0, -20); ///set higiest priority
+    systime_update();
+    schk(0 == option_parse(argc, argv), return -1);
+
+    ///rename process name
     size_t space = 0;
     int i = 0;
     for(i = 0; i < argc; i++) {
@@ -125,32 +113,14 @@ int main(int argc, char ** argv)
         space += length + 1;
     }
     memset(argv[0], '\0', space);    ///wipe existing args
-    strncpy(argv[0], "<sssss>", space-1); 
-    
-    setpriority(PRIO_PROCESS, 0, -20); ///set higiest priority
-    systime_update();
+    strncpy(argv[0], "s5", space-1); 
+    ///end of rename
 
-    if(0 != option_parse(argc, argv)) {
-        ahead_dbg("option_parse failed\n");
-        return -1;
-    }
-    if(0 != config_init()) {
-        err("config_init failed\n");
-        return -1;
-    }
-    if(0 != proc_daemon()) {
-        err("proc_daemon failed\n");
-        return -1;
-    }
-    if(0 != proc_pid_create()) {
-        err("proc_pid_create failed\n");
-        return -1;
-    }
-    if(0 != modules_core_init()) {
-        err("modules_core_init failed\n");
-        unlink(S5_PATH_PID);
-        return -1;
-    }
+    schk(0 == config_init(), return -1);
+    schk(0 == proc_daemon(), return -1);
+    schk(0 == proc_pid_create(), return -1);
+    schk(0 == modules_core_init(), {unlink(S5_PATH_PID); return -1;});
+
     config_get()->sys_process_num > 0 ? proc_master_run() : proc_worker_run();
     modules_core_exit();
     unlink(S5_PATH_PID);

@@ -9,10 +9,7 @@ int timer_add(ev_timer_t * timer, int sec)
         timer_del(timer);
 
     timer->node.key = (systime_msec() + (sec * 1000));
-    if(0 != heap_add(g_heap, &timer->node)) {
-        err("heap insert\n");
-        return -1;
-    }
+    schk(heap_add(g_heap, &timer->node) == 0, return -1);
     timer->f_timeset = 1;
     timer->f_timeout = 0;
     return 0;
@@ -33,11 +30,8 @@ int timer_del(ev_timer_t * timer)
 {
     if(!timer->f_timeset)
         return 0;
-    
-    if(0 != heap_del(g_heap, timer->node.index)) {
-        err("heap del\n");
-        return -1;
-    }
+
+    schk(heap_del(g_heap, timer->node.index) == 0, return -1);
     timer->f_timeset = 0;
     return 0;
 }
@@ -49,10 +43,7 @@ static ev_timer_t * timer_min(void)
     heap_node_t * min = NULL;
 
     min = heap_min(g_heap);
-    if(!min) {
-        err("heap min\n");
-        return NULL;
-    }
+    schk(min, return NULL);
     min_timer = ptr_get_struct(min, ev_timer_t, node);
     return min_timer;
 }
@@ -108,10 +99,7 @@ int timer_free(ev_timer_t * timer)
 int timer_alloc(ev_timer_t ** timer)
 {
     ev_timer_t * ltimer = (ev_timer_t *)sys_alloc(sizeof(ev_timer_t));
-    if(!ltimer) {
-        err("timer alloc failed\n");
-        return -1;
-    }
+    schk(ltimer, return -1);
     *timer = ltimer;
     return 0;
 }

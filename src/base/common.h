@@ -32,8 +32,7 @@
 /// improve compile performance
 #define LIKELY(x)  __builtin_expect(!!(x), 1)
 #define UNLIKELY(x)  __builtin_expect(!!(x), 0)
-
-#define schk(x, action) do { if(UNLIKELY(!(x))) { err("schk failed. (%s)\n", #x); action; } } while(0);
-//#define S5_OVER_TLS
+#define schk(x, actions) if(UNLIKELY(!(x))) {err("schk assert failed. -> \""#x"\"\n", #x); actions;}
+#define S5_OVER_TLS
 
 #endif

@@ -7,10 +7,7 @@ static int http_payload_push(http_payload_t * ctx, char * data, int datan)
     if(!datan) return 0;
 
     if(!ctx->payload) {
-		if(0 != meta_alloc(&ctx->payload, HTTP_PAYLOAD_BUFN)) {
-			err("meta alloc err\n");
-			return -1;
-		}
+        schk(meta_alloc(&ctx->payload, HTTP_PAYLOAD_BUFN) == 0, return -1);
 	}
     
     meta_t * p = NULL;
@@ -25,10 +22,8 @@ static int http_payload_push(http_payload_t * ctx, char * data, int datan)
 		}
 		m = m->next;
 	}
-	if(0 != meta_alloc(&n, HTTP_PAYLOAD_BUFN)) {
-		err("meta alloc err\n");
-		return -1;
-	}
+    schk(meta_alloc(&n, HTTP_PAYLOAD_BUFN) == 0, return -1);
+	
 	p->next = n;
 	memcpy(n->last, data, datan);
 	n->last += datan;
@@ -233,21 +228,10 @@ int http_payload_ctx_exit(http_payload_t *ctx)
 int http_payload_ctx_init(con_t * c, http_payload_t ** ctx, int enable_cache)
 {
     http_payload_t * nctx = mem_pool_alloc(sizeof(http_payload_t));
-    if(!nctx) {
-        err("http payload ctx alloc failed\n");
-        return -1;
-    }
-    if(0 != meta_alloc(&nctx->meta, HTTP_PAYLOAD_BUFN)) {
-        err("http payload meta alloc err\n");
-        mem_pool_free(nctx);
-        return -1;
-    }
-    if(0 != meta_alloc(&nctx->payload, HTTP_PAYLOAD_BUFN)) {
-        err("http payload meta alloc err\n");
-        meta_free(nctx->meta);
-        mem_pool_free(nctx);
-        return -1;
-    }
+    schk(nctx, return -1);
+    schk(meta_alloc(&nctx->meta, HTTP_PAYLOAD_BUFN) == 0, {mem_pool_free(nctx);return -1;});
+    schk(meta_alloc(&nctx->payload, HTTP_PAYLOAD_BUFN) == 0, {meta_free(nctx->meta);mem_pool_free(nctx);return -1;})
+    
     nctx->c = c;
     nctx->state = 0;
     nctx->fcache = ((enable_cache == 1) ? 1 : 0);

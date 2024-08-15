@@ -99,17 +99,9 @@ static int s5_traffic_recv(event_t * ev)
         
 #ifndef S5_OVER_TLS
         if(s5->typ == SOCKS5_CLIENT) { ///down -> up enc
-            if(recvn != sys_cipher_conv(s5->cipher_enc, down->meta->last, recvn)) {
-                err("s5 local cipher enc failed\n");
-                s5_free(s5);
-                return -1;
-            }
+            schk(sys_cipher_conv(s5->cipher_enc, down->meta->last, recvn) == recvn, {s5_free(s5);return -1;});
         } else { ///down->up dec
-            if(recvn != sys_cipher_conv(s5->cipher_dec, down->meta->last, recvn)) {
-                err("s5 server cipher dec failed\n");
-                s5_free(s5);
-                return -1;
-            }
+            schk(sys_cipher_conv(s5->cipher_dec, down->meta->last, recvn) == recvn, {s5_free(s5);return -1;});
         }
 #endif
         down->meta->last += recvn;
@@ -187,17 +179,9 @@ static int s5_traffic_back_recv(event_t * ev)
         }
 #ifndef S5_OVER_TLS
         if(s5->typ == SOCKS5_CLIENT) {  ///up -> down dec
-            if(recvn != sys_cipher_conv(s5->cipher_dec, up->meta->last, recvn)) {
-                err("s5 local cipher dec failed\n");
-                s5_free(s5);
-                return -1;
-            }   
+            schk(sys_cipher_conv(s5->cipher_dec, up->meta->last, recvn) == recvn, {s5_free(s5);return -1;});
         } else {  /// up -> down enc
-            if(recvn != sys_cipher_conv(s5->cipher_enc, up->meta->last, recvn)) {
-                err("s5 server cipher enc failed\n");
-                s5_free(s5);
-                return -1;
-            }
+            schk(sys_cipher_conv(s5->cipher_enc, up->meta->last, recvn) == recvn, {s5_free(s5);return -1;});
         }
 #endif
         up->meta->last += recvn;
@@ -259,49 +243,25 @@ int s5_traffic_process(event_t * ev)
     con_t * up = s5->up;
 
     if(!down->meta) {
-        if(0 != meta_alloc(&down->meta, S5_METAN)) {
-            err("s5 down meta alloc failed\n");
-            s5_free(s5);
-            return -1;
-        }
+        schk(meta_alloc(&down->meta, S5_METAN) == 0, {s5_free(s5);return -1;});
     }
     if(!up->meta) {
-        if(0 != meta_alloc(&up->meta, S5_METAN)) {
-            err("s5 alloc up meta failed\n");
-            s5_free(s5);
-            return -1;
-        }
+        schk(meta_alloc(&up->meta, S5_METAN) == 0, {s5_free(s5);return -1;});
     }
     
 #ifndef S5_OVER_TLS
     if(!s5->cipher_enc) {
-        if(0 != sys_cipher_ctx_init(&s5->cipher_enc, 0)) {
-            err("s5 server cipher enc init failed\n");
-            s5_free(s5);
-            return -1;
-        }
+        schk(sys_cipher_ctx_init(&s5->cipher_enc, 0) == 0, {s5_free(s5);return -1;});
     }
     if(!s5->cipher_dec) {
-        if(0 != sys_cipher_ctx_init(&s5->cipher_dec, 1)) {
-            err("s5 server cipher dec init failed\n");
-            s5_free(s5);
-            return -1;
-        }
+        schk(sys_cipher_ctx_init(&s5->cipher_dec, 1) == 0, {s5_free(s5);return -1;});
     }
     int down_remain = meta_getlen(down->meta);
     if(down_remain > 0) {
     	if(s5->typ == SOCKS5_CLIENT) {
-    		if(down_remain != sys_cipher_conv(s5->cipher_enc, down->meta->pos, down_remain)) {
-                err("s5 client cipher enc remain failed\n");
-                s5_free(s5);
-                return -1;
-            }
+            schk(sys_cipher_conv(s5->cipher_enc, down->meta->pos, down_remain) == down_remain, {s5_free(s5);return -1;});
     	} else {
-    		if(down_remain != sys_cipher_conv(s5->cipher_dec, down->meta->pos, down_remain)) {
-                err("s5 server cipher dec remain failed\n");
-                s5_free(s5);
-                return -1;
-            }
+    	    schk(sys_cipher_conv(s5->cipher_dec, down->meta->pos, down_remain) == down_remain, {s5_free(s5);return -1;});
     	}	
     }
 #endif    
@@ -360,11 +320,7 @@ static int s5_srv_remote_connect_chk(event_t * ev)
     con_t * down = s5->down;
     meta_t * meta = down->meta;
 
-    if(0 != net_socket_check_status(up->fd)) {
-        err("s5 server connect remote failed\n" );
-        s5_free(s5);
-        return -1;
-    }
+    schk(net_socket_check_status(up->fd) == 0, {s5_free(s5);return -1;});
     net_socket_nodelay(up->fd);
     timer_del(&ev->timer);
 
@@ -377,11 +333,8 @@ static int s5_srv_remote_connect_chk(event_t * ev)
     resp->bnd_port = htons(up->addr.sin_port);
     meta->last += sizeof(s5_rfc_phase2_resp_t);
 #ifndef S5_OVER_TLS
-    if(sizeof(s5_rfc_phase2_resp_t) != sys_cipher_conv(s5->cipher_enc, meta->pos, sizeof(s5_rfc_phase2_resp_t))) {
-        err("s5 server cipher enc data failed\n");
-        s5_free(s5);
-        return -1;
-    }
+    schk(sys_cipher_conv(s5->cipher_enc, meta->pos, sizeof(s5_rfc_phase2_resp_t)) == sizeof(s5_rfc_phase2_resp_t), {s5_free(s5);return -1;});
+    
 #endif
     
     event_opt(up->event, up->fd, EV_NONE);
@@ -397,11 +350,7 @@ static int s5_srv_remote_connect(event_t * ev)
     status rc = 0;
 
     rc = net_connect(s5->up, &s5->up->addr);
-    if(rc == -1) {
-        err("s5 server connect up failed\n");
-        s5_free(s5);
-        return -1;
-    }
+    schk(rc != -1, {s5_free(s5);return -1;});
     ev->read_pt = NULL;
     ev->write_pt = s5_srv_remote_connect_chk;
     event_opt(ev, up->fd, EV_W);
@@ -460,11 +409,7 @@ static int s5_srv_remote_init(event_t * ev)
     event_opt(down->event, down->fd, EV_R);
 
     /// alloc upstream connection
-    if(0 != net_alloc(&s5->up)) {
-        err("s5 server up alloc failed\n");
-        s5_free(s5);
-        return -1;
-    }
+    schk(net_alloc(&s5->up) == 0, {s5_free(s5);return -1;});
     s5->up->data = s5;
 
     if(s5->phase2.atyp == S5_RFC_IPV4) {  /// ipv4 type request, goto convert ipv4 address
@@ -501,11 +446,7 @@ static int s5_srv_remote_init(event_t * ev)
             return s5->up->event->write_pt(s5->up->event);
         } else {  /// dns cache find failed, goto dns query
             rc = dns_create(&s5->dns_session);
-            if(rc == -1) {
-                err("s5 server dns cycle create failed\n");
-                s5_free(s5);
-                return -1;
-            }
+            schk(rc != -1, {s5_free(s5);return -1;});
             strncpy((char*)s5->dns_session->query, (char*)s5->phase2.dst_addr, sizeof(s5->dns_session->query));
             s5->dns_session->cb = s5_srv_remote_addr_cb;
             s5->dns_session->cb_data = s5;
@@ -557,11 +498,7 @@ static int s5_srv_ph2_req(event_t * ev)
                 return -11;
             }
 #ifndef S5_OVER_TLS
-            if(recvn != sys_cipher_conv(s5->cipher_dec, meta->last, recvn)) {
-                err("s5 server cipher dec data failed\n");
-                s5_free(s5);
-                return -1;
-            }
+            schk(sys_cipher_conv(s5->cipher_dec, meta->last, recvn) == recvn, {s5_free(s5);return -1;});
 #endif
             meta->last += recvn;
         }
@@ -660,20 +597,11 @@ static int s5_srv_ph2_req(event_t * ev)
                 s5->state = 0;
 
                 do {
-                    if(s5->phase2.ver != 0x05) {
-                        err("s5 server phase2 ver is not '0x05', is [0x%x]\n", s5->phase2.ver);
-                        break;
-                    }
+                    schk(0x05 == s5->phase2.ver, break);
                     /// only support CONNECT 0x01 request
-                    if(s5->phase2.cmd != 0x01) {
-                        err("s5 server phase2 cmd is not `CONNECT` 0x01, is [0x%x]\n", s5->phase2.cmd);
-                        break;
-                    }
+                    schk(0x01 == s5->phase2.cmd, break);
                     /// not support IPV6 request
-                    if(s5->phase2.atyp != S5_RFC_IPV4 && s5->phase2.atyp != S5_RFC_DOMAIN) {
-                        err("s5 server phase2 atyp only support '0x1'(IPV4), '0x3'(DOMAIN), now is [0x%x]\n", s5->phase2.atyp);
-                        break;
-                    }
+                    schk((s5->phase2.atyp == S5_RFC_IPV4) || (s5->phase2.atyp == S5_RFC_DOMAIN), break);
 
                     ev->write_pt = NULL;
                     ev->read_pt = s5_srv_remote_init;
@@ -751,11 +679,7 @@ static int s5_srv_ph1_req(event_t * ev)
                 return -11;
             }
 #ifndef S5_OVER_TLS
-            if(recvn != sys_cipher_conv(s5->cipher_dec, meta->last, recvn)) {
-                err("s5 server cipher dec data failed\n");
-                s5_free(s5);
-                return -1;
-            }
+            schk(sys_cipher_conv(s5->cipher_dec, meta->last, recvn) == recvn, {s5_free(s5);return -1;});
 #endif
             meta->last += recvn;
         }
@@ -785,11 +709,7 @@ static int s5_srv_ph1_req(event_t * ev)
                     ack->method = 0x00;
                     meta->last += sizeof(s5_rfc_phase1_resp_t);
 #ifndef S5_OVER_TLS
-                    if(sizeof(s5_rfc_phase1_resp_t) != sys_cipher_conv(s5->cipher_enc, meta->pos, sizeof(s5_rfc_phase1_resp_t))) {
-                        err("s5 server cipher enc data failed\n");
-                        s5_free(s5);
-                        return -1;
-                    }
+                    schk(sys_cipher_conv(s5->cipher_enc, meta->pos, sizeof(s5_rfc_phase1_resp_t)) == sizeof(s5_rfc_phase1_resp_t), {s5_free(s5);return -1;});
 #endif
                     /// goto send phase1 response
                     ev->read_pt = NULL;
@@ -801,7 +721,7 @@ static int s5_srv_ph1_req(event_t * ev)
     }
 }
 
-static int s5_srv_auth_req(event_t * ev)
+static int s5_srv_auth_chk(event_t * ev)
 {
     con_t * down = ev->data;
     s5_session_t * s5 = down->data;
@@ -821,27 +741,15 @@ static int s5_srv_auth_req(event_t * ev)
             return -1;
         }
 #ifndef S5_OVER_TLS
-        if(recvn != sys_cipher_conv(s5->cipher_dec, meta->last, recvn)) {
-            err("s5 server cipher dec data failed\n");
-            s5_free(s5);
-            return -1;
-        }
+        schk(sys_cipher_conv(s5->cipher_dec, meta->last, recvn) == recvn, {s5_free(s5);return -1;});
 #endif
         meta->last += recvn;
     }
     timer_del(&ev->timer);
 
     s5_auth_t * auth = (s5_auth_t*)meta->pos;
-    if(htonl(S5_AUTH_MAGIC) != auth->magic) {
-        err("s5 srv. auth check. magic [0x%x] != [0x%x]\n", auth->magic, S5_AUTH_MAGIC);
-        s5_free(s5);
-        return -1;
-    }
-    if(0 != ezac_find(g_s5_ctx->ac, auth->key, strlen(auth->key))) {
-        err("s5 srv. auth check, auth key not found\n");
-        s5_free(s5);
-        return -1;
-    }
+    schk(auth->magic == htonl(S5_AUTH_MAGIC), {s5_free(s5);return -1;});
+    schk(ezac_find(g_s5_ctx->ac, auth->key, strlen(auth->key)) == 0, {s5_free(s5);return -1;});
     meta->pos = meta->start;
     meta->last -= sizeof(s5_auth_t);
 
@@ -855,37 +763,22 @@ static int s5_srv_ctx_start(event_t * ev)
 {
     con_t * down = ev->data;
     if(!down->meta) {
-        if(0 != meta_alloc(&down->meta, 8192)) {
-            err("alloc down meta failed\n");
-            net_free(down);
-            return -1;
-        }
+        schk(meta_alloc(&down->meta, 8192) == 0, {net_free(down); return -1;});
     }
     s5_session_t * s5 = NULL;
-    if(0 != s5_alloc(&s5)) {
-        err("s5 server alloc cycle failed\n");
-        net_free(down);
-        return -1;
-    }
+    schk(s5_alloc(&s5) == 0, {net_free(down); return -1;});
+    
     s5->down = down;
     down->data = s5;
 #ifndef S5_OVER_TLS
     if(!s5->cipher_enc) {
-        if(0 != sys_cipher_ctx_init(&s5->cipher_enc, 0)) {
-            err("s5 server cipher enc init failed\n");
-            s5_free(s5);
-            return -1;
-        }
+        schk(sys_cipher_ctx_init(&s5->cipher_enc, 0) == 0, {s5_free(s5);return -1;});
     }
     if(!s5->cipher_dec) {
-        if(0 != sys_cipher_ctx_init(&s5->cipher_dec, 1)) {
-            err("s5 server cipher dec init failed\n");
-            s5_free(s5);
-            return -1;
-        }
+        schk(sys_cipher_ctx_init(&s5->cipher_dec, 1) == 0, {s5_free(s5);return -1;});
     }
 #endif
-    ev->read_pt	= s5_srv_auth_req;
+    ev->read_pt	= s5_srv_auth_chk;
     return ev->read_pt(ev);
 }
 
@@ -893,16 +786,12 @@ int s5_srv_transport(event_t * ev)
 {
     con_t * down = ev->data;
     s5_session_t * s5 = NULL;
-    
-    if(0 != s5_alloc(&s5)) {
-        err("s5 server http conv s5 alloc cycle failed\n");
-        net_free(down);
-        return -1;
-    }
+
+    schk(s5_alloc(&s5) == 0, {net_free(down); return -1;});
     s5->down = down;
     down->data = s5;
 
-    ev->read_pt = s5_srv_auth_req;
+    ev->read_pt = s5_srv_auth_chk;
     return ev->read_pt(ev);
 }
 
@@ -910,11 +799,7 @@ static int s5_srv_accept_chk(event_t * ev)
 {
     con_t * down = ev->data;
 
-    if(!down->ssl->f_handshaked) {
-        err("s5 server con handshake error\n");
-        net_free(down);
-        return -1;
-    }
+    schk(down->ssl->f_handshaked, {net_free(down); return -1;});
     timer_del(&ev->timer);
 
     down->recv = ssl_read;
@@ -945,11 +830,8 @@ int s5_srv_accept(event_t * ev)
         net_free(down);
         return -1;
     }
-    if(0 != ssl_create_connection(down, L_SSL_SERVER)) {
-        err("s5 server down ssl con create failed\n");
-        net_free(down);
-        return -1;
-    }
+    schk(ssl_create_connection(down, L_SSL_SERVER) == 0, {net_free(down); return -1;});
+    
     rc = ssl_handshake(down->ssl);
     if(rc < 0) {
         if(rc == -11) {
@@ -986,16 +868,10 @@ static int s5_srv_auth_rfile(meta_t * meta)
 {
     ssize_t size = 0;
     int fd = open((char*)config_get()->s5_serv_auth_path, O_RDONLY);
-    if(-1 == fd) {
-        err("usmgr auth open file [%s] failed, errno [%d]\n", config_get()->s5_serv_auth_path, errno);
-        return -1;
-    }
+    schk(fd != -1, return -1);
     size = read(fd, meta->pos, meta_getfree(meta));
     close(fd);
-    if(size == -1) {
-        err("usmgr auth read auth file failed\n");
-        return -1;
-    }
+    schk(size != -1, return -1);
     meta->last += size;
     return 0;
 }
@@ -1006,22 +882,11 @@ static int s5_srv_auth_init()
     int rc = -1;
     do {
         g_s5_ctx->ac = ezac_init();
-        if(!g_s5_ctx->ac) {
-            err("s5 srv auth ac init err\n");
-            break;
-        } 
-        if(0 != meta_alloc(&meta, S5_USER_AUTH_FILE_LEN)) {
-            err("s5 srv auth databse alloc meta failed\n");
-            break;
-        }
-        if(0 != s5_srv_auth_rfile(meta)) {
-            err("s5 srv auth file load failed\n");
-            break;
-        }
-        if(0 != s5_srv_auth_fparse(meta)) {
-            err("s5 srv auth file decode failed\n");
-            break;
-        }
+        schk(g_s5_ctx->ac, break);
+    
+        schk(meta_alloc(&meta, S5_USER_AUTH_FILE_LEN) == 0, break);
+        schk(s5_srv_auth_rfile(meta) == 0, break);
+        schk(s5_srv_auth_fparse(meta) == 0, break);
         ezac_compiler(g_s5_ctx->ac);
         rc = 0;
     } while(0);    
@@ -1033,22 +898,12 @@ static int s5_srv_auth_init()
 int socks5_server_init(void)
 {
     int ret = -1;
-    if(g_s5_ctx) {
-        err("s5 ctx not empty\n");
-        return -1;
-    }
-
+    schk(!g_s5_ctx, return -1);
     do {
         g_s5_ctx = (g_s5_t*)mem_pool_alloc(sizeof(g_s5_t));
-        if(!g_s5_ctx) {
-            err("s5 ctx alloc failed\n");
-            return -1;
-        }
+        schk(g_s5_ctx, return -1);
         if(config_get()->s5_mode > SOCKS5_CLIENT) {
-            if(0 != s5_srv_auth_init()) {
-                err("s5 srv auth init err\n");
-                break;
-            }
+            schk(s5_srv_auth_init() == 0, break);
         } else {
             /// cli do nothing.
         }

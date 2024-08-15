@@ -25,15 +25,10 @@ static g_event_t * g_event_ctx = NULL;
 static int event_epoll_init(     )
 {
     g_event_ctx->events = (struct epoll_event*) mem_pool_alloc(sizeof(struct epoll_event)*(MAX_NET_CON+128));
-    if(!g_event_ctx->events) {
-        err("ev epoll malloc events pool failed\n");
-        return -1;
-    }
+    schk(g_event_ctx->events, return -1);
+    
     g_event_ctx->event_fd = epoll_create1(0);
-    if(g_event_ctx->event_fd == -1) {
-        err("ev epoll open event fd faield, [%d]\n", errno);
-        return -1;
-    }
+    schk(g_event_ctx->event_fd, return -1);
     return 0;
 }
 static int event_epoll_end()
@@ -51,19 +46,13 @@ static int event_epoll_opt(event_t * ev, int fd, int want_opt)
 {
     if(ev->opt != want_opt) { ///want type not same as record type
         if(want_opt == EV_NONE) {
-            if(-1 == epoll_ctl(g_event_ctx->event_fd, EPOLL_CTL_DEL, fd, NULL)) {
-                err("evt epoll_ctl fd [%d] error. want_opt [%x], errno [%d] [%s]\n", fd, want_opt, errno, strerror(errno));
-                return -1;
-            }
+            schk(epoll_ctl(g_event_ctx->event_fd, EPOLL_CTL_DEL, fd, NULL) != -1, return -1);
         } else {
             struct epoll_event evsys;
             memset(&evsys, 0, sizeof(struct epoll_event));
             evsys.data.ptr = (void*)ev;
             evsys.events = EPOLLET|want_opt;
-            if(-1 == epoll_ctl(g_event_ctx->event_fd, (ev->opt != EV_NONE ? EPOLL_CTL_MOD : EPOLL_CTL_ADD), fd, &evsys)) {
-                err("evt epoll_ctl fd [%d] error. want_opt [%x], errno [%d] [%s]\n", fd, want_opt, errno, strerror(errno));
-                return -1;
-            }
+            schk(epoll_ctl(g_event_ctx->event_fd, (ev->opt != EV_NONE ? EPOLL_CTL_MOD : EPOLL_CTL_ADD), fd, &evsys) != -1, return -1);
         }
         if(!ev->fd) ev->fd = fd;
         ev->opt = want_opt;
@@ -284,10 +273,7 @@ int event_run(time_t msec)
 int event_alloc(event_t ** ev)
 {
     event_t * nev = mem_pool_alloc(sizeof(event_t));
-    if(!nev){
-        err("evt alloc nev failed\n");
-        return -1;
-    }
+    schk(nev, return -1);
     g_event_ctx->queue_use_num ++;
 #ifndef EVENT_EPOLL
     queue_insert_tail(&g_event_ctx->evqueue, &nev->queue);
@@ -304,7 +290,7 @@ int event_free(event_t * ev)
             if(ev->idxr) g_event_ctx->ev_arr[ev->idxr] = NULL;
             if(ev->idxw) g_event_ctx->ev_arr[ev->idxw] = NULL;
         }
-        if(ev->opt != EV_NONE) event_opt(ev, ev->fd, EV_NONE);       
+        if(ev->opt != EV_NONE) event_opt(ev, ev->fd, EV_NONE);
         g_event_ctx->queue_use_num--;
 #ifndef EVENT_EPOLL
         queue_remove(&ev->queue);
@@ -316,15 +302,10 @@ int event_free(event_t * ev)
 
 int event_init(void)
 {    
-    if(g_event_ctx) {
-        err("g_event_ctx not empty\n");
-        return -1;
-    }
+    schk(!g_event_ctx, return -1);
     g_event_ctx = mem_pool_alloc(sizeof(g_event_t));
-    if(!g_event_ctx) {
-        err("event alloc this failed\n");
-        return -1;
-    }
+    schk(g_event_ctx, return -1);
+    
 #if defined(EVENT_EPOLL)
     g_event_ctx->g_event_handler.init = event_epoll_init;
     g_event_ctx->g_event_handler.end = event_epoll_end;

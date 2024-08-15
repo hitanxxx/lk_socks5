@@ -261,24 +261,18 @@ int ssl_load_con_certificate(SSL_CTX * ctx, int flag, SSL ** ssl)
     SSL * local_ssl = NULL;
     
     local_ssl = SSL_new(ctx);
-    if(!local_ssl) {
-        err("ssl load con certificate, SSL_new failed\n");
-        return -1;
-    }
+    schk(local_ssl, return -1);
+    
     
     if(flag == L_SSL_SERVER) {
-        if(1 != SSL_use_certificate_file(local_ssl, (char*)config_get()->ssl_crt_path, SSL_FILETYPE_PEM)) {
-            err("ssl load con certificate, SSL_use_certificate_file failed\n");
-            SSL_free(local_ssl);
-            return -1;
-        }
-        if(1 != SSL_use_PrivateKey_file(local_ssl, (char*)config_get()->ssl_key_path, SSL_FILETYPE_PEM)) {
-            err("ssl load con certificate, SSL_use_PrivateKey_file failed\n");
-            SSL_free(local_ssl);
-            return -1;
-        }
-        if(1 != SSL_check_private_key(local_ssl)) {
-            err("ssl load con certificate, SSL_check_private_key failed\n");
+        int ret = -1;
+        do {
+            schk(SSL_use_certificate_file(local_ssl, (char*)config_get()->ssl_crt_path, SSL_FILETYPE_PEM) == 1, break);
+            schk(SSL_use_PrivateKey_file(local_ssl, (char*)config_get()->ssl_key_path, SSL_FILETYPE_PEM) == 1, break);
+            schk(SSL_check_private_key(local_ssl) == 1, break);
+            ret = 0;
+        } while(0);
+        if(ret != 0) {
             SSL_free(local_ssl);
             return -1;
         }
@@ -292,33 +286,22 @@ int ssl_load_ctx_certificate(SSL_CTX ** ctx, int flag)
     if(flag == L_SSL_CLIENT) {
         if(!g_ssl_ctx->ctx_client) {
             g_ssl_ctx->ctx_client = SSL_CTX_new(SSLv23_client_method());
-            if(!g_ssl_ctx->ctx_client) {
-                err("ssl load ctx certificate, SSL_CTX_new failed\n");
-                return -1;
-            }
+            schk(g_ssl_ctx->ctx_client, return -1);
         }
         *ctx = g_ssl_ctx->ctx_client;
     } else {
         if(!g_ssl_ctx->ctx_server) {
-            g_ssl_ctx->ctx_server = SSL_CTX_new(SSLv23_server_method());
-            if(!g_ssl_ctx->ctx_server) {
-                err("ssl load ctx certificate, SSL_CTX_new failed\n");
-                return -1;
-            }
-            if(1 != SSL_CTX_use_certificate_file(g_ssl_ctx->ctx_server, (char*)config_get()->ssl_crt_path, SSL_FILETYPE_PEM)) {
-                err("ssl load ctx certificate, SSL_CTX_use_certificate_file failed\n");
-                SSL_CTX_free(g_ssl_ctx->ctx_server);
-                g_ssl_ctx->ctx_server = NULL;
-                return -1;
-            }
-            if(1 != SSL_CTX_use_PrivateKey_file(g_ssl_ctx->ctx_server, (char*)config_get()->ssl_key_path, SSL_FILETYPE_PEM)) {
-                err("ssl load ctx certificate, SSL_CTX_use_PrivateKey_file failed\n");
-                SSL_CTX_free(g_ssl_ctx->ctx_server);
-                g_ssl_ctx->ctx_server = NULL;
-                return -1;
-            }
-            if(1 != SSL_CTX_check_private_key(g_ssl_ctx->ctx_server)) {
-                err("ssl load ctx certificate, SSL_CTX_check_private_key failed\n");
+            int ret = -1;
+            do {
+                g_ssl_ctx->ctx_server = SSL_CTX_new(SSLv23_server_method());
+                schk(g_ssl_ctx->ctx_server, return -1);
+                schk(SSL_CTX_use_certificate_file(g_ssl_ctx->ctx_server, (char*)config_get()->ssl_crt_path, SSL_FILETYPE_PEM) == 1, break);
+                schk(SSL_CTX_use_PrivateKey_file(g_ssl_ctx->ctx_server, (char*)config_get()->ssl_key_path, SSL_FILETYPE_PEM) == 1, break);
+                schk(SSL_CTX_check_private_key(g_ssl_ctx->ctx_server) == 1, break);
+                ret = 0;
+            } while(0);
+
+            if(ret != 0) {
                 SSL_CTX_free(g_ssl_ctx->ctx_server);
                 g_ssl_ctx->ctx_server = NULL;
                 return -1;
@@ -332,36 +315,16 @@ int ssl_load_ctx_certificate(SSL_CTX ** ctx, int flag)
 int ssl_create_connection(con_t * c, int flag)
 {
     ssl_con_t * sslcon = NULL;
-    
-    if ((flag != L_SSL_CLIENT) && (flag != L_SSL_SERVER)) {
-        err("ssl create con flag not support\n");
-        return -1;
-    }
+    schk(((flag == L_SSL_SERVER) || (flag == L_SSL_CLIENT)), return -1);
     
     do {
         sslcon = mem_pool_alloc(sizeof(ssl_con_t));
-        if(!sslcon) {
-            err("ssl create con alloc sslcon failed, [%d]\n", errno);
-            return -1;
-        }
-        if(0 != ssl_load_ctx_certificate(&sslcon->session_ctx, flag)) {
-            err("ssl create con, load ctx certificate failed\n");
-            break;
-        }
-        if(0 != ssl_load_con_certificate(sslcon->session_ctx, flag, &sslcon->con)) {
-            err("ssl create con, load con certificate failed\n");
-            break;
-        }
-        if(0 == SSL_set_fd(sslcon->con, c->fd)) {
-            err("ssl create, SSL_set_fd failed\n");
-            break;
-        }
-        
-        (flag == L_SSL_CLIENT) ? SSL_set_connect_state(sslcon->con) : SSL_set_accept_state(sslcon->con);       
-        if(0 == SSL_set_ex_data(sslcon->con, 0, c)) {
-            err("ssl create con set ex data failed\n");
-            break;
-        }
+        schk(sslcon, return -1);
+        schk(ssl_load_ctx_certificate(&sslcon->session_ctx, flag) == 0, break);
+        schk(ssl_load_con_certificate(sslcon->session_ctx, flag, &sslcon->con) == 0, break);
+        schk(SSL_set_fd(sslcon->con, c->fd) != 0, break);
+        (flag == L_SSL_CLIENT) ? SSL_set_connect_state(sslcon->con) : SSL_set_accept_state(sslcon->con);
+        schk(SSL_set_ex_data(sslcon->con, 0, c) != 0, break);
         
         c->ssl = sslcon;
         sslcon->data = c;
@@ -379,16 +342,9 @@ int ssl_create_connection(con_t * c, int flag)
 
 int ssl_init(void)
 {
-    if(g_ssl_ctx) {
-        err("ssl init this is not empty\n");
-        return -1;
-    }
+    schk(!g_ssl_ctx, return -1);
     g_ssl_ctx = mem_pool_alloc(sizeof(g_ssl_t));
-    if(!g_ssl_ctx) {
-        err("ssl init alloc this failed, [%d]\n", errno);
-        return -1;
-    }
-
+    schk(g_ssl_ctx, return -1);
 #if(1)
     SSL_library_init();
     SSL_load_error_strings();

@@ -52,17 +52,9 @@ static int s5_loc_auth_build(event_t * ev)
     
 #ifndef S5_OVER_TLS
     if(!s5->cipher_enc) {
-        if(0 != sys_cipher_ctx_init(&s5->cipher_enc, 0)) {
-            err("s5 local cipher enc init failed\n");
-            s5_free(s5);
-            return -1;
-        }
+        schk(sys_cipher_ctx_init(&s5->cipher_enc, 0) == 0, {s5_free(s5);return -1;});
     }
-    if(sizeof(s5_auth_t) != sys_cipher_conv(s5->cipher_enc, meta->pos, sizeof(s5_auth_t))) {
-        err("s5 local cipher enc meta failed\n");
-        s5_free(s5);
-        return -1;
-    }
+    schk(sys_cipher_conv(s5->cipher_enc, meta->pos, sizeof(s5_auth_t)) == sizeof(s5_auth_t), {s5_free(s5);return -1;});
 #endif
     ev->write_pt = s5_loc_auth_send; ///goto send s5 private authorization login request
     return ev->write_pt(ev);
@@ -94,12 +86,8 @@ static int s5_loc_connect_chk(event_t * ev)
     con_t* up = ev->data;
     timer_del(&ev->timer);
     
-    s5_session_t * s5 = up->data;    
-    if(0 != net_socket_check_status(up->fd)) {
-        err("s5 local connect check status failed\n");
-        s5_free(s5);
-        return -1;
-    }
+    s5_session_t * s5 = up->data;   
+    schk(net_socket_check_status(up->fd) == 0, {s5_free(s5);return -1;});
     net_socket_nodelay(up->fd);
     
     up->fssl = 1;
@@ -107,11 +95,7 @@ static int s5_loc_connect_chk(event_t * ev)
     up->fssl = 0;
 #endif    
     if(up->fssl) {
-        if(0 != ssl_create_connection(up, L_SSL_CLIENT)) {
-            err("s5 local create ssl connection for up failed\n");
-            s5_free(s5);
-            return -1;
-        }
+        schk(ssl_create_connection(up, L_SSL_CLIENT) == 0, {s5_free(s5);return -1;});
         int rc = ssl_handshake(up->ssl);
         if(rc < 0) {
             if(rc == -11) {
@@ -166,37 +150,21 @@ int s5_loc_accept(event_t * ev)
 {
     con_t * down = ev->data;
     if(!down->meta) {
-        if(0 != meta_alloc(&down->meta, 8192)) {
-            err("s5 local alloc down meta failed\n");
-            net_free(down);
-            return -1;
-        }
+        schk(meta_alloc(&down->meta, 8192) == 0, {net_free(down);return -1;});
     }
     down->event->read_pt = s5_loc_down_recv;
     down->event->write_pt = NULL;
     event_opt(down->event, down->fd, EV_R);
     
     s5_session_t * s5 = NULL;
-    if(0 != s5_alloc(&s5)) {
-        err("s5 cycle alloc failed\n");
-        net_free(down);
-        return -1;
-    }
+    schk(s5_alloc(&s5) == 0, {net_free(down);return -1;});
     s5->typ = SOCKS5_CLIENT;
     s5->down = down;
     down->data = s5;
-    if(0 != net_alloc(&s5->up)) {
-        err("s5 up alloc failed\n");
-        s5_free(s5);
-        return -1;
-    }
+    schk(net_alloc(&s5->up) == 0, {net_free(down);return -1;});
     s5->up->data = s5;
     if(!s5->up->meta) {
-        if(0 != meta_alloc(&s5->up->meta, S5_METAN)) {
-            err("s5 up meta alloc failed\n");
-            s5_free(s5);
-            return -1;
-        }
+        schk(meta_alloc(&s5->up->meta, S5_METAN) == 0, {net_free(down);return -1;});
     }
     s5->up->event->read_pt = NULL;
     s5->up->event->write_pt	= s5_loc_connect_chk;

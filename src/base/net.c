@@ -3,14 +3,8 @@
 int net_socket_nbio(int fd)
 {
     int flags = fcntl(fd, F_GETFL, 0);
-    if(-1 == flags) {
-        err("fcntl get failed. [%d]\n", errno);
-        return -1;
-    }
-    if(-1 == fcntl(fd, F_SETFL, flags|O_NONBLOCK)) {
-        err("fcntl set non-blocking failed. [%d]\n", errno);
-        return -1;
-    } 
+    schk(flags != -1, return -1);
+    schk(fcntl(fd, F_SETFL, flags|O_NONBLOCK) != -1, return -1);
     return 0;
 }
 
@@ -64,10 +58,7 @@ int net_socket_check_status(int fd)
 {
     int err = 0;
     socklen_t errn = sizeof(int);
-    if (getsockopt(fd, SOL_SOCKET, SO_ERROR, (void *)&err, &errn) == -1) {
-        err("socket get a error, %d\n", errno);
-        return -1;
-    }
+    schk(getsockopt(fd, SOL_SOCKET, SO_ERROR, (void *)&err, &errn) != -1, return -1);
     return 0;
 }
 
@@ -96,25 +87,11 @@ int net_check_ssl_valid(con_t * c)
 int net_connect(con_t * c, struct sockaddr_in * addr)
 {
     int fd = socket(AF_INET, SOCK_STREAM, 0);
-    if(fd == -1) {
-        err("socket open failed. [%d]\n", errno);
-        return -1;
-    }
-    if(0 != net_socket_nbio(fd)) {
-        err("socket non-blocking failed. [%d]\n", errno);
-        close(fd);
-        return -1;
-    }
-    if(0 != net_socket_reuseaddr(fd)) {
-        err("socket reuseaddr failed. [%d]\n", errno);
-        close(fd);
-        return -1;
-    }
-    if(0 != net_socket_fastopen(fd)) {
-        err("socket fastopen failed. [%d]\n", errno);
-        close(fd);
-        return -1;
-    }
+    schk(fd != -1, return -1);
+    schk(net_socket_nbio(fd) == 0, {close(fd); return -1;});
+    schk(net_socket_reuseaddr(fd) == 0, {close(fd); return -1;});
+    schk(net_socket_fastopen(fd) == 0, {close(fd); return -1;});
+    
     for(;;) {
         int rc = connect(fd, (struct sockaddr*)&c->addr, sizeof(struct sockaddr_in));
         if(rc != 0) {
@@ -162,30 +139,14 @@ int net_accept(event_t * ev)
             err("accept failed, [%d]\n", errno);
             return -1;
         }
-        if(-1 == net_alloc(&ccon)) {
-            err("net alloc faield\n");
-            close(cfd);
-            return -1;
-        }
+        schk(net_alloc(&ccon) != -1, {close(cfd); return -1;});
         memcpy(&ccon->addr, &caddr, caddrn);
         ccon->fd = cfd;
-        if(0 != net_socket_nbio(ccon->fd)) {
-            err("socket set nonblock failed\n");
-            net_free(ccon);
-            return -1;
-        }
-        if(0 != net_socket_nodelay(ccon->fd)) {
-            err("socket set nodelay failed\n");
-            net_free(ccon);
-            return -1;
-        }
-        if(0 != net_socket_fastopen(ccon->fd)) {
-            err("socket set fastopen failed\n");
-        }
-        if(0 != net_socket_lowat_send(ccon->fd)) {
-            err("socket set lowat 0 failed\n");
-            return -1;
-        }
+        schk(net_socket_nbio(ccon->fd) == 0, {net_free(ccon); return -1;});
+        schk(net_socket_nodelay(ccon->fd) == 0, {net_free(ccon); return -1;});
+        schk(net_socket_fastopen(ccon->fd) == 0, {net_free(ccon); return -1;});
+        schk(net_socket_lowat_send(ccon->fd) == 0, {net_free(ccon); return -1;});
+        
         ccon->recv = recvs;
         ccon->send = sends;
         ccon->send_chain = send_chains;
@@ -265,16 +226,9 @@ int net_free(con_t * c)
 int net_alloc(con_t ** c)
 {
     con_t * nc = mem_pool_alloc(sizeof(con_t));
-    if(!nc) {
-        err("net alloc nc failed\n");
-        return -1;
-    }
+    schk(nc, return -1);
     if(!nc->event) {
-        if(0 != event_alloc(&nc->event)) {
-            err("net alloc nc evt failed\n");
-            mem_pool_free(nc);
-            return -1;
-        }
+        schk(event_alloc(&nc->event) == 0, {mem_pool_free(nc); return -1;});
         nc->event->data = nc;
     }
     *c = nc;

@@ -95,26 +95,14 @@ int log_print(int id, int level, const char * func, int line, const char * str, 
 int log_init(void)
 {
     do {
-        if(log_ctx) {
-            err("log ctx not null\n");
-            break;
-        }
+        schk(NULL == log_ctx, break);
         log_ctx = sys_alloc(sizeof(log_mgr_t));
-        if(!log_ctx) {
-            err("malloc log ctx failed. [%d]\n", errno);
-            break;
-        }
+        schk(NULL != log_ctx, break);
         ///O_APPEND make write is atomic operation
         log_ctx->log_fd_main = open(S5_PATH_LOG_FILE_MAIN, O_CREAT|O_RDWR|O_APPEND, 0644);
-        if(log_ctx->log_fd_main <= 0) {
-            err( "open logfile [%s] failed, [%d]\n", S5_PATH_LOG_FILE_MAIN, errno);
-            break;
-        }
+        schk(log_ctx->log_fd_main > 0, break);
         log_ctx->log_fd_access = open(S5_PATH_LOG_FILE_ACCESS, O_CREAT|O_RDWR|O_APPEND, 0644);
-        if(log_ctx->log_fd_access <= 0) {
-            err( "open logfile [%s] failed, [%d]\n", S5_PATH_LOG_FILE_ACCESS, errno);
-            break;
-        }
+        schk(log_ctx->log_fd_access > 0, break);
         return 0;
     } while(0);
 

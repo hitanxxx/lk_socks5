@@ -46,10 +46,7 @@ static int webser_api_find(webser_t * web)
 int webser_api_reg(char * key, event_pt cb, enum http_process_status method_type, char http_req_body_need)
 {
     webser_api_t * p = mem_arr_push(g_web_ctx->g_api_list);
-    if(!p) {
-        err("webser g_api_list mem list push failed\n");
-        return -1;
-    }
+    schk(p, return -1);
     int keyn = 0;
     if(strlen(key) > (sizeof(p->key)-1)) {
         keyn = sizeof(key)-1;
@@ -66,10 +63,7 @@ int webser_api_reg(char * key, event_pt cb, enum http_process_status method_type
 static int webser_alloc(webser_t ** webser)
 {
     webser_t * nweb = mem_pool_alloc(sizeof(webser_t));
-    if(!nweb) {
-        err("nweb alloc failed\n");
-        return -1;
-    }
+    schk(nweb, return -1);
     *webser = nweb;
     return 0;
 }
@@ -224,7 +218,6 @@ static int webser_rsp_payload_send_ff(event_t * ev)
 				break;
 			}
         }
-        
         if(meta_getlen(meta) == 0) meta_clr(meta);
         
         if(meta_getfree(meta) > 0) {
@@ -242,7 +235,7 @@ static int webser_rsp_payload_send_ff(event_t * ev)
     if(webser->http_req->fkeepalive) {
         ev->write_pt = webser_keepalive;
         return ev->write_pt(ev);
-    } 
+    }
     return webser_free(webser);
 }
 
@@ -282,11 +275,7 @@ int webser_rsp_payload_push(webser_t * webser, const char * str, ...)
     va_end(argslist);
 
 	if(!webser->rsp_meta_body) {
-		if(0 != meta_alloc(&webser->rsp_meta_body, 4096)) {
-			err("meta alloc err\n");
-			webser_free(webser);
-			return -1;
-		}
+        schk(meta_alloc(&webser->rsp_meta_body, 4096) == 0, {webser_free(webser);return -1;});
 	}
     
     meta_t * p = NULL;
@@ -301,11 +290,7 @@ int webser_rsp_payload_push(webser_t * webser, const char * str, ...)
 		}
 		m = m->next;
 	}
-	if(0 != meta_alloc(&n, 4096)) {
-		err("meta alloc err\n");
-		webser_free(webser);
-		return -1;
-	}
+    schk(meta_alloc(&n, 4096) == 0, {webser_free(webser);return -1;});
 	p->next = n;
 	memcpy(n->last, buf, strlen(buf));
 	n->last += strlen(buf);
@@ -358,11 +343,7 @@ int webser_rsp_header_push(webser_t * webser, const char * str, ...)
     va_end(argslist);
 
 	if(!webser->rsp_meta_header) {
-		if(0 != meta_alloc(&webser->rsp_meta_header, 4096)) {
-			err("meta alloc err\n");
-			webser_free(webser);
-			return -1;
-		}
+        schk(meta_alloc(&webser->rsp_meta_header, 4096) == 0, {webser_free(webser);return -1;});		
 	}
 
     meta_t * p = NULL;
@@ -377,11 +358,7 @@ int webser_rsp_header_push(webser_t * webser, const char * str, ...)
 		}
 		m = m->next;
 	}
-	if(0 != meta_alloc(&n, 4096)) {
-		err("meta alloc err\n");
-		webser_free(webser);
-		return -1;
-	}
+    schk(meta_alloc(&n, 4096) == 0, {webser_free(webser);return -1;});
 	p->next = n;
 	memcpy(n->last, buf, strlen(buf));
 	n->last += strlen(buf);
@@ -496,11 +473,7 @@ static int webser_req_router(event_t * ev)
         ev->read_pt = webser_req_api; 
     } else {
         ///static request only support GET method
-        if(webser->http_req->method_typ != HTTP_METHOD_GET) {
-            err("webser static req. method not support\n");
-            webser_free(webser);
-            return -1;
-        }
+        schk(webser->http_req->method_typ == HTTP_METHOD_GET, {webser_free(webser);return -1;});
         webser->type = WEBSER_FILE;
         ev->read_pt = webser_req_file;
     }
@@ -510,10 +483,7 @@ static int webser_req_router(event_t * ev)
 int webser_req_payload(webser_t * web)
 {	
     if(!web->http_payload) {
-        if(0 != http_payload_ctx_init(web->c, &web->http_payload, (web->api->body_need == 1) ? 1 : 0)) {
-            err("http_payload_create failed\n");
-            return -1;
-        }
+        schk(http_payload_ctx_init(web->c, &web->http_payload, (web->api->body_need == 1) ? 1 : 0) == 0, return -1);
         web->http_payload->fchunk = web->http_req->payload_typ == HTTP_BODY_TYPE_CHUNK ? 1 : 0;
         if(!web->http_payload->fchunk) web->http_payload->ilen = web->http_req->payload_contentn;
     }
@@ -558,27 +528,14 @@ static int webser_start(event_t * ev)
 
     ///init web connection page and meta memory for use
     if(!c->meta) {
-        if(0 != meta_alloc(&c->meta, 4096)) {
-            err("webser con meta alloc failed\n");
-            net_free(c);
-            return -1;
-        }
+        schk(meta_alloc(&c->meta, 4096) == 0, {net_free(c);return -1;});
     }
-    
-    if(0 != webser_alloc(&webser)) {
-        err("webser con webser alloc failed\n");
-        net_free(c);
-        return -1;
-    }
+    schk(webser_alloc(&webser) == 0, {net_free(c);return -1;});
     webser->c = c;
     c->data = webser;
 
     ///start http request parse, try to read http request form socket and parse it 
-    if(0 != http_req_ctx_init(c, &webser->http_req)) {
-        err("webser alloc req failed\n");
-        webser_free(webser);
-        return -1;
-    }
+    schk(http_req_ctx_init(c, &webser->http_req) == 0, {webser_free(webser);return -1;});
     ev->write_pt = NULL;
     ev->read_pt = webser_req_header;
     return ev->read_pt(ev);
@@ -594,11 +551,7 @@ static int webser_transfer_to_s5(event_t * ev)
     ssize_t rc = 0;
     
     if(!c->meta) {
-        if(0 != meta_alloc(&c->meta, 8192)) {
-            err("webser alloc con meta failed\n");
-            net_free(c);
-            return -1;
-        }
+        schk(meta_alloc(&c->meta, 8192) == 0, {net_free(c);return -1;});
     }
 
     /// try to recv s5 private authorization header 
@@ -663,11 +616,7 @@ int webser_accept_cb_ssl(event_t * ev)
         net_free(c);
         return -1;
     }
-    if(0 != ssl_create_connection(c, L_SSL_SERVER)) {
-        err("webser ssl con create failed\n");
-        net_free(c);
-        return -1;
-    }
+    schk(ssl_create_connection(c, L_SSL_SERVER) == 0, {net_free(c); return -1;});
 
     rc = ssl_handshake(c->ssl);
     if(rc < 0) {
@@ -748,30 +697,18 @@ static int webser_init_mimehash( )
 int webser_init(void)
 {
     int ret = -1;
-    if(g_web_ctx) {
-        err("webser ctx not empty\n");
-        return -1;
-    }
+    schk(!g_web_ctx, return -1);
 
     do {
         g_web_ctx = mem_pool_alloc(sizeof(g_web_t));
-        if(!g_web_ctx) {
-            err("webser alloc ctxc failed, [%d]\n", errno);
-            return -1;
-        }
+        schk(g_web_ctx, return -1);
         
         /// init mime hash 
-        if(0 != webser_init_mimehash()) {
-            mem_pool_free(g_web_ctx);
-            err("webser mime hash init failed\n");
-            return -1;
-        }
+        schk(webser_init_mimehash() == 0, break);
         
         /// init webserv api data
-        if(0 != mem_arr_create(&g_web_ctx->g_api_list, sizeof(webser_api_t))) {
-            err("webser create api mem arr create failed\n");
-            break;
-        }
+        schk(mem_arr_create(&g_web_ctx->g_api_list, sizeof(webser_api_t)) == 0, break);
+
         webapi_init();
         ret = 0;
     } while(0);

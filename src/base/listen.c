@@ -12,10 +12,7 @@ static int g_listenn = 0;
 static int listen_add(unsigned short port, event_pt handler, char fssl)
 {
     listen_t * nl = sys_alloc(sizeof(listen_t));
-    if(!nl) {
-        err("listne alloc nl failed\n");
-        return -1;
-    }
+    schk(nl != NULL, return -1);
     nl->lport = port;
     nl->fssl = fssl;
     nl->handler = handler;
@@ -42,45 +39,20 @@ static int listen_open(listen_t * lev)
 
     do {
         lev->fd = socket(AF_INET, SOCK_STREAM, 0);
-        if(-1 == lev->fd) {
-            err("listen open listen socket failed\n");
-            break;
-        }
-        if(0 != net_socket_nbio(lev->fd)) {
-            err("listen set socket non blocking failed\n");
-            break;
-        }
-        
-        if(0 != net_socket_reuseaddr(lev->fd)) {
-            err("listen set socket reuseaddr failed\n");
-            break;
-        }  
+        schk(lev->fd != -1, break);
+        schk(net_socket_nbio(lev->fd) == 0, break);
+        schk(net_socket_reuseaddr(lev->fd) == 0, break);
         /*
             set reuseport flag, socket listen by all process.
             kernel will be process thundering herd 
         */
-        if(0 != net_socket_reuseport(lev->fd)) {
-            err("listen set socket reuseport failed\n");
-            break;
-        }
-        if(0 != net_socket_fastopen(lev->fd)) {
-            err("listen set socket fastopen failed\n");
-            break;
-        }
-        if(0 != net_socket_nodelay(lev->fd)) {
-            err("listen set socket nodelay failed\n");
-            break;
-        }
-        if(0 != bind(lev->fd, (struct sockaddr *)&lev->server_addr, sizeof(struct sockaddr))) {
-            err("listen bind failed, [%d]\n", errno);
-            break;
-        }
-        if(0 != listen(lev->fd, 10)) {
-            err("listen call listen failed\n");
-            break;
-        }
+        schk(net_socket_reuseport(lev->fd) == 0, break);
+        schk(net_socket_fastopen(lev->fd) == 0, break);
+        schk(net_socket_nodelay(lev->fd) == 0, break);
+        schk(bind(lev->fd, (struct sockaddr *)&lev->server_addr, sizeof(struct sockaddr)) == 0, break);
+        schk(listen(lev->fd, 10) == 0, break);
         return 0;
-    }while(0);
+    } while(0);
     return -1;
 }
 

@@ -122,39 +122,27 @@ int config_init(void)
 
     memset(&fstat, 0, sizeof(struct stat));
     do {
-        if(stat(S5_PATH_CFG, &fstat) < 0) {
-            err("config stat file failed. [%d]\n", errno);
-            break;
-        }
+        schk(0 == stat(S5_PATH_CFG, &fstat), break);
         fsz = (int)fstat.st_size;
         fbuf = sys_alloc(fsz + 1); /// need to fsz+1 to storge '\0'
-        if(!fbuf) {
-            err("config alloc buf failed\n");
-            break;
-        }
+        schk(fbuf, break);
+        
         ffd = open(S5_PATH_CFG, O_RDONLY);
-        if(ffd <= 0) {
-            err("config open file failed. [%d]\n", errno);
-            break;
-        }
+        schk(ffd > 0, break);
         while(freadn < fsz) {
             rc = read(ffd, fbuf + freadn, fsz + 1 - freadn);
-            if(rc <= 0) {
-                err("config read file failed. [%d]\n", errno);
-                break;
-            }
+            schk(rc > 0, break);
             freadn += rc;
-        }while(0);
+        }
 
         ahead_dbg("config string:\n");
         ahead_dbg("%s", fbuf);
-        if(0 != config_parse(fbuf)) {
-            ahead_dbg("config parse failed\n");
-            break;
-        }
+        schk(0 == config_parse(fbuf), break);
     } while(0);
-    if(ffd) close(ffd);
-    if(fbuf) sys_free(fbuf);
+    if(ffd) 
+        close(ffd);
+    if(fbuf) 
+        sys_free(fbuf);
     return 0;
 }
 
