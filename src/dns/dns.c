@@ -19,11 +19,8 @@ static dns_ctx_t * dns_ctx = NULL;
 
 static int dns_rec_add(char * query, char * addr, int msec)
 {
-    dns_cache_t * rdns = mem_pool_alloc(sizeof(dns_cache_t));
-    if(!rdns) {
-        err("rdns alloc dns rec failed\n");
-        return -1;
-    }
+    dns_cache_t * rdns = NULL;
+    schk(rdns = mem_pool_alloc(sizeof(dns_cache_t)), return -1);
     queue_init(&rdns->queue);
     strncpy(rdns->query, query, sizeof(rdns->query));
     rdns->addr[0] = addr[0];
@@ -88,11 +85,8 @@ inline static char * dns_get_serv()
 
 static int dns_alloc(dns_cycle_t ** cycle)
 {
-    dns_cycle_t * ncycle = mem_pool_alloc(sizeof(dns_cycle_t));
-    if(!ncycle){
-        err("dns alloc ncycle failed\n");
-        return -1;
-    }
+    dns_cycle_t * ncycle = NULL;
+    schk(ncycle = mem_pool_alloc(sizeof(dns_cycle_t)), return -1);
     *cycle = ncycle;
     return 0;
 }
@@ -124,17 +118,9 @@ int dns_create(dns_cycle_t ** dns_cycle)
     dns_cycle_t * local_cycle = NULL;
     meta_t * meta = NULL;
 
-    if(0 != dns_alloc(&local_cycle)) {
-        err("dns create alloc failed\n");
-        return -1;
-    }
-
+    schk(0 == dns_alloc(&local_cycle), return -1);
     do {
-        if(0 != net_alloc(&local_cycle->c)) {
-            err("dns alloc conn failed\n");
-            break;
-        }
-        
+        schk(0 == net_alloc(&local_cycle->c), break);
         meta = &local_cycle->dns_meta;
         meta->start = meta->pos = meta->last = local_cycle->dns_buffer;
         meta->end = meta->start + DNS_BUFFER_LEN;
@@ -425,18 +411,10 @@ int dns_start(dns_cycle_t * cycle)
 
     do {
         c->fd = socket(AF_INET, SOCK_DGRAM, 0);
-        if(-1 == c->fd) {
-            err("dns socket open failed, errno [%d]\n", errno);
-            break;
-        }
-        if(0 != net_socket_reuseaddr(c->fd))  {
-            err("dns socket set reuseaddr failed\n");
-            break;
-        }
-        if(0 != net_socket_nbio(c->fd)) {
-            err("dns socket set nonblock failed\n");
-            break;
-        }
+        schk(c->fd > 0, break);
+        schk(0 == net_socket_reuseaddr(c->fd), break);
+        schk(0 == net_socket_nbio(c->fd), break);
+
         memcpy(&c->addr, &addr, sizeof(c->addr));
         c->event->read_pt = NULL;
         c->event->write_pt = dns_request_packet;
@@ -448,15 +426,8 @@ int dns_start(dns_cycle_t * cycle)
 
 int dns_init(void)
 {
-    if(dns_ctx) {
-        err("dns init this not empty\n");
-        return -1;
-    }
-    dns_ctx = mem_pool_alloc(sizeof(dns_ctx_t));
-    if(!dns_ctx) {
-        err("dns init alloc dns pool failed, [%d]\n", errno);
-        return -1;
-    }
+    schk(!dns_ctx, return -1);
+    schk(dns_ctx = mem_pool_alloc(sizeof(dns_ctx_t)), return -1);
     queue_init(&dns_ctx->record_mng);
     return 0;
 }

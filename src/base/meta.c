@@ -3,10 +3,8 @@
 int meta_alloc(meta_t ** meta, int datan)
 {
     if(meta) {
-        meta_t * t = mem_pool_alloc(sizeof(meta_t) + datan);
-        if(!t) 
-            return -1;
-		
+        meta_t * t = NULL;
+        schk(t = mem_pool_alloc(sizeof(meta_t) + datan), return -1);
         t->start = t->pos = t->last = t->data;
         t->end = t->start + datan;
         *meta = t;
@@ -47,10 +45,7 @@ meta_t * meta_dump(meta_t * meta)
     meta_t * cur = NULL;
     meta_t * dump = NULL;
     int dumpn = meta_getlens(meta);
-    if(0 != meta_alloc(&dump, dumpn)) {
-        err("meta dump alloc failed\n");
-        return NULL;
-    }
+    schk(0 == meta_alloc(&dump, dumpn), return NULL);
     
     cur = meta;
     while(cur) {

@@ -44,10 +44,7 @@ void * sys_alloc(int size)
     pthread_mutex_lock(&g_sys_thread_lock);
     char * addr = malloc(size);
     pthread_mutex_unlock(&g_sys_thread_lock);
-    if(!addr) {
-        err("sys alloc failed. [%d]\n", errno);
-        return NULL;
-    }
+    schk(addr, return NULL);
     memset(addr, 0x0, size);
     return addr;
 }

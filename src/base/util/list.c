@@ -17,11 +17,8 @@ int mem_list_free(mem_list_t * h)
 int mem_list_push(mem_list_t ** h, char * data)
 {
     int datan = strlen(data);
-    mem_list_t * nl = mem_pool_alloc(sizeof(mem_list_t)+datan+1);
-    if(!nl) {
-        err("alloc memlist nl failed\n");
-        return -1;
-    }
+    mem_list_t * nl = NULL;
+    schk(nl = mem_pool_alloc(sizeof(mem_list_t)+datan+1), return -1);
     nl->next = NULL;
     nl->datan = datan;
     memcpy(nl->data, data, datan);

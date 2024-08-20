@@ -222,11 +222,7 @@ static int webser_rsp_payload_send_ff(event_t * ev)
         
         if(meta_getfree(meta) > 0) {
             int readn = read(webser->ffd, meta->last, meta_getfree(meta));
-            if(readn <= 0) {
-                err("webser read file, errno [%d]\n", errno );
-                webser_free(webser);
-                return -1;
-            }
+            schk(readn > 0, {webser_free(webser); return -1;});
             meta->last += readn;
         }
     }
@@ -245,11 +241,7 @@ static int webser_rsp_payload_send(event_t * ev)
     webser_t * webser = c->data;
 
     if(webser->type == WEBSER_FILE) {
-        if(0 != meta_alloc(&webser->rsp_meta_body, WEBSER_BODY_META_LENGTH-sizeof(meta_t))) { ///for mem pool alloc sign 
-            err("webser rsp body meta alloc failed\n");
-            webser_free(webser);
-            return -1;
-        }
+        schk(0 == meta_alloc(&webser->rsp_meta_body, WEBSER_BODY_META_LENGTH-sizeof(meta_t)), {webser_free(webser); return -1;});
         ev->write_pt = webser_rsp_payload_send_ff;
         return ev->write_pt(ev);
     } else if (webser->type == WEBSER_API) {
@@ -528,14 +520,14 @@ static int webser_start(event_t * ev)
 
     ///init web connection page and meta memory for use
     if(!c->meta) {
-        schk(meta_alloc(&c->meta, 4096) == 0, {net_free(c);return -1;});
+        schk(meta_alloc(&c->meta, 4096) == 0, {net_free(c); return -1;});
     }
-    schk(webser_alloc(&webser) == 0, {net_free(c);return -1;});
+    schk(webser_alloc(&webser) == 0, {net_free(c); return -1;});
     webser->c = c;
     c->data = webser;
 
     ///start http request parse, try to read http request form socket and parse it 
-    schk(http_req_ctx_init(c, &webser->http_req) == 0, {webser_free(webser);return -1;});
+    schk(http_req_ctx_init(c, &webser->http_req) == 0, {webser_free(webser); return -1;});
     ev->write_pt = NULL;
     ev->read_pt = webser_req_header;
     return ev->read_pt(ev);
@@ -585,11 +577,7 @@ static int webser_transfer_to_s5(event_t * ev)
 static int webser_accept_cb_ssl_check(event_t * ev)
 {
     con_t * c = ev->data;
-    if(!c->ssl->f_handshaked) {
-        err("webser handshake failed\n");
-        net_free(c);
-        return -1;
-    }
+    schk(c->ssl->f_handshaked, {net_free(c); return -1;});
     timer_del(&c->event->timer);
 
     c->recv = ssl_read;
@@ -642,10 +630,8 @@ int webser_accept_cb(event_t * ev)
 
 static int webser_init_mimehash( )
 {
-    if(0 != ezhash_create(&g_web_ctx->mime_hash, 97)) {
-        err("webser create mime hash failed\n");
-        return -1;
-    }    
+    schk(0 == ezhash_create(&g_web_ctx->mime_hash, 97), return -1);
+    
     ezhash_add(g_web_ctx->mime_hash, ".html", strlen(".html"),
         "text/html", strlen("text/html"));
     
@@ -700,8 +686,7 @@ int webser_init(void)
     schk(!g_web_ctx, return -1);
 
     do {
-        g_web_ctx = mem_pool_alloc(sizeof(g_web_t));
-        schk(g_web_ctx, return -1);
+        schk(g_web_ctx = mem_pool_alloc(sizeof(g_web_t)), return -1);
         
         /// init mime hash 
         schk(webser_init_mimehash() == 0, break);

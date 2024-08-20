@@ -8,17 +8,11 @@ static char * key = "f29baf6ff9f9acb2cbf6441cd8eb29e4";
 int sys_cipher_conv(sys_cipher_t * ctx, unsigned char * in, int inn)
 {
     if(ctx) {
-        if(ctx->typ == 0) {            
-            if(!EVP_EncryptUpdate(ctx->ctx, in, &ctx->tn, in, inn)) {
-                err("sys evp enc update failed\n");
-                return -1;
-            }
+        if(ctx->typ == 0) {    
+            schk(EVP_EncryptUpdate(ctx->ctx, in, &ctx->tn, in, inn), return -1);
             ctx->actn += ctx->tn;
         } else {
-            if(!EVP_DecryptUpdate(ctx->ctx, in, &ctx->tn, in, inn)) {
-                err("sys evp dec update failed\n");
-                return -1;
-            }
+            schk(EVP_DecryptUpdate(ctx->ctx, in, &ctx->tn, in, inn), return -1);
             ctx->actn += ctx->tn;
         }
         return ctx->tn;

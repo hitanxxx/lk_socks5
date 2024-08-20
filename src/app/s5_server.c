@@ -15,22 +15,15 @@ static int s5_srv_try_read(event_t * ev)
     con_t * down = ev->data;
     s5_session_t * s5 = down->data;
 
-    if(0 != net_socket_check_status(down->fd)) {
-        err("s5 server check down fd status error\n");
-        s5_free(s5);
-        return -1;
-    }
+    schk(0 == net_socket_check_status(down->fd), {s5_free(s5); return -1;});
     return 0;
 }
 
 
 int s5_alloc(s5_session_t ** s5)
 {
-    s5_session_t * ns5 = mem_pool_alloc(sizeof(s5_session_t));
-    if(!ns5) {
-        err("s5 alloc failed\n");
-        return -1;
-    }
+    s5_session_t * ns5 = NULL;
+    schk(ns5 = mem_pool_alloc(sizeof(s5_session_t)), return -1);
     *s5 = ns5;
     return 0;
 }
@@ -868,7 +861,7 @@ static int s5_srv_auth_rfile(meta_t * meta)
 {
     ssize_t size = 0;
     int fd = open((char*)config_get()->s5_serv_auth_path, O_RDONLY);
-    schk(fd != -1, return -1);
+    schk(fd > 0, return -1);
     size = read(fd, meta->pos, meta_getfree(meta));
     close(fd);
     schk(size != -1, return -1);
@@ -881,9 +874,8 @@ static int s5_srv_auth_init()
     meta_t * meta = NULL;
     int rc = -1;
     do {
-        g_s5_ctx->ac = ezac_init();
-        schk(g_s5_ctx->ac, break);
-    
+        ;
+        schk(g_s5_ctx->ac = ezac_init(), break);
         schk(meta_alloc(&meta, S5_USER_AUTH_FILE_LEN) == 0, break);
         schk(s5_srv_auth_rfile(meta) == 0, break);
         schk(s5_srv_auth_fparse(meta) == 0, break);
@@ -900,8 +892,7 @@ int socks5_server_init(void)
     int ret = -1;
     schk(!g_s5_ctx, return -1);
     do {
-        g_s5_ctx = (g_s5_t*)mem_pool_alloc(sizeof(g_s5_t));
-        schk(g_s5_ctx, return -1);
+        schk(g_s5_ctx = (g_s5_t*)mem_pool_alloc(sizeof(g_s5_t)), return -1);
         if(config_get()->s5_mode > SOCKS5_CLIENT) {
             schk(s5_srv_auth_init() == 0, break);
         } else {

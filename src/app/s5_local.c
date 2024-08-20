@@ -150,7 +150,7 @@ int s5_loc_accept(event_t * ev)
 {
     con_t * down = ev->data;
     if(!down->meta) {
-        schk(meta_alloc(&down->meta, 8192) == 0, {net_free(down);return -1;});
+        schk(meta_alloc(&down->meta, S5_METAN) == 0, {net_free(down);return -1;});
     }
     down->event->read_pt = s5_loc_down_recv;
     down->event->write_pt = NULL;

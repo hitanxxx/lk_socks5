@@ -11,10 +11,7 @@ int heap_create(heap_t ** heap, int size)
 	
 	/// heap index 0 is alwsys unused 
 	int alloc_size = sizeof(heap_t) + (sizeof(heap_node_t*) * (size+1));
-	nheap = (heap_t*)sys_alloc(alloc_size);
-	if(!nheap)
-		return -1;
-	
+	schk(nheap = (heap_t*)sys_alloc(alloc_size), return -1);
 	nheap->space = size;
 	nheap->index = 0;
 	nheap->array[0] = NULL;

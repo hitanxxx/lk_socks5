@@ -15,18 +15,10 @@ static uint32_t fnv1a_32(void * data, int datan)
 
 int ezhash_create(ezhash_t ** hash, int space)
 {
-    ezhash_t * nhash = mem_pool_alloc(sizeof(ezhash_t));
-    if(!nhash) {
-        err("hash alloc failed. [%d]\n", errno);
-        return -1;
-    }
+    ezhash_t * nhash = NULL;
+    schk(nhash = mem_pool_alloc(sizeof(ezhash_t)), return -1);
     nhash->arrn = space;
-    nhash->arr = mem_pool_alloc(nhash->arrn *sizeof(ezhash_obj_t*));
-    if(!nhash->arr) {
-        err("hash arr alloc failed\n");
-        mem_pool_free(nhash);
-        return -1;
-    }
+    schk(nhash->arr = mem_pool_alloc(nhash->arrn *sizeof(ezhash_obj_t*)), {mem_pool_free(nhash); return -1;});
     *hash = nhash;
     return 0;
 }
@@ -73,29 +65,15 @@ int ezhash_add(ezhash_t * hash, void * key, int keyn, void * val, int valn)
     uint32_t hash_value = fnv1a_32(key, keyn);
     int idx = hash_value % hash->arrn;
     
-    ezhash_obj_t * nhash = mem_pool_alloc(sizeof(ezhash_obj_t));
-    if(!nhash) {
-        err("nhash alloc failed\n");
-        return -1;
-    }
+    ezhash_obj_t * nhash = NULL;
+    schk(nhash = mem_pool_alloc(sizeof(ezhash_obj_t)), return -1);
     nhash->next = NULL;
     nhash->keyn = keyn;
-    nhash->key = mem_pool_alloc(keyn);
-    if(!nhash->key) {
-        err("hash key alloc failed\n");
-        mem_pool_free(nhash);
-        return -1;
-    }
+    schk(nhash->key = mem_pool_alloc(keyn), {mem_pool_free(nhash); return -1;});
     memcpy(nhash->key, key, keyn);
 
     nhash->valn = valn;
-    nhash->val = mem_pool_alloc(valn);
-    if(!nhash->val) {
-        err("hash val alloc failed\n");
-        mem_pool_free(nhash->key);
-        mem_pool_free(nhash);
-        return -1;
-    }
+    schk(nhash->val = mem_pool_alloc(valn), {mem_pool_free(nhash->key);mem_pool_free(nhash);return -1;});
     memcpy(nhash->val, val, valn);
 
     if(!hash->arr[idx]) {

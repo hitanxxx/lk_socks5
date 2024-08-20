@@ -28,11 +28,8 @@ int ezac_free(ezac_ctx_t * ctx)
 
 ezac_ctx_t * ezac_init()
 {
-    ezac_ctx_t * ctx = sys_alloc(sizeof(ezac_ctx_t));
-    if(!ctx) {
-        err("alloc ctx err\n");
-        return NULL;
-    }
+    ezac_ctx_t * ctx = NULL;
+    schk(ctx = sys_alloc(sizeof(ezac_ctx_t)), return NULL);
     ctx->root.pfail = &ctx->root;
     ctx->cur = &ctx->root;
     return ctx;
@@ -47,11 +44,7 @@ int ezac_add(ezac_ctx_t * ctx, char *data, int datan)
         int idx = data[i];
         if(idx < 0 || idx > EZAC_MAX) idx = 0;
         if(!n->arr[idx]) {
-            n->arr[idx] = sys_alloc(sizeof(ezac_node_t));
-            if(!n->arr[idx]) {
-                err("alloc node err\n");
-                return -1;
-            }
+            schk(n->arr[idx] = sys_alloc(sizeof(ezac_node_t)), return -1);
         }
         n = n->arr[idx];
     }

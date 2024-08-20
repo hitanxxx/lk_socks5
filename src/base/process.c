@@ -27,25 +27,15 @@ int proc_pid_form_file( pid_t * pid )
 {
     char str[32] = {0};
     int fd = open(S5_PATH_PID, O_RDONLY);
-    if(-1 == fd) {
-        err("open pid file [%s] failed. [%d]\n", S5_PATH_PID, errno);
-        return -1;
-    }
-    if(-1 == read(fd, str, sizeof(str))) {
-        err("read pid file [%s] failed. [%d]\n", S5_PATH_PID, errno);
-        close(fd);
-        return -1;
-    }
+    schk(fd > 0, return -1);
+    schk(read(fd, str, sizeof(str)) > 0, {close(fd); return -1;});
     *pid = strtol(str, NULL, 10);
     return 0;
 }
 
-int proc_signal_send( pid_t pid, int32 signal )
+int proc_signal_send(pid_t pid, int32 signal)
 {
-    if(-1 == kill(pid, signal)) {
-        err("send sginal [%d] to pid [%d] failed, [%d]\n", signal, pid, errno);
-        return -1;
-    }
+    schk(0 == kill(pid, signal), return -1);
     return 0;
 }
 
@@ -234,38 +224,21 @@ status proc_signal_init()
         sigemptyset(&sa.sa_mask);
         sa.sa_handler = proc_signal_cb;
         sa.sa_flags = SA_SIGINFO;
-        if(sigaction(sig_arr[i], &sa, NULL) == -1) {
-            err("set sys signal [%d] callback failed, errno [%d]\n", sig_arr[i], errno);
-            return -1;
-        }
+        schk(0 == sigaction(sig_arr[i], &sa, NULL), return -1);
     }
     return 0;
 }
 int process_init(void)
 {
     int i = 0;
-    if(g_proc_ctx) {
-        err("process ctx not empty\n");
-        return -1;
-    }
-    if(0 != proc_signal_init()) { /// register all process signal callback
-        err("signal init failed\n");
-        return -1;
-    }
+    schk(!g_proc_ctx, return -1);
+    schk(0 == proc_signal_init(), return -1);
+    schk(g_proc_ctx = sys_alloc(sizeof(process_ctx_t)), return -1);
 
-    g_proc_ctx = sys_alloc(sizeof(process_ctx_t));
-    if(!g_proc_ctx) {
-        err("alloc process ctx failed, [%d]\n", errno);
-        return -1;
-    }
     g_proc_ctx->process_id = L_PROCESS_MASTER;
-
     g_proc_ctx->shm.size += (config_get()->sys_process_num * sizeof(process_t));
     g_proc_ctx->shm.size += sizeof(int);
-    if(0 != sys_shm_alloc(&g_proc_ctx->shm, g_proc_ctx->shm.size)) {
-        err("process shm memory alloc failed\n");
-        return -1;
-    }
+    schk(0 == sys_shm_alloc(&g_proc_ctx->shm, g_proc_ctx->shm.size), return -1);
     g_proc_ctx->processes = (process_t*)g_proc_ctx->shm.data;
     for(i = 0; i < config_get()->sys_process_num; i++)
         g_proc_ctx->processes[i].sequence_num = i;
@@ -281,5 +254,5 @@ status process_end( void )
         }
         sys_free(g_proc_ctx);
     }
-    return OK;
+    return 0;
 }

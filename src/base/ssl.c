@@ -259,10 +259,7 @@ int ssl_write_chain(con_t * c, meta_t * meta)
 int ssl_load_con_certificate(SSL_CTX * ctx, int flag, SSL ** ssl)
 {
     SSL * local_ssl = NULL;
-    
-    local_ssl = SSL_new(ctx);
-    schk(local_ssl, return -1);
-    
+    schk(local_ssl = SSL_new(ctx), return -1);
     
     if(flag == L_SSL_SERVER) {
         int ret = -1;
@@ -285,16 +282,14 @@ int ssl_load_ctx_certificate(SSL_CTX ** ctx, int flag)
 {
     if(flag == L_SSL_CLIENT) {
         if(!g_ssl_ctx->ctx_client) {
-            g_ssl_ctx->ctx_client = SSL_CTX_new(SSLv23_client_method());
-            schk(g_ssl_ctx->ctx_client, return -1);
+            schk(g_ssl_ctx->ctx_client = SSL_CTX_new(TLS_client_method()), return -1);
         }
         *ctx = g_ssl_ctx->ctx_client;
     } else {
         if(!g_ssl_ctx->ctx_server) {
             int ret = -1;
             do {
-                g_ssl_ctx->ctx_server = SSL_CTX_new(SSLv23_server_method());
-                schk(g_ssl_ctx->ctx_server, return -1);
+                schk(g_ssl_ctx->ctx_server = SSL_CTX_new(TLS_server_method()), return -1);
                 schk(SSL_CTX_use_certificate_file(g_ssl_ctx->ctx_server, (char*)config_get()->ssl_crt_path, SSL_FILETYPE_PEM) == 1, break);
                 schk(SSL_CTX_use_PrivateKey_file(g_ssl_ctx->ctx_server, (char*)config_get()->ssl_key_path, SSL_FILETYPE_PEM) == 1, break);
                 schk(SSL_CTX_check_private_key(g_ssl_ctx->ctx_server) == 1, break);
@@ -343,8 +338,7 @@ int ssl_create_connection(con_t * c, int flag)
 int ssl_init(void)
 {
     schk(!g_ssl_ctx, return -1);
-    g_ssl_ctx = mem_pool_alloc(sizeof(g_ssl_t));
-    schk(g_ssl_ctx, return -1);
+    schk(g_ssl_ctx = mem_pool_alloc(sizeof(g_ssl_t)), return -1);
 #if(1)
     SSL_library_init();
     SSL_load_error_strings();

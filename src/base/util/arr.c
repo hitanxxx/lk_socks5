@@ -2,10 +2,8 @@
 
 int mem_arr_create(mem_arr_t ** list, int size)
 {
-	mem_arr_t *  narr = mem_pool_alloc(sizeof(mem_arr_t));
-	if(!narr) {
-		return -1;
-	}
+	mem_arr_t *  narr = NULL;
+	schk(narr = mem_pool_alloc(sizeof(mem_arr_t)), return -1);
 	narr->head = NULL;
 	narr->last = NULL;
 	narr->elem_size = size;
@@ -16,11 +14,8 @@ int mem_arr_create(mem_arr_t ** list, int size)
 
 void * mem_arr_push(mem_arr_t * list)
 {
-	mem_arr_part_t * narr = mem_pool_alloc(sizeof(mem_arr_part_t) + list->elem_size);
-	if(!narr) {
-		err("list alloc failed\n");
-		return NULL;
-	}
+	mem_arr_part_t * narr = NULL;
+	schk(narr = mem_pool_alloc(sizeof(mem_arr_part_t) + list->elem_size), return NULL);
     
 	if(0 == list->elem_num) {
         list->last = narr;
