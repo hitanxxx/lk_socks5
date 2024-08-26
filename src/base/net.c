@@ -209,7 +209,7 @@ void net_free_ssl_timeout(void * data)
 
 int net_free(con_t * c)
 {
-    sys_assert(c != NULL);
+    sassert(c != NULL);
     if(c->ssl && c->fssl) {
         int rc = ssl_shutdown(c->ssl);
         if(rc == -11) {

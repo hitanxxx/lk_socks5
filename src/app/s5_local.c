@@ -50,12 +50,6 @@ static int s5_loc_auth_build(event_t * ev)
     memcpy((char*)auth->key, config_get()->s5_local_auth, sizeof(auth->key));
     meta->last += sizeof(s5_auth_t);
     
-#ifndef S5_OVER_TLS
-    if(!s5->cipher_enc) {
-        schk(sys_cipher_ctx_init(&s5->cipher_enc, 0) == 0, {s5_free(s5);return -1;});
-    }
-    schk(sys_cipher_conv(s5->cipher_enc, meta->pos, sizeof(s5_auth_t)) == sizeof(s5_auth_t), {s5_free(s5);return -1;});
-#endif
     ev->write_pt = s5_loc_auth_send; ///goto send s5 private authorization login request
     return ev->write_pt(ev);
 }
@@ -90,10 +84,7 @@ static int s5_loc_connect_chk(event_t * ev)
     schk(net_socket_check_status(up->fd) == 0, {s5_free(s5);return -1;});
     net_socket_nodelay(up->fd);
     
-    up->fssl = 1;
-#ifndef S5_OVER_TLS
-    up->fssl = 0;
-#endif    
+    up->fssl = 1;  
     if(up->fssl) {
         schk(ssl_create_connection(up, L_SSL_CLIENT) == 0, {s5_free(s5);return -1;});
         int rc = ssl_handshake(up->ssl);

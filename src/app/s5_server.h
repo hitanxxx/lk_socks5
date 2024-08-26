@@ -64,11 +64,6 @@ typedef struct {
     con_t * down;
     con_t * up;
     dns_cycle_t * dns_session;
-
-#ifndef S5_OVER_TLS
-    sys_cipher_t * cipher_enc;  /// cipher ctx for encrypt data
-    sys_cipher_t * cipher_dec;  /// cipher ctx for decrypt data
-#endif
     
 	char frecv_err_down:1;
 	char frecv_err_up:1;

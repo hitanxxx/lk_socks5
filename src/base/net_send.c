@@ -3,9 +3,9 @@
 int recvs(con_t * c, unsigned char * buf, int bufn)
 {
     int rc;
-    sys_assert(bufn > 0);
-    sys_assert(buf != NULL);
-    sys_assert(c != NULL);
+    sassert(bufn > 0);
+    sassert(buf != NULL);
+    sassert(c != NULL);
 
     for(;;) {
         rc = recv(c->fd, buf, bufn, 0);
@@ -33,9 +33,9 @@ int sends(con_t * c, unsigned char * buf, int bufn)
 {
     int rc;
     
-    sys_assert(bufn > 0);
-    sys_assert(buf != NULL);
-    sys_assert(c != NULL);
+    sassert(bufn > 0);
+    sassert(buf != NULL);
+    sassert(c != NULL);
 
     for(;;) {
         rc = send(c->fd, buf, bufn, 0);
@@ -55,8 +55,8 @@ int sends(con_t * c, unsigned char * buf, int bufn)
 
 int send_chains(con_t * c, meta_t * head)
 {
-    sys_assert(c != NULL);
-    sys_assert(head != NULL);
+    sassert(c != NULL);
+    sassert(head != NULL);
     
     for(;;) {
         meta_t * n = head;
@@ -84,9 +84,9 @@ int udp_recvs(con_t * c, unsigned char * buf, int bufn)
 {
     socklen_t socklen = sizeof(struct sockaddr);
     
-    sys_assert(c != NULL);
-    sys_assert(buf != NULL);
-    sys_assert(bufn > 0);
+    sassert(c != NULL);
+    sassert(buf != NULL);
+    sassert(bufn > 0);
 
     for(;;) {
         int recvd = recvfrom(c->fd, buf, bufn, 0, (struct sockaddr*)&c->addr, &socklen);
@@ -111,9 +111,9 @@ int udp_sends(con_t * c, unsigned char * buf, int bufn)
 {
     socklen_t socklen = sizeof(struct sockaddr);
 
-    sys_assert(c != NULL);
-    sys_assert(buf != NULL);
-    sys_assert(bufn > 0);
+    sassert(c != NULL);
+    sassert(buf != NULL);
+    sassert(bufn > 0);
 
     for(;;) {
         int sendn = sendto(c->fd, buf, bufn, 0, (struct sockaddr*)&c->addr, socklen);

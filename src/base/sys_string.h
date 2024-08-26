@@ -11,7 +11,7 @@ extern "C"
 #define string_null     {0, NULL}
 #define string_clr(x)   {(x)->len = 0; (x)->data = NULL;}
 
-typedef struct string_t {
+typedef struct {
 	int  len;
 	unsigned char *  data;
 } string_t;

@@ -85,15 +85,24 @@ extern "C"
 #define S5_NOSSL    0x0
 
 
-enum connection_type 
-{
+
+/// improve compile performance
+#define LIKELY(x)  __builtin_expect(!!(x), 1)
+#define UNLIKELY(x)  __builtin_expect(!!(x), 0)
+#define schk(x, actions) if(UNLIKELY(!(x))) {err("schk assert failed. -> \""#x"\"\n", #x); actions;}
+#define sassert(x) schk(x, abort())
+
+
+#define S5_OVER_TLS
+
+
+enum connection_type {
 	TYPE_TCP = 0x1,
 	TYPE_UDP,
 };
 
 // http
-enum http_process_status
-{
+enum http_process_status {
 	HTTP_METHOD_GET        = 1,
 	HTTP_METHOD_HEAD,
 	HTTP_METHOD_POST,
@@ -102,30 +111,26 @@ enum http_process_status
 	HTTP_METHOD_CONNECT,
 };
 
-enum http_body_type
-{
+enum http_body_type {
 	HTTP_BODY_TYPE_NULL   = 1,
 	HTTP_BODY_TYPE_CHUNK,
 	HTTP_BODY_TYPE_CONTENT,
 };
 
-enum http_body_stat
-{
+enum http_body_stat {
 	HTTP_BODY_STAT_OK = 0x1,
 	HTTP_BODY_STAT_DONE_CACHE = 0x2,
 	HTTP_BODY_STAT_DONE_CACHENO = 0x4,
 };
 
 /* webser type */
-enum webser_type 
-{
+enum webser_type {
 	WEBSER_API = 1,
 	WEBSER_FILE,
 };
 
 /* scoks5 module run model */
-enum socks5_type
-{
+enum socks5_type {
     SOCKS5_CLIENT               = 0x1,
 	SOCKS5_SERVER               = 0x2,
     SOCKS5_SERVER_SECRET        = 0x3,
@@ -164,13 +169,7 @@ typedef struct net_connection_t   con_t;
 #define l_min(x,y)                          (((x)<(y))?(x):(y))
 #define l_max(x,y)                          (((x)>(y))?(x):(y))
 
-#define sys_assert( x ) \
-if( !(x) ) \
-{ \
-    printf("[assert] %s:%d ", __func__, __LINE__ );\
-    printf("sys assert ->\""#x"\" false\n");\
-    abort();\
-}
+
 
 #define ptr_get_struct( ptr, struct_type, struct_member ) \
 (\

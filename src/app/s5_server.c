@@ -32,16 +32,6 @@ int s5_free(s5_session_t * s5)
 {
     memset(&s5->phase1, 0x0, sizeof(s5_rfc_phase1_req_t));
     memset(&s5->phase2, 0x0, sizeof(s5_rfc_phase2_req_t));
-#ifndef S5_OVER_TLS
-    if(s5->cipher_enc) {
-        sys_cipher_ctx_deinit(s5->cipher_enc);
-        s5->cipher_enc = NULL;
-    }
-    if(s5->cipher_dec) {
-        sys_cipher_ctx_deinit(s5->cipher_dec);
-        s5->cipher_dec = NULL;
-    }
-#endif
     if(s5->down) {
         net_free(s5->down);
         s5->down = NULL;
@@ -89,14 +79,6 @@ static int s5_traffic_recv(event_t * ev)
             }
             break; ///until again
         }
-        
-#ifndef S5_OVER_TLS
-        if(s5->typ == SOCKS5_CLIENT) { ///down -> up enc
-            schk(sys_cipher_conv(s5->cipher_enc, down->meta->last, recvn) == recvn, {s5_free(s5);return -1;});
-        } else { ///down->up dec
-            schk(sys_cipher_conv(s5->cipher_dec, down->meta->last, recvn) == recvn, {s5_free(s5);return -1;});
-        }
-#endif
         down->meta->last += recvn;
     }
 
@@ -170,13 +152,6 @@ static int s5_traffic_back_recv(event_t * ev)
             }
             break;
         }
-#ifndef S5_OVER_TLS
-        if(s5->typ == SOCKS5_CLIENT) {  ///up -> down dec
-            schk(sys_cipher_conv(s5->cipher_dec, up->meta->last, recvn) == recvn, {s5_free(s5);return -1;});
-        } else {  /// up -> down enc
-            schk(sys_cipher_conv(s5->cipher_enc, up->meta->last, recvn) == recvn, {s5_free(s5);return -1;});
-        }
-#endif
         up->meta->last += recvn;
     }
 
@@ -242,22 +217,6 @@ int s5_traffic_process(event_t * ev)
         schk(meta_alloc(&up->meta, S5_METAN) == 0, {s5_free(s5);return -1;});
     }
     
-#ifndef S5_OVER_TLS
-    if(!s5->cipher_enc) {
-        schk(sys_cipher_ctx_init(&s5->cipher_enc, 0) == 0, {s5_free(s5);return -1;});
-    }
-    if(!s5->cipher_dec) {
-        schk(sys_cipher_ctx_init(&s5->cipher_dec, 1) == 0, {s5_free(s5);return -1;});
-    }
-    int down_remain = meta_getlen(down->meta);
-    if(down_remain > 0) {
-    	if(s5->typ == SOCKS5_CLIENT) {
-            schk(sys_cipher_conv(s5->cipher_enc, down->meta->pos, down_remain) == down_remain, {s5_free(s5);return -1;});
-    	} else {
-    	    schk(sys_cipher_conv(s5->cipher_dec, down->meta->pos, down_remain) == down_remain, {s5_free(s5);return -1;});
-    	}	
-    }
-#endif    
     ///only clear up meta in here. because s5 local run in here too.
     ///local(down) mabey recv some data.
     meta_clr(up->meta);
@@ -325,11 +284,7 @@ static int s5_srv_remote_connect_chk(event_t * ev)
     resp->bnd_addr = htons((uint16_t)up->addr.sin_addr.s_addr);
     resp->bnd_port = htons(up->addr.sin_port);
     meta->last += sizeof(s5_rfc_phase2_resp_t);
-#ifndef S5_OVER_TLS
-    schk(sys_cipher_conv(s5->cipher_enc, meta->pos, sizeof(s5_rfc_phase2_resp_t)) == sizeof(s5_rfc_phase2_resp_t), {s5_free(s5);return -1;});
-    
-#endif
-    
+
     event_opt(up->event, up->fd, EV_NONE);
     event_opt(down->event, down->fd, EV_W);    
     down->event->write_pt = s5_srv_ph2_ack;
@@ -490,9 +445,6 @@ static int s5_srv_ph2_req(event_t * ev)
                 timer_add(&ev->timer, S5_TIMEOUT);
                 return -11;
             }
-#ifndef S5_OVER_TLS
-            schk(sys_cipher_conv(s5->cipher_dec, meta->last, recvn) == recvn, {s5_free(s5);return -1;});
-#endif
             meta->last += recvn;
         }
         
@@ -671,9 +623,6 @@ static int s5_srv_ph1_req(event_t * ev)
                 timer_add(&ev->timer, S5_TIMEOUT);
                 return -11;
             }
-#ifndef S5_OVER_TLS
-            schk(sys_cipher_conv(s5->cipher_dec, meta->last, recvn) == recvn, {s5_free(s5);return -1;});
-#endif
             meta->last += recvn;
         }
 
@@ -701,9 +650,6 @@ static int s5_srv_ph1_req(event_t * ev)
                     ack->ver = 0x05;
                     ack->method = 0x00;
                     meta->last += sizeof(s5_rfc_phase1_resp_t);
-#ifndef S5_OVER_TLS
-                    schk(sys_cipher_conv(s5->cipher_enc, meta->pos, sizeof(s5_rfc_phase1_resp_t)) == sizeof(s5_rfc_phase1_resp_t), {s5_free(s5);return -1;});
-#endif
                     /// goto send phase1 response
                     ev->read_pt = NULL;
                     ev->write_pt = s5_srv_ph1_ack;
@@ -733,9 +679,6 @@ static int s5_srv_auth_chk(event_t * ev)
             s5_free(s5);
             return -1;
         }
-#ifndef S5_OVER_TLS
-        schk(sys_cipher_conv(s5->cipher_dec, meta->last, recvn) == recvn, {s5_free(s5);return -1;});
-#endif
         meta->last += recvn;
     }
     timer_del(&ev->timer);
@@ -763,14 +706,6 @@ static int s5_srv_ctx_start(event_t * ev)
     
     s5->down = down;
     down->data = s5;
-#ifndef S5_OVER_TLS
-    if(!s5->cipher_enc) {
-        schk(sys_cipher_ctx_init(&s5->cipher_enc, 0) == 0, {s5_free(s5);return -1;});
-    }
-    if(!s5->cipher_dec) {
-        schk(sys_cipher_ctx_init(&s5->cipher_dec, 1) == 0, {s5_free(s5);return -1;});
-    }
-#endif
     ev->read_pt	= s5_srv_auth_chk;
     return ev->read_pt(ev);
 }
@@ -807,10 +742,6 @@ static int s5_srv_accept_chk(event_t * ev)
 int s5_srv_accept(event_t * ev)
 {
     con_t * down = ev->data;
-#ifndef S5_OVER_TLS
-    ev->read_pt = s5_srv_ctx_start;
-    return ev->read_pt(ev);
-#endif
     int rc = net_check_ssl_valid(down);
     if(rc != 0) {
         if(rc == -11) {
