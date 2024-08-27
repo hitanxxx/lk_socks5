@@ -74,17 +74,17 @@ static int s5_traffic_recv(event_t * ev)
         recvn = down->recv(down, down->meta->last, meta_getfree(down->meta));
         if(recvn < 0) {
             if(recvn == -1) {
-                err("s5 down recv error\n");
+                err("s5 down recv err\n");
                 s5->frecv_err_down = 1;
             }
-            break; ///until again
+            break; ///break when -11 (EAGAIN)
         }
         down->meta->last += recvn;
     }
 
     if(meta_getlen(down->meta) > 0) {
         event_opt(down->event, down->fd, down->event->opt & (~EV_R));
-        event_opt(up->event, up->fd, up->event->opt|EV_W);
+        event_opt(up->event, up->fd, up->event->opt | EV_W);
         return up->event->write_pt(up->event);
     }
     if(s5->frecv_err_down) {
@@ -121,13 +121,13 @@ static int s5_traffic_send(event_t * ev)
     }
 
     if(s5->frecv_err_down) {
-        err("s5 up send, down already error\n");
+        err("s5 down to up dump complete (down already err)\n");
         s5_free(s5);
         return -1;
     }
     meta_clr(down->meta);
     event_opt(up->event, up->fd, up->event->opt & (~EV_W));
-    event_opt(down->event, down->fd, down->event->opt|EV_R);
+    event_opt(down->event, down->fd, down->event->opt | EV_R);
     return down->event->read_pt(down->event);
 }
 
@@ -157,7 +157,7 @@ static int s5_traffic_back_recv(event_t * ev)
 
     if(meta_getlen(up->meta) > 0) {
         event_opt(up->event, up->fd, up->event->opt & (~EV_R));
-        event_opt(down->event, down->fd, down->event->opt|EV_W);
+        event_opt(down->event, down->fd, down->event->opt | EV_W);
         return down->event->write_pt(down->event);
     }
     if(s5->frecv_err_up) {
@@ -193,13 +193,13 @@ static int s5_traffic_back_send(event_t * ev)
         up->meta->pos += sendn;
     }
     if(s5->frecv_err_up) {
-        err("s5 down send, up already error\n");
+        err("s5 up to down dump complete (up already err)\n");
         s5_free(s5);
         return -1;
     }
     meta_clr(up->meta);
     event_opt(down->event, down->fd, down->event->opt & (~EV_W));
-    event_opt(up->event, up->fd, up->event->opt|EV_R);
+    event_opt(up->event, up->fd, up->event->opt | EV_R);
     return up->event->read_pt(up->event);
 }
 
@@ -538,16 +538,14 @@ static int s5_srv_ph2_req(event_t * ev)
                 s5->phase2.dst_port[1] = *p;
     
                 timer_del(&ev->timer);
-                meta_clr(meta);  
                 s5->state = 0;
 
                 do {
-                    schk(0x05 == s5->phase2.ver, break);
-                    /// only support CONNECT 0x01 request
-                    schk(0x01 == s5->phase2.cmd, break);
-                    /// not support IPV6 request
-                    schk((s5->phase2.atyp == S5_RFC_IPV4) || (s5->phase2.atyp == S5_RFC_DOMAIN), break);
+                    schk(0x05 == s5->phase2.ver, break);                    
+                    schk(0x01 == s5->phase2.cmd, break);    /// only support CONNECT 0x01 request
+                    schk(s5->phase2.atyp != S5_RFC_IPV6, break); /// not support IPV6 request
 
+                    meta_clr(meta);
                     ev->write_pt = NULL;
                     ev->read_pt = s5_srv_remote_init;
                     return ev->read_pt(ev);
@@ -584,9 +582,9 @@ static int s5_srv_ph1_ack(event_t * ev)
         meta->pos += sendn;
     }
     timer_del(&ev->timer);
-    meta_clr(meta);
     
     ///goto recv phase2 request
+    meta_clr(meta);
     ev->read_pt	= s5_srv_ph2_req;
     ev->write_pt = NULL;
     return ev->read_pt(ev);
@@ -645,11 +643,13 @@ static int s5_srv_ph1_req(event_t * ev)
 
                     timer_del(&ev->timer);
                     s5->state = 0;  /// reset the state 
-                    meta_clr(meta);                    
+                    
+                    meta_clr(meta);
                     s5_rfc_phase1_resp_t * ack = (s5_rfc_phase1_resp_t*)meta->pos;
                     ack->ver = 0x05;
                     ack->method = 0x00;
                     meta->last += sizeof(s5_rfc_phase1_resp_t);
+                    
                     /// goto send phase1 response
                     ev->read_pt = NULL;
                     ev->write_pt = s5_srv_ph1_ack;
@@ -684,11 +684,18 @@ static int s5_srv_auth_chk(event_t * ev)
     timer_del(&ev->timer);
 
     s5_auth_t * auth = (s5_auth_t*)meta->pos;
-    schk(auth->magic == htonl(S5_AUTH_MAGIC), {s5_free(s5);return -1;});
-    schk(ezac_find(g_s5_ctx->ac, auth->key, strlen(auth->key)) == 0, {s5_free(s5);return -1;});
-    meta->pos = meta->start;
-    meta->last -= sizeof(s5_auth_t);
-
+    int auth_chk = -1;
+    do {
+        schk(auth->magic == htonl(S5_AUTH_MAGIC), break);
+        schk(0 == ezac_find(g_s5_ctx->ac, auth->key, strlen(auth->key)), break);
+        auth_chk = 0;
+    } while(0);
+    
+    if(0 != auth_chk) {
+       s5_free(s5); 
+       return -1;
+    }
+    meta_clr(meta);
     ev->write_pt = NULL;
     ev->read_pt = s5_srv_ph1_req;
     event_opt(ev, down->fd, EV_R);
@@ -699,10 +706,10 @@ static int s5_srv_ctx_start(event_t * ev)
 {
     con_t * down = ev->data;
     if(!down->meta) {
-        schk(meta_alloc(&down->meta, 8192) == 0, {net_free(down); return -1;});
+        schk(0 == meta_alloc(&down->meta, S5_METAN), {net_free(down); return -1;});
     }
     s5_session_t * s5 = NULL;
-    schk(s5_alloc(&s5) == 0, {net_free(down); return -1;});
+    schk(0 == s5_alloc(&s5), {net_free(down); return -1;});
     
     s5->down = down;
     down->data = s5;

@@ -20,7 +20,7 @@ static int s5_loc_auth_send(event_t * ev)
     int sendn = up->send_chain(up, meta);
     if(sendn < 0) {
         if(sendn == -1) {
-            err("s5 local send authorization data failed\n");
+            err("s5 local auth req send err\n");
             s5_free(s5);
             return -1;
         }
@@ -42,6 +42,7 @@ static int s5_loc_auth_build(event_t * ev)
     s5_session_t * s5 = up->data;
     meta_t * meta = s5->up->meta;
 
+    ///build s5 auth req
     meta_clr(meta);
     s5_auth_t * auth = (s5_auth_t*)meta->last;
     auth->magic = htonl(S5_AUTH_MAGIC);
@@ -49,7 +50,7 @@ static int s5_loc_auth_build(event_t * ev)
     memset(auth->key, 0, sizeof(auth->key));
     memcpy((char*)auth->key, config_get()->s5_local_auth, sizeof(auth->key));
     meta->last += sizeof(s5_auth_t);
-    
+
     ev->write_pt = s5_loc_auth_send; ///goto send s5 private authorization login request
     return ev->write_pt(ev);
 }
@@ -61,7 +62,7 @@ static int s5_loc_connect_chk_ssl(event_t * ev)
     s5_session_t * cycle = up->data;
 
     if(!up->ssl->f_handshaked) {
-        err("s5 local to s5 server. ssl handshake err\n");
+        err("s5 local -> s5 server. ssl handshake err\n");
         s5_free(cycle);
         return -1;
     }
@@ -129,7 +130,7 @@ static int s5_loc_down_recv(event_t * ev) {
                 timer_add(&s5->up->event->timer, S5_TIMEOUT);
                 return -11;
             }
-            err("s5 local down recv failed\n");
+            err("s5 local down recv err\n");
             s5_free(s5);
             return -1;
         }
@@ -140,25 +141,43 @@ static int s5_loc_down_recv(event_t * ev) {
 int s5_loc_accept(event_t * ev)
 {
     con_t * down = ev->data;
+
     if(!down->meta) {
-        schk(meta_alloc(&down->meta, S5_METAN) == 0, {net_free(down);return -1;});
+        if(0 != meta_alloc(&down->meta, S5_METAN)) {
+            err("alloc down meta err\n");
+            net_free(down);
+            return -1;
+        }
     }
     down->event->read_pt = s5_loc_down_recv;
     down->event->write_pt = NULL;
     event_opt(down->event, down->fd, EV_R);
-    
+
     s5_session_t * s5 = NULL;
-    schk(s5_alloc(&s5) == 0, {net_free(down);return -1;});
+    if(0 != s5_alloc(&s5)) {
+        err("alloc s5 err\n");
+        net_free(down);
+        return -1;
+    }
     s5->typ = SOCKS5_CLIENT;
     s5->down = down;
     down->data = s5;
-    schk(net_alloc(&s5->up) == 0, {net_free(down);return -1;});
+    if(0 != net_alloc(&s5->up)) {
+        err("alloc s5 up err\n");
+        s5_free(s5);
+        return -1;
+    }
     s5->up->data = s5;
-    if(!s5->up->meta) {
-        schk(meta_alloc(&s5->up->meta, S5_METAN) == 0, {net_free(down);return -1;});
+    if(NULL == s5->up->meta) {
+        if(0 != meta_alloc(&s5->up->meta, S5_METAN)) {
+            err("alloc s5 up meta err\n");
+            s5_free(s5);
+            return -1;
+        }
     }
     s5->up->event->read_pt = NULL;
-    s5->up->event->write_pt	= s5_loc_connect_chk;
+    s5->up->event->write_pt = s5_loc_connect_chk;
+    
     s5_loc_get_upaddr(&s5->up->addr);
     int rc = net_connect(s5->up, &s5->up->addr);
     if(rc < 0) {

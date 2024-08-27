@@ -225,12 +225,10 @@ int net_free(con_t * c)
 
 int net_alloc(con_t ** c)
 {
-    con_t * nc = mem_pool_alloc(sizeof(con_t));
-    schk(nc, return -1);
-    if(!nc->event) {
-        schk(event_alloc(&nc->event) == 0, {mem_pool_free(nc); return -1;});
-        nc->event->data = nc;
-    }
+    con_t * nc = NULL;
+    schk((nc = mem_pool_alloc(sizeof(con_t))) != NULL, return -1);
+    schk(event_alloc(&nc->event) == 0, {mem_pool_free(nc); return -1;});
+    nc->event->data = nc;
     *c = nc;
     return 0;
 }

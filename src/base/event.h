@@ -16,13 +16,14 @@ extern "C"
 #define EV_W   0x004
 #endif
 
-typedef struct l_event event_t;
+typedef struct event event_t;
 typedef status (*event_pt) (event_t * event);
-struct l_event 
-{
+struct event {
+    
 #ifndef EVENT_EPOLL
     queue_t     queue;
 #endif
+
     int fd;
     ev_timer_t timer;  /// every event should have a timer to control network time out
 	void * data;

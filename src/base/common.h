@@ -28,5 +28,4 @@
 #include "cJSON.h"
 #include "aho_corasick.h"
 
-
 #endif

@@ -4,30 +4,49 @@ static char * iv = "tanxaes_deadbeef";
 // key is md5 of string iv
 static char * key = "f29baf6ff9f9acb2cbf6441cd8eb29e4";
 
-int sys_aesgcm_enc(sys_cipher_t * ctx, unsigned char * in, int inn, char * tag)
+int sys_genrand_16byte(char * outbuf)
+{
+    int fd = open("/dev/urandom", O_RDONLY);
+    if(fd != -1) {
+         if(-1 == read(fd, outbuf, 16)) {
+            err("open urandom dev err. [%d]\n", errno);
+            close(fd);
+            return -1;
+         }
+         close(fd);
+    } else {
+        int i = 0;
+        for(i = 0; i < 16; i++) {
+            outbuf[i] = random() % 256;
+        }
+    }
+    return 0;
+}
+
+int sys_aesgcm_enc(sys_cipher_t * ctx, unsigned char * in, int inn, unsigned char * out, char * tag)
 {
     sassert(ctx != NULL);
     int outl = 0;
     int len;
 
-    schk(1 == EVP_EncryptUpdate(ctx->ctx, in, &len, in, inn), return -1);
+    schk(1 == EVP_EncryptUpdate(ctx->ctx, out, &len, in, inn), return -1);
     outl += len;
-    schk(1 == EVP_EncryptFinal_ex(ctx->ctx, in + len, &len), return -1);
+    schk(1 == EVP_EncryptFinal_ex(ctx->ctx, out + len, &len), return -1);
     outl += len;
     schk(1 == EVP_CIPHER_CTX_ctrl(ctx->ctx, EVP_CTRL_GCM_GET_TAG, 16, tag), return -1);
     return outl;
 }
 
-int sys_aesgcm_dec(sys_cipher_t * ctx, unsigned char * in, int inn, char * tag)
+int sys_aesgcm_dec(sys_cipher_t * ctx, unsigned char * in, int inn, unsigned char * out, char * tag)
 {
     sassert(ctx != NULL);
     int outl = 0;
     int len = 0;
 
-    schk(1 == EVP_DecryptUpdate(ctx->ctx, in, &len, in, inn), return -1);
+    schk(1 == EVP_DecryptUpdate(ctx->ctx, out, &len, in, inn), return -1);
     outl += len;
     schk(1 == EVP_CIPHER_CTX_ctrl(ctx->ctx, EVP_CTRL_GCM_SET_TAG, 16, tag), return -1);
-    int rc = EVP_DecryptFinal_ex(ctx->ctx, in + len, &len);
+    int rc = EVP_DecryptFinal_ex(ctx->ctx, out + len, &len);
     if(rc > 0) {
         outl += len;
         return outl;
