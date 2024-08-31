@@ -1,7 +1,8 @@
 #include "common.h"
 #include "dns.h"
-#include "s5_server.h"
-#include "s5_local.h"
+#include "tls_tunnel_c.h"
+#include "tls_tunnel_s.h"
+
 #include "http_req.h"
 #include "http_payload.h"
 #include "webser.h"
@@ -85,10 +86,10 @@ int listen_init(void)
 {    
     int i = 0;
 
-    if(config_get()->s5_mode == SOCKS5_CLIENT) {
-        listen_add(config_get()->s5_local_port, s5_loc_accept, S5_NOSSL); 
-    } else if (config_get()->s5_mode == SOCKS5_SERVER) { 
-        listen_add(config_get()->s5_serv_port, s5_srv_accept, S5_SSL); 
+    if(config_get()->s5_mode == TLS_TUNNEL_C) {
+        listen_add(config_get()->s5_local_port, tls_tunnel_c_accept, S5_NOSSL); 
+    } else if (config_get()->s5_mode == TLS_TUNNEL_S) { 
+        listen_add(config_get()->s5_serv_port, tls_tunnel_s_accept, S5_SSL); 
     }
     for(i = 0; i < config_get()->http_num; i++) {
         listen_add(config_get()->http_arr[i], webser_accept_cb, S5_NOSSL);

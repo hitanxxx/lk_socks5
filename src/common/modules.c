@@ -1,8 +1,8 @@
 #include "common.h"
 #include "modules.h"
 #include "dns.h"
-#include "s5_server.h"
-#include "s5_local.h"
+#include "tls_tunnel_c.h"
+#include "tls_tunnel_s.h"
 #include "http_payload.h"
 #include "http_req.h"
 #include "webser.h"
@@ -18,8 +18,8 @@
 // timer
 // net
 // event
-// scoks5_server
-// socks5_local
+// tls_tunnel_s
+// tls_tunnel_c
 // http_req
 // http_body
 // mailsender
@@ -55,8 +55,8 @@ int modules_process_init(void)
     schk(0 == timer_init(), return -1);
     schk(0 == net_init(), return -1);
     schk(0 == event_init(), return -1);
-    schk(0 == socks5_server_init(), return -1);
-    schk(0 == socks5_local_init(), return -1);
+    schk(0 == tls_tunnel_s_init(), return -1);
+    schk(0 == tls_tunnel_c_init(), return -1);
     schk(0 == http_req_init_module(), return -1);
     schk(0 == http_payload_init_module(), return -1);
     schk(0 == webser_init(), return -1);
@@ -70,8 +70,8 @@ int modules_pocess_exit(void)
     schk(0 == timer_end(), return -1);
     schk(0 == net_end(), return -1);
     schk(0 == event_end(), return -1);
-    schk(0 == socks5_server_end(), return -1);
-    schk(0 == socks5_local_end(), return -1);
+    schk(0 == tls_tunnel_s_exit(), return -1);
+    schk(0 == tls_tunnel_c_exit(), return -1);
     schk(0 == http_req_end_module(), return -1);
     schk(0 == http_payload_end_module(), return -1);
     schk(0 == webser_end(), return -1);

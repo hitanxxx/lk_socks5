@@ -1,7 +1,7 @@
 #include "common.h"
 #include "web_api.h"
 #include "dns.h"
-#include "s5_server.h"
+#include "tls_tunnel_s.h"
 #include "http_req.h"
 #include "http_payload.h"
 #include "webser.h"
@@ -536,19 +536,18 @@ static int webser_start(event_t * ev)
 /// @brief  transfer request to s5 module 
 /// @param ev 
 /// @return 
-static int webser_transfer_to_s5(event_t * ev)
+static int webser_transfer_to_tlstunnel(event_t * ev)
 {
     con_t * c = ev->data;
     meta_t * meta = NULL;
     ssize_t rc = 0;
     
-    if(!c->meta) {
+    if(!c->meta)
         schk(meta_alloc(&c->meta, 8192) == 0, {net_free(c);return -1;});
-    }
 
-    /// try to recv s5 private authorization header 
+    /// try to recv TLS tunnel authorization header 
     meta = c->meta;
-    while(meta_getlen(meta) < sizeof(s5_auth_t)) {
+    while(meta_getlen(meta) < sizeof(tls_tunnel_auth_t)) {
         rc = c->recv(c, meta->last, meta_getfree(meta));
         if(rc < 0) {
             if(rc == -1) {
@@ -565,12 +564,12 @@ static int webser_transfer_to_s5(event_t * ev)
     }
     timer_del(&ev->timer);
 
-    s5_auth_t * header = (s5_auth_t*)meta->pos;
-    if(htonl(S5_AUTH_MAGIC) != header->magic) {
+    tls_tunnel_auth_t * auth = (tls_tunnel_auth_t*)meta->pos;
+    if(htonl(TLS_TUNNEL_AUTH_MAGIC_NUM) != auth->magic) {
 	    ev->read_pt = webser_start;
     	return ev->read_pt(ev);
     } 
-    ev->read_pt = s5_srv_transport;
+    ev->read_pt = tls_tunnel_s_transport;
     return ev->read_pt(ev);
 }
 
@@ -585,7 +584,7 @@ static int webser_accept_cb_ssl_check(event_t * ev)
     c->send_chain = ssl_write_chain;
 
     ev->write_pt = NULL;
-    ev->read_pt = (config_get()->s5_mode == SOCKS5_SERVER_SECRET ? webser_transfer_to_s5 : webser_start);
+    ev->read_pt = (config_get()->s5_mode == TLS_TUNNEL_S_SCRECT ? webser_transfer_to_tlstunnel : webser_start);
     return ev->read_pt(ev);
 }
 

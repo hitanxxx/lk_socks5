@@ -131,9 +131,9 @@ enum webser_type {
 
 /* scoks5 module run model */
 enum socks5_type {
-    SOCKS5_CLIENT               = 0x1,
-	SOCKS5_SERVER               = 0x2,
-    SOCKS5_SERVER_SECRET        = 0x3,
+    TLS_TUNNEL_C               = 0x1,
+	TLS_TUNNEL_S               = 0x2,
+    TLS_TUNNEL_S_SCRECT        = 0x3,
 	
 };
 

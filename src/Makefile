@@ -18,8 +18,8 @@ endif
 
 ### INC DIR
 INCLUDE  += -I.
-INCLUDE  += -I./base/util
-INCLUDE  += -I./base
+INCLUDE  += -I./common/util
+INCLUDE  += -I./common
 INCLUDE  += -I./dns
 INCLUDE  += -I./http
 INCLUDE  += -I./app
@@ -29,8 +29,8 @@ INCLUDE  += -I./test
 
 ### SRC DIR
 SRCDIR  += .
-SRCDIR  += ./base/util
-SRCDIR  += ./base
+SRCDIR  += ./common/util
+SRCDIR  += ./common
 SRCDIR  += ./dns
 SRCDIR  += ./http
 SRCDIR  += ./app
