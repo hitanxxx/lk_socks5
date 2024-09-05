@@ -1,30 +1,29 @@
 #include "common.h"
 
-static char * g_mp_ver = "s5_mempool_v0.2";
-static pthread_mutex_t g_sys_thread_lock = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t g_mp_thread_lock = PTHREAD_MUTEX_INITIALIZER;
 
-
+#define MP_OBJ_MAGIC   0xa100beef
 #define MP_BLK_MAX     6
 #define MP_OBJ_MAX     1024
 
-typedef struct 
-{
+static char * g_mp_ver = "mp_v2";
+static pthread_mutex_t g_sys_thread_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t g_mp_thread_lock = PTHREAD_MUTEX_INITIALIZER;
+
+typedef struct {
     queue_t queue;
+    int magic;          ///for magic chk
     int blk_idx;
     char addr[0];
 } mem_obj_t;
 
-typedef struct 
-{
+typedef struct {
     queue_t usable;
     queue_t inuse;
-    void * p;
     int pn;
+    void * p;
 } mem_block_t;
 
-typedef struct
-{
+typedef struct {
     /* byte
     |------------------------------|
     | 0  | 1  | 2  | 3  | 4  | 5   |
@@ -76,12 +75,11 @@ int mem_pool_init()
 {
     int i = 0;
     int j = 0;
-
-    g_mem_ctx.blks = malloc(sizeof(mem_block_t)*MP_BLK_MAX);
-    schk(g_mem_ctx.blks, return -1);
+    
+    schk(NULL != (g_mem_ctx.blks = malloc(sizeof(mem_block_t) * MP_BLK_MAX)), return -1);
     memset(g_mem_ctx.blks, 0x0, sizeof(mem_block_t)*MP_BLK_MAX);
    
-    for(i = 0; i < MP_BLK_MAX; i++) {        
+    for(i = 0; i < MP_BLK_MAX; i++) {
         int obj_space = 0;
         int obj_n = MP_OBJ_MAX;
         if(i == 0) {
@@ -98,18 +96,19 @@ int mem_pool_init()
         } else if (i == 5) {
             obj_space = 16384; 
         }
-        g_mem_ctx.blks[i].pn = (sizeof(mem_obj_t)+obj_space)*obj_n;
-        g_mem_ctx.blks[i].p = malloc(g_mem_ctx.blks[i].pn);
-        schk(g_mem_ctx.blks[i].p, {mem_pool_deinit(); return -1;});
+        g_mem_ctx.blks[i].pn = ((sizeof(mem_obj_t) + obj_space) * obj_n);
+        schk(NULL != (g_mem_ctx.blks[i].p = malloc(g_mem_ctx.blks[i].pn)), return -1);
         memset(g_mem_ctx.blks[i].p, 0x0, g_mem_ctx.blks[i].pn);
+        
         queue_init(&g_mem_ctx.blks[i].usable);
         queue_init(&g_mem_ctx.blks[i].inuse);
         char * p = g_mem_ctx.blks[i].p;
         for(j = 0; j < obj_n; j++) {
             mem_obj_t * obj = (mem_obj_t*)p;
+            obj->magic = MP_OBJ_MAGIC;
             obj->blk_idx = i;
             queue_insert_tail(&g_mem_ctx.blks[i].usable, &obj->queue);
-            p += (sizeof(mem_obj_t)+obj_space);
+            p += (sizeof(mem_obj_t) + obj_space);
         }
     }
     return 0;
@@ -119,6 +118,7 @@ int mem_pool_free(void * p)
 {
     pthread_mutex_lock(&g_mp_thread_lock);
     mem_obj_t * obj = ptr_get_struct(p, mem_obj_t, addr);
+    schk(obj->magic == MP_OBJ_MAGIC, return -1);
     queue_remove(&obj->queue);
     queue_insert_tail(&g_mem_ctx.blks[obj->blk_idx].usable, &obj->queue);
     pthread_mutex_unlock(&g_mp_thread_lock);
@@ -160,6 +160,7 @@ void * mem_pool_alloc(int size)
    
     queue_t * q = queue_head(&g_mem_ctx.blks[blk_idx].usable);
     mem_obj_t * obj = ptr_get_struct(q, mem_obj_t, queue);
+    
     queue_remove(&obj->queue);
     queue_insert_tail(&g_mem_ctx.blks[blk_idx].inuse, &obj->queue);
     memset(obj->addr, 0x0, blk_size);

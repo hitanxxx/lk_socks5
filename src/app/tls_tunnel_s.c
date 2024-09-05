@@ -213,7 +213,7 @@ int tls_tunnel_traffic_proc(event_t * ev)
 
     ///down -> up
     ses->cdown->event->read_pt = tls_tunnel_traffic_recv;
-    ses->cup->event->write_pt	= tls_tunnel_traffic_send;
+    ses->cup->event->write_pt = tls_tunnel_traffic_send;
 
     ///up -> down
     ses->cup->event->read_pt = tls_tunnel_traffic_reverse_recv;
@@ -299,8 +299,6 @@ static int tls_tunnel_s_cup_connect(event_t * ev)
     }
     return ev->write_pt(ev);
 }
-
-
 
 static void tls_tunnel_s_cup_addr_cb(void * data)
 {
@@ -724,7 +722,11 @@ static int tls_tunnel_s_accept_chk(event_t * ev)
 {
     con_t * cdown = ev->data;
 
-    schk(cdown->ssl->f_handshaked, {net_free(cdown); return -1;});
+    if(!cdown->ssl->f_handshaked) {
+        err("TLS tunnel. handshake err\n");
+        net_free(cdown);
+        return -1;
+    }
     timer_del(&ev->timer);
 
     cdown->recv = ssl_read;
@@ -802,7 +804,6 @@ static int tls_tunnel_s_auth_init()
     meta_t * meta = NULL;
     int rc = -1;
     do {
-        ;
         schk(g_ses_ctx->ac = ezac_init(), break);
         schk(meta_alloc(&meta, TLS_TUNNEL_AUTH_FILE_MAX) == 0, break);
         schk(tls_tunnel_s_auth_fread(meta) == 0, break);
@@ -819,9 +820,8 @@ int tls_tunnel_s_init(void)
 {
     schk(!g_ses_ctx, return -1);
     schk(g_ses_ctx = (tls_tunnel_s_t*)mem_pool_alloc(sizeof(tls_tunnel_s_t)), return -1);
-    if(config_get()->s5_mode > TLS_TUNNEL_C)
+    if(config_get()->s5_mode > TLS_TUNNEL_C) 
         schk(tls_tunnel_s_auth_init() == 0, return -1);
-    
     return 0;
 }
 

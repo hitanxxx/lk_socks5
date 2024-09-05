@@ -576,7 +576,12 @@ static int webser_transfer_to_tlstunnel(event_t * ev)
 static int webser_accept_cb_ssl_check(event_t * ev)
 {
     con_t * c = ev->data;
-    schk(c->ssl->f_handshaked, {net_free(c); return -1;});
+
+    if(!c->ssl->f_handshaked) {
+        err("webser. handshake err\n");
+        net_free(c);
+        return -1;
+    }
     timer_del(&c->event->timer);
 
     c->recv = ssl_read;

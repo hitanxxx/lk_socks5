@@ -55,7 +55,6 @@ static int tls_tunnel_c_auth_build(event_t * ev)
     return ev->write_pt(ev);
 }
 
-
 static int tls_tunnel_c_connect_chk_tls(event_t * ev)
 {
     con_t* cup = ev->data;
