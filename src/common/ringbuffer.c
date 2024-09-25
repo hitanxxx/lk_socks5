@@ -78,6 +78,7 @@ int ringbuffer_push(ringbuffer_t *rb,unsigned char *data, int datan)
         rb->last += freen;
         rb->datan += freen;
     }
+    pthread_mutex_unlock(&rb->lock);
     return 0;
 }
 
@@ -123,6 +124,7 @@ int ringbuffer_pull(ringbuffer_t *rb, int datan, unsigned char *data, int *outn)
             *outn = tailn + pulln;
         }
     }
+    pthread_mutex_unlock(&rb->lock);
     return 0;
 }
 

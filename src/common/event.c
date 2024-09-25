@@ -100,6 +100,7 @@ static int event_select_init(void)
 {
     FD_ZERO(&g_event_ctx->rfds);
     FD_ZERO(&g_event_ctx->wfds);
+    queue_init(&g_event_ctx->evqueue);
     return 0;
 }
 
