@@ -20,8 +20,8 @@ static int tls_tunnel_c_recv(con_t * c) {
         /// cache read data
         readn = c->recv(c, meta->last, meta_getfree(meta));
         if(readn < 0) {
-			if(readn == -11)
-				return -11;
+            if(readn == -11)
+                return -11;
 
             err("TLS tunnel cdown recv err\n");
             tls_ses_free(ses);
@@ -47,17 +47,17 @@ static int tls_tunnel_c_auth_send(con_t * c)
 
     int sendn = c->send_chain(c, meta);
     if(sendn < 0) {
-		if(sendn == -11) {
-			tm_add(c, tls_ses_exp, TLS_TUNNEL_TMOUT);
-			return -11;
-		}
+        if(sendn == -11) {
+            tm_add(c, tls_ses_exp, TLS_TUNNEL_TMOUT);
+            return -11;
+        }
         err("TLS tunnel auth req send err\n");
         tls_ses_free(ses);
         return -1;
     }
     tm_del(c);
     meta_clr(meta);
-	
+    
     ses->cdown->ev->read_cb = tls_tunnel_traffic_proc;
     ses->cdown->ev->write_cb = NULL;
     return ses->cdown->ev->read_cb(ses->cdown);
@@ -67,7 +67,7 @@ static int tls_tunnel_c_auth_build(con_t * c)
 {
     meta_t * meta = c->meta;
 
-	net_socket_nodelay(c->fd);
+    net_socket_nodelay(c->fd);
 
     ///build auth req
     meta_clr(meta);
@@ -78,7 +78,7 @@ static int tls_tunnel_c_auth_build(con_t * c)
     memcpy((char*)auth->key, config_get()->s5_local_auth, sizeof(auth->key));
     meta->last += sizeof(tls_tunnel_auth_t);
 
-	c->ev->read_cb = NULL;
+    c->ev->read_cb = NULL;
     c->ev->write_cb = tls_tunnel_c_auth_send;
     return c->ev->write_cb(c);
 }
@@ -88,27 +88,27 @@ static int tls_tunnel_c_connect_chk(con_t * c)
     tls_tunnel_session_t * ses = c->data;
     tm_del(c);
 
-	if(!c->ssl) schk(0 == ssl_create_connection(c, L_SSL_CLIENT), {tls_ses_free(ses);return -1;});
+    if(!c->ssl) schk(0 == ssl_create_connection(c, L_SSL_CLIENT), {tls_ses_free(ses);return -1;});
 
-	if(!c->ssl->f_handshaked) {
-		int rc = ssl_handshake(c);
-		if(rc < 0) {
-			if(rc == -11) {
-				tm_add(c, tls_ses_exp, TLS_TUNNEL_TMOUT);
-				return -11;
-			}
-			err("TLS tunnel. handshake failed\n");
+    if(!c->ssl->f_handshaked) {
+        int rc = ssl_handshake(c);
+        if(rc < 0) {
+            if(rc == -11) {
+                tm_add(c, tls_ses_exp, TLS_TUNNEL_TMOUT);
+                return -11;
+            }
+            err("TLS tunnel. handshake failed\n");
             tls_ses_free(ses);
             return -1;
-		}
-	}
-	
-	c->recv = ssl_read;
+        }
+    }
+    
+    c->recv = ssl_read;
     c->send = ssl_write;
     c->send_chain = ssl_write_chain;
 
-	c->ev->read_cb = NULL;
-	c->ev->write_cb = tls_tunnel_c_auth_build;
+    c->ev->read_cb = NULL;
+    c->ev->write_cb = tls_tunnel_c_auth_build;
     return c->ev->write_cb(c);
 }
 
@@ -120,23 +120,23 @@ int tls_tunnel_c_accept(con_t * c)
     c->ev->write_cb = NULL;
     
     tls_tunnel_session_t * ses = NULL;
-	schk(0 == tls_ses_alloc(&ses), {net_close(c);return -1;});
-	c->data = ses;
+    schk(0 == tls_ses_alloc(&ses), {net_close(c);return -1;});
+    c->data = ses;
     ses->typ = TLS_TUNNEL_C;
     ses->cdown = c;
 
-	schk(0 == net_alloc(&ses->cup), {tls_ses_free(ses);return -1;});
+    schk(0 == net_alloc(&ses->cup), {tls_ses_free(ses);return -1;});
     ses->cup->data = ses;
-	schk(0 == meta_alloc(&ses->cup->meta, TLS_TUNNEL_METAN), {tls_ses_free(ses);return -1;});
+    schk(0 == meta_alloc(&ses->cup->meta, TLS_TUNNEL_METAN), {tls_ses_free(ses);return -1;});
 
     ses->cup->ev->read_cb = NULL;
     ses->cup->ev->write_cb = tls_tunnel_c_connect_chk;
-	
+    
     tls_tunnel_s_addr(&ses->cup->addr);
     int rc = net_connect(ses->cup, &ses->cup->addr);
     if(rc < 0) {
         if(rc == -11) {
-           	tm_add(c, tls_ses_exp, TLS_TUNNEL_TMOUT);
+               tm_add(c, tls_ses_exp, TLS_TUNNEL_TMOUT);
             return -11;
         }
         err("TLS tunnel cup connect failed\n");

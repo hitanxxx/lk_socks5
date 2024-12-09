@@ -3,8 +3,8 @@
 
 typedef struct 
 {
-    int 	log_fd_main;
-    int 	log_fd_access;
+    int     log_fd_main;
+    int     log_fd_access;
 } log_mgr_t;
 
 log_mgr_t * log_ctx = NULL;
@@ -71,13 +71,13 @@ int log_print(int id, int level, const char * func, int line, const char * str, 
     if(level <= config_get()->sys_log_level) {
         memset(&ctx, 0, sizeof(log_content_t));
         va_start(ctx.args_list, str);
-        ctx.id 		= id;
-        ctx.level 	= level;
-        ctx.pos 	= buffer;
-        ctx.last 	= buffer + LOG_TEXT_LENGTH;
+        ctx.id         = id;
+        ctx.level     = level;
+        ctx.pos     = buffer;
+        ctx.last     = buffer + LOG_TEXT_LENGTH;
         snprintf(ctx.func, sizeof(ctx.func)-1, "%s", func);
-        ctx.line 	= line;
-        ctx.args 	= str;
+        ctx.line     = line;
+        ctx.args     = str;
 
         log_format_prefix(&ctx);
         log_format_text(&ctx);

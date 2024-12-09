@@ -6,14 +6,14 @@ extern "C"
 {
 #endif
     
-#define SSL_TMOUT		5000
+#define SSL_TMOUT        5000
 
 #define L_SSL_CLIENT        0x01
 #define L_SSL_SERVER        0x02
 
 
 typedef struct {
-    SSL_CTX	* session_ctx;
+    SSL_CTX    * session_ctx;
     SSL* con;
     
     void * data;
@@ -21,9 +21,9 @@ typedef struct {
     ev_cb cc_ev_cbr;
     ev_cb cc_ev_cbw;
     
-	char    f_handshaked:1;
-    char	f_err:1;
-	char 	f_closed:1;
+    char    f_handshaked:1;
+    char    f_err:1;
+    char     f_closed:1;
 } ssl_con_t;
 
 int ssl_init(void);

@@ -9,9 +9,9 @@ extern "C"
 typedef struct mem_list mem_list_t;
 struct mem_list 
 {
-	mem_list_t 			*next;
-	int 				datan;
-	char	 			data[0];
+    mem_list_t             *next;
+    int                 datan;
+    char                 data[0];
 };
 
 int mem_list_push(mem_list_t ** h, char * data);

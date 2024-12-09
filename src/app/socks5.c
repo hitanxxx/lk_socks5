@@ -19,10 +19,10 @@ int s5_p2_rsp(con_t * c)
     while(meta_getlen(meta) > 0) {
         rc = c->send(c, meta->pos, meta_getlen(meta));
         if(rc < 0) {
-			if(rc == -11) {
-				tm_add(c, tls_ses_exp, TLS_TUNNEL_TMOUT);
-				return -11;
-			}
+            if(rc == -11) {
+                tm_add(c, tls_ses_exp, TLS_TUNNEL_TMOUT);
+                return -11;
+            }
             err("TLS tunnel. s5p2 rsp send failed\n");
             tls_ses_free(ses);
             return -1;
@@ -43,7 +43,7 @@ int s5_cup_connect_chk(con_t * c)
     con_t * cdown = ses->cdown;
     meta_t * meta = cdown->meta;
 
-	tm_del(c);
+    tm_del(c);
     schk(net_socket_check_status(c->fd) == 0, {tls_ses_free(ses);return -1;});
     net_socket_nodelay(c->fd);
 
@@ -56,12 +56,12 @@ int s5_cup_connect_chk(con_t * c)
     resp->bnd_port = htons(c->addr.sin_port);
     meta->last += sizeof(s5_ph2_rsp_t);
 
-	c->ev->read_cb = NULL;
-	c->ev->write_cb = NULL;
+    c->ev->read_cb = NULL;
+    c->ev->write_cb = NULL;
 
-	cdown->ev->read_cb = NULL;
-	cdown->ev->write_cb = s5_p2_rsp;
-	return cdown->ev->write_cb(cdown);
+    cdown->ev->read_cb = NULL;
+    cdown->ev->write_cb = s5_p2_rsp;
+    return cdown->ev->write_cb(cdown);
 }
 
 int s5_cup_connect(con_t * c)
@@ -69,19 +69,19 @@ int s5_cup_connect(con_t * c)
     tls_tunnel_session_t * ses = c->data;
     status rc = 0;
 
-	c->ev->read_cb = NULL;
+    c->ev->read_cb = NULL;
     c->ev->write_cb = s5_cup_connect_chk;
 
     rc = net_connect(ses->cup, &ses->cup->addr);
-	if(rc < 0) {
-		if(rc == -11) {
-			tm_add(c, tls_ses_exp, TLS_TUNNEL_TMOUT);
-			return -11;
-		}
-		err("socks5 connect err\n");
-		tls_ses_free(ses);
-		return -1;
-	}
+    if(rc < 0) {
+        if(rc == -11) {
+            tm_add(c, tls_ses_exp, TLS_TUNNEL_TMOUT);
+            return -11;
+        }
+        err("socks5 connect err\n");
+        tls_ses_free(ses);
+        return -1;
+    }
     return c->ev->write_cb(c);
 }
 
@@ -105,10 +105,10 @@ void s5_cup_dns_cb(int status, unsigned char * result, void * data)
         ses->cup->ev->read_cb = NULL;
         ses->cup->ev->write_cb = s5_cup_connect;
         ses->cup->ev->write_cb(ses->cup);
-		dns_free(dnsc);
+        dns_free(dnsc);
     } else {
         err("TLS tunnel. dns resolv failed\n");
-		dns_free(dnsc);
+        dns_free(dnsc);
         tls_ses_free(ses);
     }
     
@@ -162,7 +162,7 @@ int s5_cup_addr(con_t * c)
             return ses->cup->ev->write_cb(ses->cup);
             
         } else { 
-			return dns_alloc(&ses->dns, (char*)s5p2->dst_addr, s5_cup_dns_cb, ses);
+            return dns_alloc(&ses->dns, (char*)s5p2->dst_addr, s5_cup_dns_cb, ses);
         }
     }
     err("s5p2 atyp [0x%x]. not support\n", s5p2->atyp);
@@ -203,10 +203,10 @@ int s5_p2_req(con_t * c)
         if(meta_getlen(meta) < 1) {
             int recvn = c->recv(c, meta->last, meta_getfree(meta));
             if(recvn < 0) {
-				if(recvn == -11) {
-					tm_add(c, tls_ses_exp, TLS_TUNNEL_TMOUT);
-					return -11;
-				}
+                if(recvn == -11) {
+                    tm_add(c, tls_ses_exp, TLS_TUNNEL_TMOUT);
+                    return -11;
+                }
                 err("s5p2 recv failed\n");
                 tls_ses_free(ses);
                 return -1;
@@ -224,9 +224,9 @@ int s5_p2_req(con_t * c)
             if(s5->s5_state == CMD) {
                 /*
                     socks5 support cmd value
-                    01				connect
-                    02				bind
-                    03				udp associate
+                    01                connect
+                    02                bind
+                    03                udp associate
                 */
                 s5p2->cmd = *p;
                 s5->s5_state = RSV;
@@ -240,10 +240,10 @@ int s5_p2_req(con_t * c)
             if(s5->s5_state == TYP) {
                 s5p2->atyp = *p;
                 /*
-                    atyp		type		length
-                    0x01		ipv4		4
-                    0x03		domain		first octet of domain part
-                    0x04		ipv6		16
+                    atyp        type        length
+                    0x01        ipv4        4
+                    0x03        domain        first octet of domain part
+                    0x04        ipv6        16
                 */
                 if(s5p2->atyp == S5_RFC_IPV4) {
                     s5->s5_state = TYP_V4;
@@ -304,13 +304,13 @@ int s5_p2_req(con_t * c)
     
                 tm_del(c);
                 s5->s5_state = 0;
-				meta_clr(meta);
+                meta_clr(meta);
 
                 do {
                     schk(0x05 == s5p2->ver, break);                    
                     schk(0x01 == s5p2->cmd, break);    /// only support CONNECT 0x01 request
                     schk(s5p2->atyp != S5_RFC_IPV6, break); /// not support IPV6 request
-	
+    
                     c->ev->read_cb = s5_cup_addr;
                     c->ev->write_cb = NULL;
                     return c->ev->read_cb(c);
@@ -330,10 +330,10 @@ int s5_p1_rsp(con_t * c)
     while(meta_getlen(meta) > 0) {
         int sendn = c->send(c, meta->pos, meta_getlen(meta));
         if(sendn < 0) {
-			if(sendn == -11) {
-				tm_add(c, tls_ses_exp, TLS_TUNNEL_TMOUT);
-				return -11;
-			}
+            if(sendn == -11) {
+                tm_add(c, tls_ses_exp, TLS_TUNNEL_TMOUT);
+                return -11;
+            }
             err("s5p1 rsp send failed\n");
             tls_ses_free(ses);
             return -1;
@@ -342,8 +342,8 @@ int s5_p1_rsp(con_t * c)
     }
     tm_del(c);
     meta_clr(meta);
-	
-    c->ev->read_cb	= s5_p2_req;
+    
+    c->ev->read_cb    = s5_p2_req;
     c->ev->write_cb = NULL;
     return c->ev->read_cb(c);
 }
@@ -357,7 +357,7 @@ int s5_p1_req(con_t * c)
     meta_t * meta = c->meta;
     /*
         s5 phase1 message req format
-        1 byte	1 byte	    nmethods
+        1 byte    1 byte        nmethods
         VERSION | METHODS | METHOD
     */
     enum {
@@ -370,10 +370,10 @@ int s5_p1_req(con_t * c)
         if(meta_getlen(meta) < 1) { ///try recv
             int recvn = c->recv(c, meta->last, meta_getfree(meta));
             if(recvn < 0) {
-				if(recvn == -11) {
-					tm_add(c, tls_ses_exp, TLS_TUNNEL_TMOUT);
-					return -11;
-				}
+                if(recvn == -11) {
+                    tm_add(c, tls_ses_exp, TLS_TUNNEL_TMOUT);
+                    return -11;
+                }
                 err("s5p1 recv failed\n");
                 tls_ses_free(ses);
                 return recvn;
@@ -400,7 +400,7 @@ int s5_p1_req(con_t * c)
                     tm_del(c);
                     s5->s5_state = 0;
                     meta_clr(meta);
-					
+                    
                     s5_ph1_rsp_t * ack = (s5_ph1_rsp_t*)meta->pos;
                     ack->ver = 0x05;
                     ack->method = 0x00;
@@ -408,7 +408,7 @@ int s5_p1_req(con_t * c)
                     
                     c->ev->read_cb = NULL;
                     c->ev->write_cb = s5_p1_rsp;
-					return c->ev->write_cb(c);
+                    return c->ev->write_cb(c);
                 }
             }
         }

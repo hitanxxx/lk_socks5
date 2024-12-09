@@ -8,14 +8,14 @@ extern "C"
 
 typedef struct {
     pthread_mutex_t lock;
-	int space;
-	char * start;
-	char * end;
-	char * pos;
-	char * last;
+    int space;
+    char * start;
+    char * end;
+    char * pos;
+    char * last;
 
-	int datan;
-	char data[0];
+    int datan;
+    char data[0];
 } ringbuffer_t;
 
 

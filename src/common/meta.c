@@ -40,10 +40,10 @@ int meta_getlens(meta_t * m)
 
 int meta_pdata(meta_t * meta, void * data, int datan)
 {
-	schk(meta_getfree(meta) >= datan, return -1);
-	memcpy(meta->last, data, datan);
-	meta->last += datan;
-	return 0;
+    schk(meta_getfree(meta) >= datan, return -1);
+    memcpy(meta->last, data, datan);
+    meta->last += datan;
+    return 0;
 }
 
 meta_t * meta_dump(meta_t * meta)

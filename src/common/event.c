@@ -2,7 +2,7 @@
 #include "queue.h"
 
 typedef struct {
-	queue_t  evqueue;
+    queue_t  evqueue;
 
     int evn;
     ev_t * evs[MAX_NET_CON * 2];
@@ -46,7 +46,7 @@ static int ev_epoll_opt(con_t * c, int want_opt)
             memset(&evsys, 0, sizeof(struct epoll_event));
             evsys.data.ptr = (void*)c->ev;
             evsys.events = EPOLLET|want_opt;
-      		schk(epoll_ctl(g_event_ctx->epfd, (c->ev->opt == EV_NONE ? EPOLL_CTL_ADD : EPOLL_CTL_MOD), c->fd, &evsys) != -1, return -1);
+              schk(epoll_ctl(g_event_ctx->epfd, (c->ev->opt == EV_NONE ? EPOLL_CTL_ADD : EPOLL_CTL_MOD), c->fd, &evsys) != -1, return -1);
         }
         c->ev->opt = want_opt;
     }
@@ -56,24 +56,24 @@ static int ev_epoll_opt(con_t * c, int want_opt)
 int ev_epoll_loop(time_t msec)
 {
     int i = 0;
-	queue_t * q = NULL;
-	queue_t * n = NULL;
-	con_t * c = NULL;
+    queue_t * q = NULL;
+    queue_t * n = NULL;
+    con_t * c = NULL;
 
-	if(!queue_empty(&g_event_ctx->evqueue)) {
- 		q = queue_head(&g_event_ctx->evqueue);
-		while(q != queue_tail(&g_event_ctx->evqueue)) {
-			n = queue_next(q);
-			
-	        ev_t * ev = ptr_get_struct(q, ev_t, queue);
-			c = ev->c;
-			if(c->fclose) {
-				net_free(c);
-			}
-			q = n;
-	    }	
-	}
-	
+    if(!queue_empty(&g_event_ctx->evqueue)) {
+         q = queue_head(&g_event_ctx->evqueue);
+        while(q != queue_tail(&g_event_ctx->evqueue)) {
+            n = queue_next(q);
+            
+            ev_t * ev = ptr_get_struct(q, ev_t, queue);
+            c = ev->c;
+            if(c->fclose) {
+                net_free(c);
+            }
+            q = n;
+        }    
+    }
+    
     int all = epoll_wait(g_event_ctx->epfd, g_event_ctx->epev, MAX_NET_CON, (int)msec); 
     if(all <= 0) {
         if(all == 0) {
@@ -86,7 +86,7 @@ int ev_epoll_loop(time_t msec)
         err("evt epoll_wait irq by [err], [%d] [%s]", errno, strerror(errno));
         return -1;
     }
-	
+    
     for(i = 0; i < all; i++) {
         ev_t * ev = g_event_ctx->epev[i].data.ptr;
         int opt = g_event_ctx->epev[i].events;
@@ -126,7 +126,7 @@ static int ev_select_opt(con_t * c, int want_opt)
             if(!(c->ev->opt & EV_R))  FD_SET(c->fd, &g_event_ctx->rfds);
             if(!(c->ev->opt & EV_W))  FD_SET(c->fd, &g_event_ctx->wfds);
         } else if (want_opt == EV_R) {
-			if(c->ev->opt & EV_W)  FD_CLR(c->fd, &g_event_ctx->wfds);
+            if(c->ev->opt & EV_W)  FD_CLR(c->fd, &g_event_ctx->wfds);
             if(!(c->ev->opt & EV_R)) FD_SET(c->fd, &g_event_ctx->rfds);
         } else if (want_opt == EV_W) {
             if(c->ev->opt & EV_R) FD_CLR(c->fd, &g_event_ctx->rfds);
@@ -146,9 +146,9 @@ int ev_select_loop(time_t msec)
     int fdmax = -1;
     int actall = 0, actn = 0;
     ev_t * ev = NULL;
-	con_t * c = NULL;
+    con_t * c = NULL;
     queue_t * q = NULL;
-	queue_t * n = NULL;
+    queue_t * n = NULL;
   
     fd_set rfds;
     fd_set wfds;
@@ -158,21 +158,21 @@ int ev_select_loop(time_t msec)
         wait_tm.tv_usec = (msec%1000)*1000;
     }
 
-	if(!queue_empty(&g_event_ctx->evqueue)) {
- 		q = queue_head(&g_event_ctx->evqueue); ///find max fd in event queue
-		while(q != queue_tail(&g_event_ctx->evqueue)) {
-			n = queue_next(q);
-			
-	        ev = ptr_get_struct(q, ev_t, queue);
-			c = ev->c;
-			if(c->fclose) {
-				net_free(c);
-			} else {
-	        	if(c->fd > fdmax) fdmax = c->fd;
-			}
-			q = n;
-	    }	
-	}
+    if(!queue_empty(&g_event_ctx->evqueue)) {
+         q = queue_head(&g_event_ctx->evqueue); ///find max fd in event queue
+        while(q != queue_tail(&g_event_ctx->evqueue)) {
+            n = queue_next(q);
+            
+            ev = ptr_get_struct(q, ev_t, queue);
+            c = ev->c;
+            if(c->fclose) {
+                net_free(c);
+            } else {
+                if(c->fd > fdmax) fdmax = c->fd;
+            }
+            q = n;
+        }    
+    }
     
 
     memcpy(&rfds, &g_event_ctx->rfds, sizeof(fd_set)); ///select return will be change read fds and write fds
@@ -189,11 +189,11 @@ int ev_select_loop(time_t msec)
         err("evt select irq by [err], [%d] [%s]\n", errno, strerror(errno));
         return -1;
     }
-   	
+       
     q = queue_head(&g_event_ctx->evqueue);
     while(q != queue_tail(&g_event_ctx->evqueue) && actn < actall) {
         ev = ptr_get_struct(q, ev_t, queue);
-		c = ev->c;
+        c = ev->c;
         if(FD_ISSET(c->fd, &rfds)) {
             ev->fread = 1;
             ev->idxr = g_event_ctx->evn;
@@ -219,26 +219,26 @@ int ev_loop(time_t msec)
 {    
     int i = 0;
     ev_t * ev = NULL;
-	con_t * c = NULL;
-	
-	g_event_ctx->evn = 0;
+    con_t * c = NULL;
+    
+    g_event_ctx->evn = 0;
     if(g_event_handler.run) g_event_handler.run(msec);
     systime_update();
-  	
+      
     for(i = 0; i < g_event_ctx->evn; i++) {
-		if(g_event_ctx->evs[i]) {
-			ev = g_event_ctx->evs[i];
-			c = ev->c;
-	        if(ev) {
-	            if(ev->fread) {
-	                ev->fread = 0;
-	                if(ev->read_cb) ev->read_cb(c);
-	            } else if (ev->fwrite) {
-	                ev->fwrite = 0;
-	                if(ev->write_cb) ev->write_cb(c);
-	            }
-	        }
-		}
+        if(g_event_ctx->evs[i]) {
+            ev = g_event_ctx->evs[i];
+            c = ev->c;
+            if(ev) {
+                if(ev->fread) {
+                    ev->fread = 0;
+                    if(ev->read_cb) ev->read_cb(c);
+                } else if (ev->fwrite) {
+                    ev->fwrite = 0;
+                    if(ev->write_cb) ev->write_cb(c);
+                }
+            }
+        }
     }
     return 0;
 }
@@ -269,7 +269,7 @@ int ev_init(void)
     schk(!g_event_ctx, return -1);
     g_event_ctx = mem_pool_alloc(sizeof(g_event_t));
     schk(g_event_ctx, return -1);
-	queue_init(&g_event_ctx->evqueue);
+    queue_init(&g_event_ctx->evqueue);
 
     ///def select driver
 #if defined(EVENT_EPOLL)
@@ -288,19 +288,19 @@ int ev_init(void)
     /// all worker process will be add listen fd into event.
     /// listen fd set by SO_REUSEPORT. 
     /// kernel will be process listen fd loadbalance
-	int i = 0;
-	for(i = 0; i < 8; i++) {
-		if(g_listens[i].fuse) {
-			con_t * c = NULL;
-			schk(0 == net_alloc(&c), return -1);
-			c->fd = g_listens[i].fd;
-			c->ev->read_cb = net_accept;
-			c->data = &g_listens[i];
-			c->data_cb = NULL;
-			ev_opt(c, EV_R);
-		}
-	}
-	
+    int i = 0;
+    for(i = 0; i < 8; i++) {
+        if(g_listens[i].fuse) {
+            con_t * c = NULL;
+            schk(0 == net_alloc(&c), return -1);
+            c->fd = g_listens[i].fd;
+            c->ev->read_cb = net_accept;
+            c->data = &g_listens[i];
+            c->data_cb = NULL;
+            ev_opt(c, EV_R);
+        }
+    }
+    
     return 0;
 }
 

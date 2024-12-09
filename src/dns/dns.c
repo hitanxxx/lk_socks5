@@ -56,11 +56,11 @@ int dns_rec_find(char * query, char * out_addr)
             if((strlen(rdns->query) == strlen(query)) && (!strcmp( rdns->query, query))) {  
                 if(out_addr) {
                     out_addr[0] = rdns->addr[0];
-                	out_addr[1] = rdns->addr[1];
-                	out_addr[2] = rdns->addr[2];
-                	out_addr[3] = rdns->addr[3];
+                    out_addr[1] = rdns->addr[1];
+                    out_addr[2] = rdns->addr[2];
+                    out_addr[3] = rdns->addr[3];
                 }
-            	found = 1;
+                found = 1;
                 if(dns_ctx->recn <= 8)
                     break;
             }
@@ -92,9 +92,9 @@ int dns_response_analyze(con_t * c)
 {
     unsigned char * p = NULL;
     int state_len = 0, cur = 0;
-	dnsc_t * dnsc = c->data;
+    dnsc_t * dnsc = c->data;
     meta_t * meta = c->meta;
-	
+    
     enum {
         ANSWER_DOMAIN,
         ANSWER_DOMAIN2,
@@ -109,13 +109,13 @@ int dns_response_analyze(con_t * c)
     */
     for(; p < meta->last; p++) {
         if(state == ANSWER_DOMAIN) {
-            if((*p)&0xc0) {	/// 0xc0 means two byte length 
+            if((*p)&0xc0) {    /// 0xc0 means two byte length 
                 dnsc->answer.name = p;
                 state = ANSWER_DOMAIN2;
                 continue;
             } else {
                 /// not 0xc0 mean normal string type. then just wait the end flag 0 comes 
-                if(*p == 0) {	
+                if(*p == 0) {    
                     state = ANSWER_COMMON_START;
                     cur = 0;
                     state_len = sizeof(dns_rdata_t);
@@ -165,8 +165,8 @@ int dns_response_analyze(con_t * c)
                             dns_rec_add((char*)dnsc->query, (char*)dnsc->answer.answer_addr, 1000*rttl);
                         }
                     }
-					memcpy(dnsc->result, dnsc->answer.answer_addr, 4);
-					dns_async_result(dnsc, 0, dnsc->result);
+                    memcpy(dnsc->result, dnsc->answer.answer_addr, 4);
+                    dns_async_result(dnsc, 0, dnsc->result);
                     return 0;
                 } else if (rtyp == 0x0005) {
                     ///dbg("dns answer type CNAME, ignore\n");
@@ -222,7 +222,7 @@ int dns_response_recv(con_t * c)
     }
 
     // make dns connection event invalidate
-	return dns_response_analyze(c);
+    return dns_response_analyze(c);
 }
 
 int dns_request_send(con_t * c)
@@ -246,7 +246,7 @@ int dns_request_send(con_t * c)
     }
     tm_del(c);
     meta_clr(meta);
-	
+    
     c->ev->write_cb = NULL;
     c->ev->read_cb = dns_response_recv;
     return c->ev->read_cb(c);
@@ -290,7 +290,7 @@ static int dns_request_packet(con_t * c)
     /*
         header + question
     */
- 	
+     
     dnsc_t * dnsc = c->data;
     dns_header_t * header   = NULL;
     unsigned char * qname   = NULL;
@@ -318,7 +318,7 @@ static int dns_request_packet(con_t * c)
     meta->last += sizeof(dns_question_t);
 
     ev_opt(c, EV_R|EV_W);
-	c->ev->read_cb = NULL;
+    c->ev->read_cb = NULL;
     c->ev->write_cb = dns_request_send;
     return c->ev->write_cb(c);
 }
@@ -357,57 +357,57 @@ int dns_end(void)
 
 int dns_alloc(dnsc_t ** outdns, char * domain, dns_async_cb cb, void * userdata)
 {
-	dnsc_t * dns = mem_pool_alloc(sizeof(dnsc_t));
-	schk(dns, return -1);
+    dnsc_t * dns = mem_pool_alloc(sizeof(dnsc_t));
+    schk(dns, return -1);
 
-	dns->user_data = userdata;
-	dns->cb = cb;
-	memcpy(dns->query, domain, strlen(domain) > sizeof(dns->query) ? sizeof(dns->query) : strlen(domain));
+    dns->user_data = userdata;
+    dns->cb = cb;
+    memcpy(dns->query, domain, strlen(domain) > sizeof(dns->query) ? sizeof(dns->query) : strlen(domain));
 
-	struct sockaddr_in addr;
+    struct sockaddr_in addr;
     addr.sin_family = AF_INET;
     addr.sin_port = htons(53);  /// dns typicaly port: 53
     addr.sin_addr.s_addr = inet_addr(dns_get_serv());
-	
-	do {
-		schk(0 == net_alloc(&dns->c), break);
-		schk(0 == meta_alloc(&dns->c->meta, DNS_METAN), break);
-		dns->c->data = dns;
-		dns->c->data_cb = NULL;
-		
-		dns->c->fd = socket(AF_INET, SOCK_DGRAM, 0);
+    
+    do {
+        schk(0 == net_alloc(&dns->c), break);
+        schk(0 == meta_alloc(&dns->c->meta, DNS_METAN), break);
+        dns->c->data = dns;
+        dns->c->data_cb = NULL;
+        
+        dns->c->fd = socket(AF_INET, SOCK_DGRAM, 0);
         schk(dns->c->fd > 0, break);
         schk(0 == net_socket_reuseaddr(dns->c->fd), break);
         schk(0 == net_socket_nbio(dns->c->fd), break);
 
-		*outdns = dns;
+        *outdns = dns;
 
         memcpy(&dns->c->addr, &addr, sizeof(dns->c->addr));
         dns->c->ev->read_cb = NULL;
         dns->c->ev->write_cb = dns_request_packet;
         return dns->c->ev->write_cb(dns->c);
-	} while(0);
+    } while(0);
 
-	dns_free(dns);
-	return -1;
+    dns_free(dns);
+    return -1;
 }
 
 void dns_free(dnsc_t * dnsc)
 {
-	if(dnsc->c) net_close(dnsc->c);
-	mem_pool_free(dnsc);
+    if(dnsc->c) net_close(dnsc->c);
+    mem_pool_free(dnsc);
 }
 
 static int dns_async_result(dnsc_t * dns, int result_status, unsigned char * result)
 {
-	if(dns->cb)
-		dns->cb(result_status, result, dns->user_data);
+    if(dns->cb)
+        dns->cb(result_status, result, dns->user_data);
 
-	return result_status == 0 ? 0 : -1;	
+    return result_status == 0 ? 0 : -1;    
 }
 
 static int dns_cexp(con_t * c)
 {
-	dnsc_t * dns = c->data;
-	return dns_async_result(dns, -1, NULL);
+    dnsc_t * dns = c->data;
+    return dns_async_result(dns, -1, NULL);
 }

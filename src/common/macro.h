@@ -63,7 +63,7 @@ extern "C"
 #define ahead_dbg(format, ...) printf( "[Ahead tips]-%s:%d "format, __func__, __LINE__, ##__VA_ARGS__)
 
 /// open port limit
-#define L_OPEN_PORT_MAX	64
+#define L_OPEN_PORT_MAX    64
 
 // file paths
 #define S5_PATH                 "/usr/local/s5/"
@@ -76,12 +76,12 @@ extern "C"
 
 
 // ASCII character hex number
-#define CR	0xd
-#define LF	0xa
-#define SP	0x20
+#define CR    0xd
+#define LF    0xa
+#define SP    0x20
 
 
-#define S5_SSL		0x1
+#define S5_SSL        0x1
 #define S5_NOSSL    0x0
 
 
@@ -97,61 +97,61 @@ extern "C"
 
 
 enum connection_type {
-	TYPE_TCP = 0x1,
-	TYPE_UDP,
+    TYPE_TCP = 0x1,
+    TYPE_UDP,
 };
 
 // http
 enum http_process_status {
-	HTTP_METHOD_GET        = 1,
-	HTTP_METHOD_HEAD,
-	HTTP_METHOD_POST,
-	HTTP_METHOD_PUT,
-	HTTP_METHOD_DELETE,
-	HTTP_METHOD_CONNECT,
+    HTTP_METHOD_GET        = 1,
+    HTTP_METHOD_HEAD,
+    HTTP_METHOD_POST,
+    HTTP_METHOD_PUT,
+    HTTP_METHOD_DELETE,
+    HTTP_METHOD_CONNECT,
 };
 
 enum http_body_type {
-	HTTP_BODY_TYPE_NULL   = 1,
-	HTTP_BODY_TYPE_CHUNK,
-	HTTP_BODY_TYPE_CONTENT,
+    HTTP_BODY_TYPE_NULL   = 1,
+    HTTP_BODY_TYPE_CHUNK,
+    HTTP_BODY_TYPE_CONTENT,
 };
 
 enum http_body_stat {
-	HTTP_BODY_STAT_OK = 0x1,
-	HTTP_BODY_STAT_DONE_CACHE = 0x2,
-	HTTP_BODY_STAT_DONE_CACHENO = 0x4,
+    HTTP_BODY_STAT_OK = 0x1,
+    HTTP_BODY_STAT_DONE_CACHE = 0x2,
+    HTTP_BODY_STAT_DONE_CACHENO = 0x4,
 };
 
 /* webser type */
 enum webser_type {
-	WEBSER_API = 1,
-	WEBSER_FILE,
+    WEBSER_API = 1,
+    WEBSER_FILE,
 };
 
 /* scoks5 module run model */
 enum socks5_type {
     TLS_TUNNEL_C               = 0x1,
-	TLS_TUNNEL_S               = 0x2,
+    TLS_TUNNEL_S               = 0x2,
     TLS_TUNNEL_S_SCRECT        = 0x3,
-	
+    
 };
 
 // limits
 enum limit_value {
-	IPV4_LENGTH       =	16,
-	FILEPATH_LENGTH   =	256,
+    IPV4_LENGTH       =    16,
+    FILEPATH_LENGTH   =    256,
     USERNAME_LENGTH   = 16,
-	PASSWD_LENGTH     = 16,
-	DOMAIN_LENGTH     =	255
+    PASSWD_LENGTH     = 16,
+    DOMAIN_LENGTH     =    255
 };
 
 // statu types
 enum status_value {
-	OK         = 0,
-	ERROR      = -1,
-	AGAIN      = -11,
-	DONE       = 1
+    OK         = 0,
+    ERROR      = -1,
+    AGAIN      = -11,
+    DONE       = 1
 };
 
 // types

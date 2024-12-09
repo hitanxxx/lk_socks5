@@ -8,12 +8,12 @@ extern "C"
 
 typedef struct listen listen_t;
 struct listen {
-	unsigned short port;
-	int fd;
-	ev_cb cb;
+    unsigned short port;
+    int fd;
+    ev_cb cb;
 
-	char fuse:1;
-	char fssl:1;
+    char fuse:1;
+    char fssl:1;
 };
 
 extern listen_t g_listens[8];

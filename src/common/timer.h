@@ -7,10 +7,10 @@ extern "C"
 #endif
 
 typedef struct ev_timer {
-	heap_node_t	node;
-	ev_cb cb;
-	char				f_timeset:1;
-	char				f_timeout:1;
+    heap_node_t    node;
+    ev_cb cb;
+    char                f_timeset:1;
+    char                f_timeout:1;
 } ev_timer_t;
 
 int tm_add(con_t * c, void * cb, int delay_ms);

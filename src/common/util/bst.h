@@ -7,22 +7,22 @@ extern "C"
 #endif
     
 
-#define	BST_STACK_LENGTH		8192
-#define BST_LEFT		        1
-#define BST_RIGHT		        2
+#define    BST_STACK_LENGTH        8192
+#define BST_LEFT                1
+#define BST_RIGHT                2
 
 typedef struct bst_node_t bst_node_t;
 typedef status (*bst_travesal_handler)(bst_node_t * node);
 struct bst_node_t {
     long long num;
-	bst_node_t *parent, *left, *right;
-	int level;
-	int	type;
+    bst_node_t *parent, *left, *right;
+    int level;
+    int    type;
 };
 
 typedef struct bst_t {
-	bst_node_t		head;
-	int			elem_num;
+    bst_node_t        head;
+    int            elem_num;
 } bst_t;
 
 int bst_create(bst_t ** bst);

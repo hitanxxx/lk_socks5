@@ -3,14 +3,14 @@
 
 #define t_echo(...) \
 { \
-	printf("[%s]-[%s]-[%d]-<info> ", __DATE__, __func__, __LINE__ );\
-	printf(__VA_ARGS__); \
+    printf("[%s]-[%s]-[%d]-<info> ", __DATE__, __func__, __LINE__ );\
+    printf(__VA_ARGS__); \
 }
 
 #define t_err(...) \
 { \
-	printf("[%s]-[%s]-[%d]-<error> ", __DATE__, __func__, __LINE__ );\
-	printf(__VA_ARGS__); \
+    printf("[%s]-[%s]-[%d]-<error> ", __DATE__, __func__, __LINE__ );\
+    printf(__VA_ARGS__); \
 }
 
 
@@ -25,12 +25,12 @@ abort();\
 typedef void (*test_init_pt) (void);
 typedef void (*test_pt) (void);
 typedef struct test_t {
-	test_pt  pt;
+    test_pt  pt;
 } test_t;
 
 typedef struct manager_t {
-	test_t		test[BLOCK_MAX_NUM];
-	int			num;
+    test_t        test[BLOCK_MAX_NUM];
+    int            num;
 } manager_t;
 
 extern void ts_dns_init(void);

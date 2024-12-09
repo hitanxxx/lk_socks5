@@ -19,9 +19,9 @@ extern "C"
 typedef struct ev ev_t;
 struct ev {
     queue_t  queue;
-	con_t * c;
+    con_t * c;
     ev_timer_t timer;  /// every event should have a timer to control network time out
-	int opt;    /// cache previously event option (EV_R,EV_W,EV_NONE)
+    int opt;    /// cache previously event option (EV_R,EV_W,EV_NONE)
 
     int idxr;
     int idxw;
@@ -47,10 +47,10 @@ typedef int (*event_handler_end) (void);
 typedef int (*event_handler_opt)(con_t * c, int type);
 typedef int (*event_handler_run)(time_t msec);
 typedef struct event_handler {
-	event_handler_init		init;
-	event_handler_end		end;
-	event_handler_opt		opt;
-	event_handler_run		run;
+    event_handler_init        init;
+    event_handler_end        end;
+    event_handler_opt        opt;
+    event_handler_run        run;
 } event_handler_t;
 
 #ifdef __cplusplus

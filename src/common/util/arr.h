@@ -9,15 +9,15 @@ extern "C"
 typedef struct mem_arr_part mem_arr_part_t;
 struct mem_arr_part 
 {
-	mem_arr_part_t 		*next;
-	char	 			data[0];
+    mem_arr_part_t         *next;
+    char                 data[0];
 };
 typedef struct mem_arr_t 
 {
-	uint32				elem_size;
-	uint32				elem_num;
-	mem_arr_part_t		*head;
-	mem_arr_part_t 		*last;
+    uint32                elem_size;
+    uint32                elem_num;
+    mem_arr_part_t        *head;
+    mem_arr_part_t         *last;
 } mem_arr_t;
 
 // fixed-length

@@ -6,7 +6,7 @@ extern "C"
 {
 #endif
 
-#define TLS_TUNNEL_TMOUT	 10*1000
+#define TLS_TUNNEL_TMOUT     10*1000
 #define TLS_TUNNEL_AUTH_MAGIC_NUM     0xa001beef
 #define TLS_TUNNEL_METAN    (4096*3)
 
@@ -22,7 +22,7 @@ typedef struct {
 typedef struct {
     char typ;   //tls tunnel work mode: (c)/(s)/(s screct)
     char frecv_err_down:1;
-	char frecv_err_up:1;
+    char frecv_err_up:1;
     con_t * cdown;
     con_t * cup;
     

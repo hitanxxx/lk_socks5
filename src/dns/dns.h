@@ -8,7 +8,7 @@ extern "C"
 
 
 #define DNS_TMOUT   5000
-#define DNS_METAN	1500
+#define DNS_METAN    1500
 
 #pragma pack(push,1)
 /// dns format in here
@@ -22,8 +22,8 @@ typedef struct dns_header {
     unsigned short  add_count;
 }  dns_header_t;
 
-typedef struct dns_question {	
-	/// qname 
+typedef struct dns_question {    
+    /// qname 
     unsigned short  qtype;
     unsigned short  qclass;
 }  dns_question_t;
@@ -38,25 +38,25 @@ typedef struct dns_rdata {
 typedef struct dns_record {
     unsigned char * name;
     dns_rdata_t *   rdata;
- 	unsigned char *	answer_addr;   
+     unsigned char *    answer_addr;   
 }  dns_record_t;
 #pragma pack(pop)
 
 typedef void (* dns_async_cb)(int status, unsigned char * res, void * data);
 typedef struct dnsc {
     // in && out
-    unsigned char   query[DOMAIN_LENGTH+1];	/// stoege dns query host and convert qnam e
+    unsigned char   query[DOMAIN_LENGTH+1];    /// stoege dns query host and convert qnam e
     con_t *  c;
-	
-    dns_async_cb   	cb;
+    
+    dns_async_cb       cb;
     void *          user_data;
-	
-    //int          	result_status; // OK:success 	-1:error
-    unsigned char 	result[16];
-	
-	// private
-    uint32          qname_len;	/// question qnamelen, qname data storge in query 
-    dns_record_t    answer;	/// dns answer
+    
+    //int              result_status; // OK:success     -1:error
+    unsigned char     result[16];
+    
+    // private
+    uint32          qname_len;    /// question qnamelen, qname data storge in query 
+    dns_record_t    answer;    /// dns answer
 } dnsc_t;
 
 void dns_free(dnsc_t * dnsc);

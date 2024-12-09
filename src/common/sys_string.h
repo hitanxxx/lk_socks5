@@ -12,8 +12,8 @@ extern "C"
 #define string_clr(x)   {(x)->len = 0; (x)->data = NULL;}
 
 typedef struct {
-	int  len;
-	unsigned char *  data;
+    int  len;
+    unsigned char *  data;
 } string_t;
 
 unsigned char * l_find_str(unsigned char * str, uint32 str_len, unsigned char * find, uint32 find_len);

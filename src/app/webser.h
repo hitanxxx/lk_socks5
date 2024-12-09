@@ -10,8 +10,8 @@ extern "C"
 #define WEB_PAYLOAD_LEN 16384
 
 typedef struct {
-	char key[32];
-	ev_cb  handler;
+    char key[32];
+    ev_cb  handler;
     enum http_process_status  method;
     unsigned char body_need;
     unsigned char auth_need;
@@ -22,7 +22,7 @@ typedef struct {
     int type;
 
     web_req_t * webreq;
-   	
+       
     // static file data
     int ffd;        // file fd  
     int fsize;      // file allsize
@@ -31,8 +31,8 @@ typedef struct {
     // api data
     webser_api_t * api;
 
-	meta_t * rsp_hdr;
-	meta_t * rsp_payload;
+    meta_t * rsp_hdr;
+    meta_t * rsp_payload;
 } webser_t;
 
 
