@@ -61,11 +61,10 @@ int heap_del(heap_t * heap, int del_index)
 	
 	i = del_index;
 	while(HEAP_LCHILD(i) <= heap->index) { ///left child is necessary. right child is unnecessary
+		child_min = HEAP_LCHILD(i);
 		if(HEAP_RCHILD(i) <= heap->index) {
-            child_min = (heap->array[HEAP_RCHILD(i)]->key < heap->array[HEAP_RCHILD(i)]->key) ? HEAP_RCHILD(i) : HEAP_RCHILD(i);
-        } else {
-            child_min = HEAP_LCHILD(i);
-        } 
+			child_min = (heap->array[HEAP_LCHILD(i)]->key < heap->array[HEAP_RCHILD(i)]->key) ? HEAP_LCHILD(i) : HEAP_RCHILD(i);
+		}
 		
 		if(tail_node->key >= heap->array[child_min]->key) {
 			heap->array[i] = heap->array[child_min];

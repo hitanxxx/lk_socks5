@@ -91,7 +91,7 @@ int ezhash_add(ezhash_t * hash, void * key, int keyn, void * val, int valn)
 void * ezhash_find(ezhash_t * hash, void * key, int keyn)
 {
     uint32_t hash_value = fnv1a_32(key, keyn);
-    int idx = hash_value  % hash->arrn;
+    int idx = hash_value % hash->arrn;
 
     if(hash->arr[idx]) {
         ezhash_obj_t * p = hash->arr[idx];

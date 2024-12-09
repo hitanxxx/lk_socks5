@@ -91,42 +91,42 @@ int net_connect(con_t * c, struct sockaddr_in * addr)
     schk(net_socket_nbio(fd) == 0, {close(fd); return -1;});
     schk(net_socket_reuseaddr(fd) == 0, {close(fd); return -1;});
     schk(net_socket_fastopen(fd) == 0, {close(fd); return -1;});
-    
+
+	c->fd = fd;
+    c->send = sends;
+    c->recv = recvs;
+    c->send_chain = send_chains;
+	ev_opt(c, EV_R|EV_W);
+	
     for(;;) {
         int rc = connect(fd, (struct sockaddr*)&c->addr, sizeof(struct sockaddr_in));
         if(rc != 0) {
             if(errno == EINTR) { ///irq by signal
                 continue;
             } else if((errno == EAGAIN) || (errno == EALREADY) || (errno == EINPROGRESS)) {
-                c->fd = fd;
-                c->send = sends;
-                c->recv = recvs;
-                c->send_chain = send_chains;
                 return -11;
             }
             err("connect failed, [%d]\n", errno);
             close(fd);
             return -1;
         }
-        c->fd = fd;
-        c->send = sends;
-        c->recv = recvs;
-        c->send_chain = send_chains;
         return 0;
     }
 }
 
-int net_accept(event_t * ev)
+int net_accept(con_t * c)
 {
-    listen_t * listen = ev->data;
+    listen_t * listen = c->data;
+	
     int cfd;
-    con_t * ccon;
+    con_t * cc;
+	
     struct sockaddr_in caddr;
     socklen_t caddrn = sizeof(struct sockaddr_in);
     
     for(;;) {
         memset(&caddr, 0x0, caddrn);
-        cfd = accept(listen->fd, (struct sockaddr *)&caddr, &caddrn);
+        cfd = accept(c->fd, (struct sockaddr *)&caddr, &caddrn);
         if(-1 == cfd) {
             if( errno == EWOULDBLOCK ||
                 errno == EAGAIN ||
@@ -139,36 +139,40 @@ int net_accept(event_t * ev)
             err("accept failed, [%d]\n", errno);
             return -1;
         }
-        schk(net_alloc(&ccon) != -1, {close(cfd); return -1;});
-        memcpy(&ccon->addr, &caddr, caddrn);
-        ccon->fd = cfd;
-        schk(net_socket_nbio(ccon->fd) == 0, {net_free(ccon); return -1;});
-        schk(net_socket_nodelay(ccon->fd) == 0, {net_free(ccon); return -1;});
-        schk(net_socket_fastopen(ccon->fd) == 0, {net_free(ccon); return -1;});
-        schk(net_socket_lowat_send(ccon->fd) == 0, {net_free(ccon); return -1;});
+        schk(net_alloc(&cc) != -1, {close(cfd); return -1;});
+        memcpy(&cc->addr, &caddr, caddrn);
+        cc->fd = cfd;
+		
+        schk(net_socket_nbio(cc->fd) == 0, {net_free(cc); return -1;});
+        schk(net_socket_nodelay(cc->fd) == 0, {net_free(cc); return -1;});
+        schk(net_socket_fastopen(cc->fd) == 0, {net_free(cc); return -1;});
+        schk(net_socket_lowat_send(cc->fd) == 0, {net_free(cc); return -1;});
         
-        ccon->recv = recvs;
-        ccon->send = sends;
-        ccon->send_chain = send_chains;
-        ccon->fssl = (listen->fssl) ? 1 : 0;
+        cc->recv = recvs;
+        cc->send = sends;
+        cc->send_chain = send_chains;
+        cc->fssl = (listen->fssl) ? 1 : 0;
 
-        ccon->event->read_pt = listen->handler;
-        ccon->event->write_pt = NULL;
-        
-        event_opt(ccon->event, cfd, EV_R);
-        event_post_event(ccon->event);
+        cc->ev->read_cb = listen->cb;
+        cc->ev->write_cb = NULL;
+        ev_opt(cc, EV_R|EV_W);
+
+		///!!! just accept continue. don't do that 
+		//return cc->ev->read_cb(cc);
     }
     return 0;
 }
 
-
-static int net_free_final(event_t * ev)
+static int net_free_fast(con_t * c)
 {
-    con_t * c = ev->data;
-    
-    if(c->event) {
-        event_free(ev);
-        c->event = NULL;
+	if(c->fd) {
+		ev_opt(c, EV_NONE);
+		close(c->fd);
+	}
+    if(c->ev) {
+		tm_del(c);
+        ev_free(c->ev);
+        c->ev = NULL;
     }
     
     meta_t * m = c->meta;
@@ -178,64 +182,79 @@ static int net_free_final(event_t * ev)
         meta_free(m);
         m = n;
     }
-    
-    if(c->fd) {
-        close(c->fd);
-        c->fd = 0;
-    }
-    c->data = NULL;
-    memset(&c->addr, 0x0, sizeof(struct sockaddr_in));
 
-    if(c->ssl && c->fssl) {
+	if(c->data) {
+		if(c->data_cb) c->data_cb(c->data);
+		c->data = NULL;
+	}
+	
+	
+    if(c->ssl) {
         SSL_free(c->ssl->con);
         mem_pool_free(c->ssl);
-        c->ssl = NULL;
-        c->fssl = 0;
     }
-    
-    c->send = NULL;
-    c->send_chain = NULL;
-    c->recv = NULL;
     mem_pool_free(c);
     return 0;
 }
 
-void net_free_ssl_timeout(void * data)
-{
-    con_t * c = data;
-    if(c->ssl) ssl_shutdown(c->ssl);
-    net_free_final(c->event);
-}
+
 
 int net_free(con_t * c)
 {
-    sassert(c != NULL);
-    if(c->ssl && c->fssl) {
-        int rc = ssl_shutdown(c->ssl);
-        if(rc == -11) {
-            c->ssl->cb = net_free_final;
-            timer_set_data(&c->event->timer, c);
-            timer_set_pt(&c->event->timer, net_free_ssl_timeout);
-            timer_add(&c->event->timer, L_NET_TIMEOUT);
-            return -11;
-        }
-    }
-    return net_free_final(c->event); ///-1 or 0 will do
+	/*
+	if(have_ssl) {
+		if(ssl_err) {
+			///do fast close
+		} else {
+			if(!ssl_close) {
+				///do shutdown. 
+			} else {
+				///fast close
+			}
+		}
+	}
+	*/
+	
+	if(c->ssl) {
+		if(c->ssl->f_err) {
+			///err("ssl shutdown err.\n");
+			return net_free_fast(c);
+		} 
+		
+		if(!c->ssl->f_closed) {
+			int rc = ssl_shutdown(c);
+			if(rc < 0) {
+				if(rc == -11) {
+					tm_add(c, net_free_fast, NET_TMOUT);
+					return -11;
+				}
+				///err("ssl shutdown err.\n");
+				return net_free_fast(c);
+			}
+			///dbg("ssl shutdown fin\n");
+			return net_free_fast(c);
+		} else {
+			///dbg("ssl shutdown closed.\n");
+			return net_free_fast(c);
+		}
+	}
+	return net_free_fast(c);
 }
 
 int net_alloc(con_t ** c)
 {
     con_t * nc = NULL;
-    schk((nc = mem_pool_alloc(sizeof(con_t))) != NULL, return -1);
-    schk(event_alloc(&nc->event) == 0, {mem_pool_free(nc); return -1;});
-    nc->event->data = nc;
+    schk(nc = mem_pool_alloc(sizeof(con_t)), return -1);
+    schk(0 == ev_alloc(&nc->ev), {mem_pool_free(nc); return -1;});
+    nc->ev->c = nc;
     *c = nc;
     return 0;
 }
 
-void net_timeout(void * data)
+int net_close(con_t * c)
 {
-    net_free((con_t *)data);
+	c->fclose = 1;
+	return 0;
 }
 
 int net_init(void)

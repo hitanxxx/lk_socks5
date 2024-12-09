@@ -6,30 +6,22 @@ extern "C"
 {
 #endif
 
-typedef void (* timer_pt) (void * data);
 typedef struct ev_timer {
-	void * 				data;
-	int32				f_timeset;
-	int32				f_timeout;
-
-	heap_node_t			node;
-	timer_pt 			timeout_handler;
+	heap_node_t	node;
+	ev_cb cb;
+	char				f_timeset:1;
+	char				f_timeout:1;
 } ev_timer_t;
 
-int timer_add(ev_timer_t * timer, int sec);
-void timer_set_data(ev_timer_t * timer, void * data);
-void timer_set_pt(ev_timer_t * timer, timer_pt pt);
+int tm_add(con_t * c, void * cb, int delay_ms);
+int tm_del(con_t * c);
 
-int timer_del(ev_timer_t * timer);
+
 int timer_expire(int * timer);
 
 int timer_init(void);
 int timer_end(void);
 
-#if(1)	
-int timer_alloc(ev_timer_t ** timer);
-int timer_free(ev_timer_t * timer);
-#endif
 
 #ifdef __cplusplus
 }

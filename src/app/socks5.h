@@ -51,7 +51,7 @@ typedef struct {
 } s5_t;
 
 
-int s5_p1_req(event_t * ev);
+int s5_p1_req(con_t * c);
 
 
 #ifdef __cpluscplus

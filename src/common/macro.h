@@ -89,7 +89,7 @@ extern "C"
 /// improve compile performance
 #define LIKELY(x)  __builtin_expect(!!(x), 1)
 #define UNLIKELY(x)  __builtin_expect(!!(x), 0)
-#define schk(x, actions) if(UNLIKELY(!(x))) {err("schk assert failed. -> \""#x"\"\n", #x); actions;}
+#define schk(x, actions) if(UNLIKELY(!(x))) {err("schk assert failed. -> \""#x"\". [%d]\n", errno); actions;}
 #define sassert(x) schk(x, abort())
 
 
@@ -161,6 +161,8 @@ typedef int32_t                 status;
 typedef uint32_t                uint32;
 typedef volatile uint32         atomic_t;
 typedef struct net_connection_t   con_t;
+typedef int (*ev_cb) (con_t * c);
+
 
 // macros
 #define l_abs(x)                            (((x)>=0)?(x):(-(x)))

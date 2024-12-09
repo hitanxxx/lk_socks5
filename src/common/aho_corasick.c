@@ -21,8 +21,10 @@ int ezac_node_free(ezac_node_t * root)
 
 int ezac_free(ezac_ctx_t * ctx) 
 {
-    if(ctx)
-        ezac_node_free(&ctx->root);
+    if(ctx) {
+		ezac_node_free(&ctx->root);
+		sys_free(ctx);
+	}
     return 0;
 }
 

@@ -65,7 +65,7 @@ void proc_worker_run( void )
             break;
         }
         timer_expire(&timer);
-        event_run(timer);
+        ev_loop(timer);
     }
     modules_pocess_exit();
 }

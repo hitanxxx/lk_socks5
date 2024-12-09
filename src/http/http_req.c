@@ -1,249 +1,30 @@
 #include "common.h"
 #include "http_req.h"
 
+static int web_req_line(con_t * c, web_req_t * req);
+static int web_req_hdrs(con_t * c, web_req_t * req);
+static int web_req_payload(con_t * c, web_req_t * req);
 
-static int http_req_set_value(http_req_t * request, string_t * value, unsigned int offsetof);
 
-static http_req_value_t headers[] = {
-    {   string("Host"),              http_req_set_value,    offsetof(http_req_t, headerhost)},
-    {   string("Content-Length"),    http_req_set_value,    offsetof(http_req_t, content_length)},
-    {   string("Transfer-Encoding"), http_req_set_value,    offsetof(http_req_t, transfer_encoding)},
-    {   string("User-Agent"),        http_req_set_value,    offsetof(http_req_t, user_agent)},
-    {   string("Connection"),        http_req_set_value,    offsetof(http_req_t, connection)}
-};
 
-static int http_req_set_value(http_req_t * request, string_t * value, unsigned int offsetof)
+web_req_t * web_req_alloc(void)
 {
-    string_t * h = (string_t*)(((char*)request) + offsetof);
-    h->len = value->len;
-    h->data = value->data;
-    return 0;
+	web_req_t * rr = mem_pool_alloc(sizeof(web_req_t));
+	schk(rr, return NULL);
+	rr->cb = web_req_line;
+	return rr;
 }
 
-static int http_req_find_header(string_t * str, http_req_value_t ** header)
+void web_req_free(web_req_t * webreq) 
 {
-    int32 i = 0;
-    for(i = 0; i < (int32)(sizeof(headers)/sizeof(headers[0])); i++) {
-        if(headers[i].name.len == str->len && !strncasecmp((char*)headers[i].name.data, (char*)str->data, (int)str->len)) {
-            *header = &headers[i];
-            return 0;
-        }
-    }
-    return -1;
+	if(webreq) {
+		mem_pool_free(webreq);
+	}
 }
 
-static int http_req_recv(con_t * c, meta_t * meta)
+static int web_req_line(con_t * c, web_req_t * req)
 {
-    if(meta_getlen(meta) > 0) {
-        return 0;
-    }
-    int recvn = c->recv(c, meta->last, meta_getfree(meta));
-    if(recvn < 0) {
-        if(recvn == -1) {
-            return -1;
-        }
-        return -11;
-    }
-    meta->last += recvn;
-    return 0;
-}
-
-static int http_req_headers_analysis(http_req_t * req, meta_t * meta)
-{
-    unsigned char *p = NULL;
-    int fin_single = 0;
-    int fin_all = 0;
-
-    enum {
-        s_key_init = 0,
-        s_key,
-        s_value_init,
-        s_value,
-        s_end,        /// end means line end, \r\n
-        s_done        /// done means header finish, \r\n\r\n
-    } state;
-
-    state = req->state;
-    for(p = meta->pos; p < meta->last; p++) {
-        if(state == s_key_init) {
-            if( (*p >= 'A' && *p <= 'Z') ||
-                (*p >= 'a' && *p <= 'z') ||
-                (*p >= '0' && *p <= '9') ||
-                *p == '-' || *p == '@' ||
-                *p == '_'
-            ) {
-                req->k.data = p;
-                state = s_key;
-                continue;
-            } else if (*p == CR) {
-                state = s_done;
-                continue;
-            } else {
-                err("req headers. s_key_init illegal [%c]\n", *p);
-                return -1;
-            }
-        }
-
-        if(state == s_key) {
-            if( (*p >= 'A' && *p <= 'Z') ||
-                (*p >= 'a' && *p <= 'z') ||
-                (*p >= '0' && *p <= '9') ||
-                *p == '-' || *p == '@' ||
-                *p == '_'
-            ) {
-                continue;
-            } else if (*p == ':') {
-                req->k.len = p - req->k.data;
-                state = s_value_init;
-                continue;
-            } else {
-                err("req headers. s_key illegal [%c]\n", *p);
-                return -1;
-            }
-        }
-
-        if(state == s_value_init) {
-            if( (*p >= 'A' && *p <= 'Z') ||
-                (*p >= 'a' && *p <= 'z') ||
-                (*p >= '0' && *p <= '9') ||
-                *p == '-' || *p == '@' ||
-                *p == '_' || *p == '.' ||
-                *p == '(' || *p == ')' ||
-                *p == ';' || *p == '/' ||
-                *p == ',' || *p == '=' ||
-                *p == '*' || *p == '+' ||
-                *p == ':' || *p == '"' ||
-                *p == '?'
-            ) {
-                req->v.data = p;
-                state = s_value;
-                continue;
-            } else if (*p == SP) { /// do nothing
-                continue;
-            } else {
-                err("req headers, s_value_init illegal [%c]\n", *p);
-                return -1;
-            }
-        }
-
-        if(state == s_value) {
-            if( *p == SP ||
-                (*p >= 'A' && *p <= 'Z') ||
-                (*p >= 'a' && *p <= 'z') ||
-                (*p >= '0' && *p <= '9') ||
-                *p == '-' || *p == '@' ||
-                *p == '_' || *p == '.' ||
-                *p == '(' || *p == ')' ||
-                *p == ';' || *p == '/' ||
-                *p == ',' || *p == '=' ||
-                *p == '*' || *p == '+' ||
-                *p == ':' || *p == '"' ||
-                *p == '?'
-            ) {  /// do nothing 
-                continue;
-            } else if (*p == CR) {
-                req->v.len = p - req->v.data;
-                state = s_end;
-                continue;
-            } else {
-                err("req headers. s_value illegal [%c]\n", *p);
-                return -1;
-            }
-        }
-
-        if(state == s_end) {
-            if(*p == LF) {
-                fin_single = 1;
-                break;
-            } else {
-                err("req headers. s_end illegal [%c]\n", *p);
-                return -1;
-            }
-        }
-
-        if(state == s_done) {
-            if(*p == LF) {
-                fin_all = 1;
-                break;
-            } else {
-                err("req headers. s_done illegal [%c]\n", *p);
-                return -1;
-            }
-        }
-    }
-
-    
-
-    if(fin_single) {
-        meta->pos = ((p < meta->last) ? (p + 1) : p);
-        req->state = s_key_init;
-        return 0;
-    } else if(fin_all) {
-        meta->pos = ((p < meta->last) ? (p + 1) : p);
-        req->state = 0;
-        return 1;
-    }
-    meta->pos = p;
-    req->state = state;
-    return -11;
-}
-
-static int http_req_headers( http_req_t * req)
-{
-    int rc = -11;
-    con_t * c = req->c;
-    http_req_value_t * headers;
-
-    for(;;) {
-        if(rc == -11) {
-            rc = http_req_recv(c, c->meta);
-            if(rc < 0) {
-                return rc;
-            }
-        }
-        rc = http_req_headers_analysis(req, c->meta);
-        if(rc == 0) {   ///single header line fin
-            if(0 == http_req_find_header(&req->k, &headers)) {
-                if(headers->handler) headers->handler(req, &req->v, headers->offsetof);
-            }
-            continue;
-        } else if(rc == 1) {  ///all header line fin
-            req->fkeepalive = (req->connection.len > strlen("close") ? 1 : 0);
-
-            access_log("%.*s %.*s - %s - %.*s\n",
-                req->method.len, req->method.data,
-                req->uri.len, req->uri.data,
-                inet_ntoa(req->c->addr.sin_addr),
-                req->user_agent.len, req->user_agent.data
-            );
-
-            req->payload_typ = HTTP_BODY_TYPE_NULL;
-            if(req->transfer_encoding.len) {
-                req->payload_typ = HTTP_BODY_TYPE_CHUNK;
-            } else if(req->content_length.len) {
-                req->payload_typ = HTTP_BODY_TYPE_CONTENT;
-                char payloadn[32] = {0};
-                memcpy(payloadn, req->content_length.data, req->content_length.len);
-                req->payload_contentn = strtol(payloadn, NULL, 10);
-            }
-            return 1;
-        }else if(rc == -1) {
-            err("http req headers analysis failed\n");
-            return -1;
-        }
-        
-        if(meta_getfree(c->meta) < 1) {
-            err("http req headers too large");
-            return -1;
-        }
-    }
-}
-
-static int http_req_startline_analysis(http_req_t * req, meta_t * meta)
-{
-    unsigned char *p = NULL;
-    int finish = 0;
-
+	unsigned char *p = NULL;
     ///reqline example
     ///GET http://localhost:8080/index.html
     enum {
@@ -261,307 +42,321 @@ static int http_req_startline_analysis(http_req_t * req, meta_t * meta)
         s_version_init,
         s_version,
         s_end
-    } state;
+    };
 
-    state = req->state;
-    for(p = meta->pos; p < meta->last; p++) {  ///fsm character check
-        if(state == s_method_init) {
-            if(*p == CR || *p == LF || *p == SP) {
-                continue;
-            } else if (*p >= 'A' && *p <= 'Z') {
+	for(;;) {
+		if(meta_getfree(c->meta) < 1) {
+			err("webreq meta full\n");
+			return -1;
+		}
+		if(meta_getlen(c->meta) < 1) {
+			int recvd = c->recv(c, c->meta->last, meta_getfree(c->meta));
+			if(recvd < 0) {
+				if(recvd == -11) {
+					return -11;
+				}
+				err("webreq recv err\n");
+				return -1;
+			}
+			c->meta->last += recvd;
+		}
+
+		meta_t * meta = c->meta;
+		for(p = meta->pos; p < meta->last; p++) {
+			if((*p < 32 || *p > 127) && *p != CR && *p != LF) {
+				err("webreq contains non-printable character. [%d]\n", *p);
+				return -1;
+			}
+	        if(req->state == s_method_init) {
+	            if(*p == CR || *p == LF || *p == SP) {
+	                continue;
+	            } 
                 req->method.data = p;
-                state = s_method;
+                req->state = s_method;
                 continue;
-            } else {
-                err("http req request line. s_init illegal [%c]\n", *p);
-                return -1;
-            }
-        }
+	        }
 
-        if(state == s_method) {
-            if(*p >= 'A' && *p <= 'Z') {
-                continue;
-            } else if (*p == SP) { ///jump out of method state 
-                req->method.len = p - req->method.data;
-                state = s_scheme_init;
-                if(req->method.len < 1 || req->method.len > 16) {
-                    err("http req request line. method string len [%d] illegal\n", req->method.len);
-                    return -1;
-                }
-            } else {
-                err("http req request line. s_method illegal [%c]\n", *p);
-                return -1;
-            }
-        }
+	        if(req->state == s_method) {
+	            if (*p == SP) { ///jump out of method state 
+	                req->method.len = p - req->method.data;
+	                req->state = s_scheme_init;
+	                if(req->method.len < 1 || req->method.len > 16) {
+	                    err("webreq request line. method string length [%d] illegal\n", req->method.len);
+	                    return -1;
+	                }
+	            }
+	        }
     
-        if(state == s_scheme_init) { ///this state for storge scheme string data
-            if(*p == SP) { 
-                continue;
-            } else if ((*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z')) {
+	        if(req->state == s_scheme_init) { ///this state for storge scheme string data
+	            if(*p == SP) { 
+	                continue;
+	            } else if (*p == '/') { ///if s_sheme frist character is '/', then means no scheme, is uri start
+	                req->uri.data = p;
+	                req->state = s_uri;
+	                continue;
+	            }  
                 req->scheme.data = p;
-                state = s_scheme;
+                req->state = s_scheme;
                 continue;
-            } else if (*p == '/') { ///if s_sheme frist character is '/', then means no scheme, is uri start
-                req->uri.data = p;
-                state = s_uri;
-                continue;
-            } else {
-                err("http req request line. s_scheme_init illegal [%c]\n", *p);
-                return -1;
-            }
-        }
+	        }
 
-        if(state == s_scheme) {
-            if((*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z')) {
-                continue;
-            } else if (*p == ':') {
-                req->scheme.len = p - req->scheme.data;
-                state = s_scheme_slash;
-                continue;
-            } else {
-                err("http req request line. s_scheme illegal. [%c]\n", *p);
-                return -1;
-            }
-        }
+	        if(req->state == s_scheme) {
+	            if (*p == ':') {
+	                req->scheme.len = p - req->scheme.data;
+	                req->state = s_scheme_slash;
+	                continue;
+	            }
+	        }
 
-        if(state == s_scheme_slash) {
-            if(*p == '/') {
-                state = s_scheme_slash_slash;
-                continue;
-            } else {
-                err("http req request line. s_scheme_slash illegal [%c]\n", *p);
-                return -1;
-            }
-        }
+	        if(req->state == s_scheme_slash) {
+	            if(*p == '/') {
+	                req->state = s_scheme_slash_slash;
+	                continue;
+	            } else {
+	                err("webreq request line. s_scheme_slash illegal [%c]\n", *p);
+	                return -1;
+	            }
+	        }
 
-        if(state == s_scheme_slash_slash) {
-            if(*p == '/') {
-                state = s_host_init;
-                continue;
-            } else {
-                err("http req request line. s_scheme_slash illegal [%c]\n", *p);
-                return -1;
-            }
-        }
+	        if(req->state == s_scheme_slash_slash) {
+	            if(*p == '/') {
+	                req->state = s_host_init;
+	                continue;
+	            } else {
+	                err("webreq request line. s_scheme_slash illegal [%c]\n", *p);
+	                return -1;
+	            }
+	        }
 
-        if(state == s_host_init) {
-            if( (*p >= 'A' && *p <= 'Z') ||
-                (*p >= 'a' && *p <= 'z') ||
-                (*p >= '0' && *p <= '9') ||
-                *p == '.' ||
-                *p == '-' ||
-                *p == '_'
-            ) {
+	        if(req->state == s_host_init) {
                 req->host.data = p;
-                state = s_host;
-                continue;
-            } else {
-                err("http req request line. s_host_init illegal [%c]\n", *p);
-                return -1;
-            }
-        }
+                req->state = s_host;
+                continue;	            
+	        }
 
-        if(state == s_host) {
-            if( (*p >= 'A' && *p <= 'Z') ||
-                (*p >= 'a' && *p <= 'z') ||
-                (*p >= '0' && *p <= '9') ||
-                *p == '.' ||
-                *p == '-' ||
-                *p == '_'
-            ) {
-                continue;
-            } else if (*p == ':') {
-                req->host.len = p - req->host.data;
-                state = s_port_init;
-                continue;
-            } else if (*p == '/') {  ///is s_host have '/', then means no port, is uri
-                req->host.len = p - req->host.data;
-                req->uri.data = p;
-                state = s_uri;
-                continue;
-            } else {
-                err("http req request line. s_host illegal [%c]\n", *p);
-                return -1;
-            }
-        }
+	        if(req->state == s_host) {
+	            if (*p == ':') {
+	                req->host.len = p - req->host.data;
+	                req->state = s_port_init;
+	                continue;
+	            } else if (*p == '/') {  ///is s_host have '/', then means no port, is uri
+	                req->host.len = p - req->host.data;
+	                req->uri.data = p;
+	                req->state = s_uri;
+	                continue;
+	            }
+	        }
 
-        if(state == s_port_init) {
-            if(*p >= '0' && *p <= '9') {
+	        if(req->state == s_port_init) {
                 req->port.data = p;
-                state = s_port;
+                req->state = s_port;
                 continue;
-            } else {
-                err("http req request line. s_port_init illegal [%c]\n", *p);
-                return -1;
-            }
-        }
+	        }
 
-        if(state == s_port) {
-            if(*p >= '0' && *p <= '9') {
-                continue;
-            } else if (*p == '/') {
-                req->port.len = p - req->port.data;
-                req->uri.data = p;
-                state = s_uri;
-                continue;
-            } else {
-                err("http req request line. s_port illegal [%c]\n", *p);
-                return -1;
-            }
-        }
+	        if(req->state == s_port) {
+	            if (*p == '/') {
+	                req->port.len = p - req->port.data;
+	                req->uri.data = p;
+	                req->state = s_uri;
+	                continue;
+	            }
+	        }
 
-        if(state == s_uri) {
-            if( (*p >= '0' && *p <= '9') ||
-                (*p >= 'a' && *p <= 'z') ||
-                (*p >= 'A' && *p <= 'Z') ||
-                *p == '.' || *p == '@' ||
-                *p == '?' || *p == '&' ||
-                *p == '=' || *p == '/' ||
-                *p == '_' || *p == '-' ||
-                *p == '*' || *p == '+'
-            ) {
-                continue;
-            } else if(*p == SP) {
-                req->uri.len = p - req->uri.data;
-                state = s_version_init;
-                continue;
-            } else {
-                err("http req request line. s_uri illegal [%c]\n", *p);
-                return -1;
-            }
-        }
+	        if(req->state == s_uri) {
+	            if(*p == SP) {
+	                req->uri.len = p - req->uri.data;
+	                req->state = s_version_init;
+	                continue;
+	            }
+	        }
 
-        if(state == s_version_init) {
-            if( (*p >= '0' && *p <= '9') ||
-                (*p >= 'a' && *p <= 'z') ||
-                (*p >= 'A' && *p <= 'Z') ||
-                *p == '.' || *p == '/' 
-            ) {
-                req->http_ver.data = p;
-                state = s_version;
-                continue;
-            } else {
-                err("http req request line, s_version_init illegal [%c]\n", *p);
-                return -1;
-            }
-        }
+	        if(req->state == s_version_init) {
+	            req->http_ver.data = p;
+	            req->state = s_version;
+	            continue;          
+	        }
 
-        if(state == s_version) {
-            if( (*p >= '0' && *p <= '9') ||
-                (*p >= 'a' && *p <= 'z') ||
-                (*p >= 'A' && *p <= 'Z') ||
-                *p == '.' || *p == '/' 
-            ) { /// do nothing 
-                continue;
-            } else if (*p == CR) {
-                req->http_ver.len = p - req->http_ver.data;
-                state = s_end;
-                continue;
-            } else {
-                err("http req request line, s_version illegal [%c]\n", *p);
-                return -1;
-            }
-        }
+	        if(req->state == s_version) {
+	            if (*p == CR) {
+	                req->http_ver.len = p - req->http_ver.data;
+	                req->state = s_end;
+	                continue;
+	            }
+	        }
 
-        if(state == s_end) {
-            if(*p == LF) {
-                finish = 1;
-                break;
-            } else {
-                err("http req request line. s_end illegal [%c]\n", *p);
-                return -1;
-            }
-        }
-    }
+	        if(req->state == s_end) {
+	            if(*p == LF) {
+	           
+					meta->pos = p + 1;
+					req->state = 0;
+					req->cb = web_req_hdrs;
 
-    if(finish) {
-        meta->pos = ((p < meta->last) ? (p + 1) : p);
-        req->state = 0;
-        return 1;
-    }
-    meta->pos = p;
-    req->state = state;
-    return -11;
+					return req->cb(c, req);
+	            } else {
+	                err("http req request line. s_end illegal [%c]\n", *p);
+	                return -1;
+	            }
+	        }
+    	}
+	}
 }
 
-
-static int http_req_startline(http_req_t * req)
+static int web_req_hdrs(con_t * c, web_req_t * req)
 {
-    int rc = -11;
-    con_t * c = req->c;
+	unsigned char *p = NULL;
 
-    for(;;) {
-        if(rc == -11) {
-            rc = http_req_recv(c, c->meta);
-            if(rc < 0) {
-                return rc;
-            }
-        }
-        rc = http_req_startline_analysis(req, c->meta);
-        if(rc == 1) { 
-            if(req->method.len > 0) {
-                if(req->method.len == strlen("GET") && !strncmp((char*)req->method.data, "GET", req->method.len)) {
-                    req->method_typ = HTTP_METHOD_GET;
-                } else if (req->method.len == strlen("POST") && !strncmp((char*)req->method.data, "POST", req->method.len)) {
-                    req->method_typ = HTTP_METHOD_POST;
-                } else if (req->method.len == strlen("PUT") && !strncmp((char*)req->method.data, "PUT", req->method.len)) {
-                    req->method_typ = HTTP_METHOD_PUT;
-                } else if (req->method.len == strlen("DELETE") && !strncmp((char*)req->method.data, "DELETE", req->method.len)) {
-                    req->method_typ = HTTP_METHOD_DELETE;
-                } else if (req->method.len == strlen("CONNECT") && !strncmp((char*)req->method.data, "CONNECT", req->method.len)) {
-                    req->method_typ = HTTP_METHOD_CONNECT;
-                } else if (req->method.len == strlen("HEAD") && !strncmp((char*)req->method.data, "HEAD", req->method.len)) {
-                    req->method_typ = HTTP_METHOD_HEAD;
-                } else {
-                    err("http req method not support. [%.*s]\n", req->method.len, req->method.data);
-                    return -1;
-                }
-            }
-            req->cb = http_req_headers;
-            return req->cb(req);
-        } else if (rc == -1) {
-            err("http req line analysis failed\n");
-            return -1;
-        }
-        if(meta_getfree(c->meta) < 1) {
-            err("http req line too long\n");
-            return -1;
-        }
-    }
+	enum {
+		s_key_init = 0,
+		s_key,
+		s_value_init,
+		s_value,
+		s_end,		  /// end means line end, \r\n
+		s_done		  /// done means header finish, \r\n\r\n
+	};
+	
+	for(;;) {
+		if(meta_getfree(c->meta) < 1) {
+			err("webreq meta full\n");
+			return -1;
+		}
+		if(meta_getlen(c->meta) < 1) {
+			int recvd = c->recv(c, c->meta->last, meta_getfree(c->meta));
+			if(recvd < 0) {
+				if(recvd == -11) {
+					return -11;
+				}
+				err("webreq recv err\n");
+				return -1;
+			}
+			c->meta->last += recvd;
+		}
+
+		meta_t * meta = c->meta;
+		for(p = meta->pos; p < meta->last; p++) {
+			if((*p < 32 || *p > 127) && *p != CR && *p != LF) {
+				err("webreq contains non-printable character. [%d]\n", *p);
+				return -1;
+			}
+
+			if(req->state == s_key_init) {
+	            if (*p == CR) {
+	                req->state = s_done;
+	                continue;
+	            } else {
+					req->kvs[req->kvn].k.data = p;
+	                req->state = s_key;
+	                continue;
+				}
+	        }
+
+	        if(req->state == s_key) {
+	             if (*p == ':') {
+	                req->kvs[req->kvn].k.len = p - req->kvs[req->kvn].k.data;
+	                req->state = s_value_init;
+	                continue;
+	            }
+	        }
+
+	        if(req->state == s_value_init) {
+	            if (*p == SP) { /// do nothing
+	                continue;
+	            } else {
+	                req->kvs[req->kvn].v.data = p;
+	                req->state = s_value;
+	                continue;
+	            }
+	        }
+
+	        if(req->state == s_value) {
+	             if (*p == CR) {
+	                req->kvs[req->kvn].v.len = p - req->kvs[req->kvn].v.data;
+	                req->state = s_end;
+	                continue;
+	            }
+	        }
+
+	        if(req->state == s_end) {
+	            if(*p == LF) {
+					req->kvn ++;
+					req->state = s_key_init;
+	                continue;
+	            } else {
+	                err("req headers. s_end illegal [%c]\n", *p);
+	                return -1;
+	            }
+	        }
+
+	        if(req->state == s_done) {
+	            if(*p == LF) {
+					c->meta->pos = p + 1;
+					req->cb = web_req_payload;
+
+					int i = 0;
+					for(i = 0; i < req->kvn; i++) {
+						if(strncasecmp((char*)req->kvs[i].k.data, "Connection", req->kvs[i].k.len) == 0) {
+							if(strncasecmp((char*)req->kvs[i].v.data, "Keep-Alive", req->kvs[i].v.len) == 0) {
+								req->fkeepalive = 1;
+							}
+						}
+					}
+
+					if(strncasecmp((char*)req->method.data, "GET", req->method.len) == 0) {
+						req->method_typ = HTTP_METHOD_GET;
+					} else if (strncasecmp((char*)req->method.data, "GET", req->method.len) == 0) {
+						req->method_typ = HTTP_METHOD_POST;
+					}
+					
+					return req->cb(c, req);
+	            } else {
+	                err("req headers. s_done illegal [%c]\n", *p);
+	                return -1;
+	            }
+	        }
+		}
+	}
 }
 
-int http_req_ctx_exit(http_req_t * req)
+static int web_req_payload(con_t * c, web_req_t * req)
 {
-    if(req) {
-        mem_pool_free(req);
-    }
-    return 0;
+	if(!req->payload) {
+		int i = 0;
+		for(i = 0; i < req->kvn; i++) {
+			if(strncasecmp((char*)req->kvs[i].k.data, "Content-Length", req->kvs[i].k.len) == 0) {
+				req->payloadn = strtol((char*)req->kvs[i].v.data, NULL, 10);
+				if(req->payloadn < 0) {
+					err("webreq payloadn illegal. [%d]\n", req->payloadn);
+					return -1;
+				}
+				if(req->payloadn > (10*1024*1024)) {
+					err("ebreq payloadn too big. [%d]\n", req->payloadn);
+					return -1;
+				}
+			}
+		}
+		
+		if(req->payloadn > 0) {
+			schk(0 == meta_alloc(&req->payload, req->payloadn), return -1);
+			int remain = meta_getlen(c->meta);
+			if(remain) {
+				schk(0 == meta_pdata(req->payload, c->meta->pos, meta_getlen(c->meta)), return -1);
+			}
+		} else {
+			return 0;
+		}
+	}
+
+	while(meta_getlen(req->payload) < req->payloadn) {
+		int recvd = c->recv(c, req->payload->last, meta_getfree(req->payload));
+		if(recvd < 0) {
+			if(recvd == -11) {
+				return -11;
+			}
+			err("webreq recv payload err.\n");
+			return -1;
+		}
+		req->payload->last += recvd;
+	}
+	return 0;
 }
 
-int http_req_ctx_init(con_t * c, http_req_t ** req)
-{
-    /*
-        http request format
 
-        <start line>    ///this module process
-        <headers>       ///this module process
-        <payload>       ///other mdule do this
-    */
-    http_req_t * nreq = NULL;
-    schk(nreq = mem_pool_alloc(sizeof(http_req_t)), return -1);
-    nreq->c = c;
-    nreq->state = 0;
-    nreq->cb = http_req_startline;
-    *req = nreq;
-    return 0;
-}
-
-int http_req_init_module(void)
-{
-    return 0;
-}
-
-int http_req_end_module(void)
-{
-    return 0;
-}

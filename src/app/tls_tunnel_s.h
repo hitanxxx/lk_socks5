@@ -6,7 +6,7 @@ extern "C"
 {
 #endif
 
-#define TLS_TUNNEL_TMOUT	 8
+#define TLS_TUNNEL_TMOUT	 10*1000
 #define TLS_TUNNEL_AUTH_MAGIC_NUM     0xa001beef
 #define TLS_TUNNEL_METAN    (4096*3)
 
@@ -26,7 +26,7 @@ typedef struct {
     con_t * cdown;
     con_t * cup;
     
-    dns_cycle_t * dns_ses;
+    dnsc_t * dns;
 
     int atyp;
     void * adata;
@@ -35,12 +35,13 @@ typedef struct {
 
 int tls_ses_free(tls_tunnel_session_t * s5);
 int tls_ses_alloc(tls_tunnel_session_t ** s5);
-void tls_session_timeout(void * data);
+void tls_ses_exp(void * data);
 
 
-int tls_tunnel_traffic_proc(event_t * ev);
-int tls_tunnel_s_transport(event_t * ev);
-int tls_tunnel_s_accept(event_t * ev);
+int tls_tunnel_traffic_proc(con_t * c);
+int tls_tunnel_s_start(con_t * c);
+
+int tls_tunnel_s_accept(con_t * c);
 
 
 int tls_tunnel_s_init(void);

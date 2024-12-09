@@ -8,7 +8,7 @@ extern "C"
 
 int tls_tunnel_c_init(void);
 int tls_tunnel_c_exit(void);
-int tls_tunnel_c_accept(event_t * ev);
+int tls_tunnel_c_accept(con_t * c);
 
 
 #ifdef __cpluscplus

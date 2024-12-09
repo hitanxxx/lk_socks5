@@ -7,24 +7,21 @@ extern "C"
 #endif
 
 typedef struct listen listen_t;
-
-extern listen_t * g_listens;
-
 struct listen {
-    int fd;
-	char fssl:1;
-	unsigned short lport;
-	
-	event_pt handler;
-	event_t	event;
-	struct sockaddr_in server_addr;
+	unsigned short port;
+	int fd;
+	ev_cb cb;
 
-    listen_t * next;
+	char fuse:1;
+	char fssl:1;
 };
 
-status listen_start( void );
-status listen_init( void );
-status listen_end( void );
+extern listen_t g_listens[8];
+
+
+status listen_start(void);
+status listen_init(void);
+status listen_end(void);
 
 
 #ifdef __cplusplus

@@ -1,6 +1,6 @@
 CROSS_PREFIX ?= 
 
-CC           = $(CROSS_PREFIX)clang
+CC           = $(CROSS_PREFIX)gcc
 CXX          = $(CROSS_PREFIX)g++
 AS           = $(CROSS_PREFIX)as
 AR           = $(CROSS_PREFIX)ar
@@ -45,7 +45,7 @@ COBJS += $(patsubst %.c,%.o,$(patsubst %.cpp,%.o,$(CSRCS)))
 LDFLAGS += -lcrypto -lssl -lpthread -lm -ldl
 
 CFLAGS += -Wall -ffunction-sections -fdata-sections $(DEFINE) $(INCLUDE)
-CFLAGS += -O3
+CFLAGS += -O2
 CFLAGS += -fstrict-aliasing -march=native -mtune=native -pipe
 
 

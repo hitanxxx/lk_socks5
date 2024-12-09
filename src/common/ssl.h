@@ -6,7 +6,7 @@ extern "C"
 {
 #endif
     
-#define L_SSL_TIMEOUT		5
+#define SSL_TMOUT		5000
 
 #define L_SSL_CLIENT        0x01
 #define L_SSL_SERVER        0x02
@@ -17,13 +17,13 @@ typedef struct {
     SSL* con;
     
     void * data;
-    int cache_ev_typ;
-    event_pt cache_ev_readpt;
-    event_pt cache_ev_writept;
-    event_pt cb;
+    int cc_ev_typ;
+    ev_cb cc_ev_cbr;
+    ev_cb cc_ev_cbw;
     
 	char    f_handshaked:1;
-    char    f_shutdown_send:1;  ///initiative shutdown
+    char	f_err:1;
+	char 	f_closed:1;
 } ssl_con_t;
 
 int ssl_init(void);
@@ -32,8 +32,8 @@ int ssl_end(void);
 int ssl_client_ctx(SSL_CTX ** s);
 int ssl_server_ctx(SSL_CTX ** s);
 
-int ssl_handshake(ssl_con_t * ssl);
-int ssl_shutdown(ssl_con_t * ssl);
+int ssl_handshake(con_t * c);
+int ssl_shutdown(con_t * c);
 
 int ssl_read(con_t * c, unsigned char * buf, int bufn);
 int ssl_write(con_t * c, unsigned char * data, int datan);

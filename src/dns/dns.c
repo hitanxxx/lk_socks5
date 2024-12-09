@@ -17,6 +17,10 @@ typedef struct dns_ctx_s
 } dns_ctx_t;
 static dns_ctx_t * dns_ctx = NULL;
 
+static int dns_async_result(dnsc_t * dns, int result_status, unsigned char * result);
+static int dns_cexp(con_t * c);
+
+
 static int dns_rec_add(char * query, char * addr, int msec)
 {
     dns_cache_t * rdns = NULL;
@@ -83,86 +87,14 @@ inline static char * dns_get_serv()
     }
 }
 
-static int dns_alloc(dns_cycle_t ** cycle)
-{
-    dns_cycle_t * ncycle = NULL;
-    schk(ncycle = mem_pool_alloc(sizeof(dns_cycle_t)), return -1);
-    *cycle = ncycle;
-    return 0;
-}
 
-static int dns_free(dns_cycle_t * cycle)
-{
-    mem_pool_free(cycle);
-    return 0;
-}
-
-int dns_over(dns_cycle_t * cycle)
-{
-    if(cycle) {
-        if(cycle->c) {
-            net_free(cycle->c);
-            cycle->c = NULL;
-        }
-        cycle->cb = NULL;
-        memset(cycle->query, 0, DOMAIN_LENGTH+1);
-        memset(&cycle->answer, 0, sizeof(dns_record_t));
-        
-        dns_free(cycle);
-    }
-    return 0;
-}
-
-int dns_create(dns_cycle_t ** dns_cycle)
-{
-    dns_cycle_t * local_cycle = NULL;
-    meta_t * meta = NULL;
-
-    schk(0 == dns_alloc(&local_cycle), return -1);
-    do {
-        schk(0 == net_alloc(&local_cycle->c), break);
-        meta = &local_cycle->dns_meta;
-        meta->start = meta->pos = meta->last = local_cycle->dns_buffer;
-        meta->end = meta->start + DNS_BUFFER_LEN;
-        
-        local_cycle->c->data = local_cycle;
-        *dns_cycle = local_cycle;
-        return 0;
-    } while(0);
-
-    if(local_cycle) {
-        dns_over(local_cycle);
-    }
-    return -1;
-}
-
-static void dns_stop(dns_cycle_t * cycle, int rc)
-{
-    if(cycle && cycle->c && cycle->c->fd) {
-        event_opt(cycle->c->event, cycle->c->fd, EV_NONE);
-    }
-
-    if(rc != 0 && rc != -1) {
-        err("status not support\n");
-        rc = -1;
-    }
-    cycle->dns_status = rc;
-    if(cycle->cb) {
-        cycle->cb(cycle->cb_data);
-    }
-}
-
-static inline void dns_cycle_timeout(void * data)
-{
-    dns_stop((dns_cycle_t *)data, -1);
-}
-
-int dns_response_analyze(dns_cycle_t * cycle)
+int dns_response_analyze(con_t * c)
 {
     unsigned char * p = NULL;
     int state_len = 0, cur = 0;
-    meta_t * meta = &cycle->dns_meta;
-
+	dnsc_t * dnsc = c->data;
+    meta_t * meta = c->meta;
+	
     enum {
         ANSWER_DOMAIN,
         ANSWER_DOMAIN2,
@@ -171,14 +103,14 @@ int dns_response_analyze(dns_cycle_t * cycle)
         ANSWER_ADDR_START,
         ANSWER_ADDR
     } state = ANSWER_DOMAIN;
-    p = meta->pos + sizeof(dns_header_t) + cycle->qname_len + sizeof(dns_question_t);
+    p = meta->pos + sizeof(dns_header_t) + dnsc->qname_len + sizeof(dns_question_t);
     /*
         parse dns answer
     */
     for(; p < meta->last; p++) {
         if(state == ANSWER_DOMAIN) {
             if((*p)&0xc0) {	/// 0xc0 means two byte length 
-                cycle->answer.name = p;
+                dnsc->answer.name = p;
                 state = ANSWER_DOMAIN2;
                 continue;
             } else {
@@ -199,7 +131,7 @@ int dns_response_analyze(dns_cycle_t * cycle)
         }
         if(state == ANSWER_COMMON_START) {
             /// common start means common part already started
-            cycle->answer.rdata = (dns_rdata_t *)p;
+            dnsc->answer.rdata = (dns_rdata_t *)p;
             state = ANSWER_COMMON;
         }
         if(state == ANSWER_COMMON) {
@@ -208,31 +140,33 @@ int dns_response_analyze(dns_cycle_t * cycle)
                 ///answer common finish, goto answer address
                 state = ANSWER_ADDR_START;
                 cur = 0;
-                state_len = ntohs(cycle->answer.rdata->data_len);
+                state_len = ntohs(dnsc->answer.rdata->data_len);
                 continue;
             }
         }
         if(state == ANSWER_ADDR_START) {
-            cycle->answer.answer_addr = p;
+            dnsc->answer.answer_addr = p;
             state = ANSWER_ADDR;
         }
         if(state == ANSWER_ADDR) {
             cur++;
             if(cur >= state_len) {
                 /// answer address finish. check address in here
-                unsigned int rttl = ntohl(cycle->answer.rdata->ttl);
-                unsigned short rtyp = ntohs( cycle->answer.rdata->type );
-                unsigned short rdatan = ntohs(cycle->answer.rdata->data_len);
+                unsigned int rttl = ntohl(dnsc->answer.rdata->ttl);
+                unsigned short rtyp = ntohs(dnsc->answer.rdata->type);
+                unsigned short rdatan = ntohs(dnsc->answer.rdata->data_len);
 
                 /// if this answer is a A TYPE answer (IPV4), return ok
                 if(rtyp == 0x0001) {
-                    if(0 == dns_rec_find((char*)cycle->query, NULL)) {
+                    if(0 == dns_rec_find((char*)dnsc->query, NULL)) {
                         /// do nothing, record already in cache 
                     } else {
                         if(rttl > 0 && rdatan > 0) {
-                            dns_rec_add((char*)cycle->query, (char*)cycle->answer.answer_addr, 1000*rttl);
+                            dns_rec_add((char*)dnsc->query, (char*)dnsc->answer.answer_addr, 1000*rttl);
                         }
                     }
+					memcpy(dnsc->result, dnsc->answer.answer_addr, 4);
+					dns_async_result(dnsc, 0, dnsc->result);
                     return 0;
                 } else if (rtyp == 0x0005) {
                     ///dbg("dns answer type CNAME, ignore\n");
@@ -249,84 +183,73 @@ int dns_response_analyze(dns_cycle_t * cycle)
     return -1;
 }
 
-int dns_response_recv(event_t * ev)
+int dns_response_recv(con_t * c)
 {
-    con_t * c = ev->data;
-    dns_cycle_t * cycle = c->data;
-    meta_t * meta = &cycle->dns_meta;
-    int rc = 0;
+    dnsc_t * dnsc = c->data;
+    meta_t * meta = c->meta;
     dns_header_t * header = NULL;
 
     /// at least the response need contains the request 
-    size_t want_len = sizeof(dns_header_t) + cycle->qname_len + sizeof(dns_question_t);
+    size_t want_len = sizeof(dns_header_t) + dnsc->qname_len + sizeof(dns_question_t);
 
     while(meta_getlen(meta) < want_len) {
         int size = udp_recvs(c, meta->last, meta_getfree(meta));
         if(size <= 0) {
             if(size == -11) {
                 // add timer for recv
-                timer_set_data(&c->event->timer, (void*)cycle);
-                timer_set_pt(&c->event->timer, dns_cycle_timeout);
-                timer_add(&c->event->timer, DNS_TIMEOUT);
+                tm_add(c, dns_cexp, DNS_TMOUT);
                 return -11;
             }
             err("dns recv response failed, errno [%d]\n", errno);
-            dns_stop(cycle, -1);
+            dns_async_result(dnsc, -1, NULL);
             return -1;
         }
         meta->last += size;
     }
-    timer_del(&c->event->timer);
+    tm_del(c);
 
     /// do basic filter in here, check req question count and answer count     
     header = (dns_header_t*)meta->pos;
     if(ntohs(header->question_count) < 1) {
         err("dns response question count [%d], illegal\n", header->question_count);
-        dns_stop(cycle, -1);
+        dns_async_result(dnsc, -1, NULL);
         return -1;
     }
     if(ntohs(header->answer_count) < 1) {
         err("dns response answer count [%d], illegal\n", header->answer_count);
-        dns_stop(cycle, -1);
+        dns_async_result(dnsc, -1, NULL);
         return -1;
     }
 
     // make dns connection event invalidate
-    rc = dns_response_analyze(cycle);
-    dns_stop(cycle, rc);
-    return rc;
+	return dns_response_analyze(c);
 }
 
-int dns_request_send(event_t * ev)
+int dns_request_send(con_t * c)
 {
-    con_t * c = ev->data;
-    dns_cycle_t * cycle = c->data;
-    meta_t * meta = &cycle->dns_meta;
+    dnsc_t * dnsc = c->data;
+    meta_t * meta = c->meta;
 
     while(meta_getlen(meta) > 0) {
         int sendn = udp_sends(c, meta->pos, meta_getlen(meta));
         if(sendn <= 0) {
             if(sendn == -11) {
                 // add timer for send
-                timer_set_data(&c->event->timer, (void*)cycle);
-                timer_set_pt(&c->event->timer, dns_cycle_timeout);
-                timer_add(&c->event->timer, DNS_TIMEOUT);
+                tm_add(c, dns_cexp, DNS_TMOUT);
                 return -11;
             }
             err("dns send request failed, errno [%d]\n", errno);
-            dns_stop(cycle, -1);
+            dns_async_result(dnsc, -1, NULL);
             return -1;
         }
         meta->pos += sendn;
     }
-    timer_del(&c->event->timer);
-    // clear meta buffer
-    meta->pos = meta->last = meta->start;
-
-    event_opt(ev, c->fd, EV_R);
-    ev->write_pt = NULL;
-    ev->read_pt = dns_response_recv;
-    return ev->read_pt(ev);
+    tm_del(c);
+    meta_clr(meta);
+	
+    c->ev->write_cb = NULL;
+    c->ev->read_cb = dns_response_recv;
+    return c->ev->read_cb(c);
 }
 
 int dns_request_host2qname(unsigned char * host, unsigned char * qname)
@@ -362,17 +285,17 @@ int dns_request_host2qname(unsigned char * host, unsigned char * qname)
 }
 
 
-static int dns_request_packet(event_t * ev)
+static int dns_request_packet(con_t * c)
 {
     /*
         header + question
     */
-    con_t * c = ev->data;
-    dns_cycle_t * cycle = c->data;
+ 	
+    dnsc_t * dnsc = c->data;
     dns_header_t * header   = NULL;
     unsigned char * qname   = NULL;
     dns_question_t * qinfo  = NULL;
-    meta_t * meta = &cycle->dns_meta;
+    meta_t * meta = c->meta;
 
     /// fill in dns packet header 
     header = (dns_header_t*)meta->last;
@@ -386,43 +309,21 @@ static int dns_request_packet(event_t * ev)
 
     /// convert www.google.com -> 3www6google3com0
     qname = meta->last;
-    cycle->qname_len = dns_request_host2qname(cycle->query, qname);
-    meta->last += cycle->qname_len;
+    dnsc->qname_len = dns_request_host2qname(dnsc->query, qname);
+    meta->last += dnsc->qname_len;
 
     qinfo = (dns_question_t*)meta->last;
     qinfo->qtype = htons(0x0001);  /// question type is IPV4
     qinfo->qclass = htons(0x0001);
     meta->last += sizeof(dns_question_t);
 
-    event_opt(c->event, c->fd, EV_W);
-    ev->write_pt = dns_request_send;
-    return ev->write_pt(ev);
+    ev_opt(c, EV_R|EV_W);
+	c->ev->read_cb = NULL;
+    c->ev->write_cb = dns_request_send;
+    return c->ev->write_cb(c);
 }
 
-/// @breif: start a ipv4 dns query request 
-int dns_start(dns_cycle_t * cycle)
-{
-    con_t * c = cycle->c;
-    struct sockaddr_in addr;
 
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(53);  /// dns typicaly port: 53
-    addr.sin_addr.s_addr = inet_addr(dns_get_serv());
-
-    do {
-        c->fd = socket(AF_INET, SOCK_DGRAM, 0);
-        schk(c->fd > 0, break);
-        schk(0 == net_socket_reuseaddr(c->fd), break);
-        schk(0 == net_socket_nbio(c->fd), break);
-
-        memcpy(&c->addr, &addr, sizeof(c->addr));
-        c->event->read_pt = NULL;
-        c->event->write_pt = dns_request_packet;
-        return c->event->write_pt(c->event);
-    } while(0);
-    dns_stop(cycle, -1);
-    return -1;
-}
 
 int dns_init(void)
 {
@@ -435,15 +336,14 @@ int dns_init(void)
 int dns_end(void)
 {
     if(dns_ctx) {
-        dns_cache_t * rdns = NULL;
         queue_t * q = queue_head(&dns_ctx->record_mng);
         queue_t * n = NULL;
         /// free dns cache if need 
         while(q != queue_tail(&dns_ctx->record_mng)) {
             n = queue_next(q);
             
-            rdns = ptr_get_struct(q, dns_cache_t, queue);
-            queue_remove( q );
+            dns_cache_t * rdns = ptr_get_struct(q, dns_cache_t, queue);
+            queue_remove(q);
             mem_pool_free(rdns);
 
             q = n;
@@ -452,4 +352,62 @@ int dns_end(void)
         dns_ctx = NULL;
     }
     return 0;
+}
+
+
+int dns_alloc(dnsc_t ** outdns, char * domain, dns_async_cb cb, void * userdata)
+{
+	dnsc_t * dns = mem_pool_alloc(sizeof(dnsc_t));
+	schk(dns, return -1);
+
+	dns->user_data = userdata;
+	dns->cb = cb;
+	memcpy(dns->query, domain, strlen(domain) > sizeof(dns->query) ? sizeof(dns->query) : strlen(domain));
+
+	struct sockaddr_in addr;
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(53);  /// dns typicaly port: 53
+    addr.sin_addr.s_addr = inet_addr(dns_get_serv());
+	
+	do {
+		schk(0 == net_alloc(&dns->c), break);
+		schk(0 == meta_alloc(&dns->c->meta, DNS_METAN), break);
+		dns->c->data = dns;
+		dns->c->data_cb = NULL;
+		
+		dns->c->fd = socket(AF_INET, SOCK_DGRAM, 0);
+        schk(dns->c->fd > 0, break);
+        schk(0 == net_socket_reuseaddr(dns->c->fd), break);
+        schk(0 == net_socket_nbio(dns->c->fd), break);
+
+		*outdns = dns;
+
+        memcpy(&dns->c->addr, &addr, sizeof(dns->c->addr));
+        dns->c->ev->read_cb = NULL;
+        dns->c->ev->write_cb = dns_request_packet;
+        return dns->c->ev->write_cb(dns->c);
+	} while(0);
+
+	dns_free(dns);
+	return -1;
+}
+
+void dns_free(dnsc_t * dnsc)
+{
+	if(dnsc->c) net_close(dnsc->c);
+	mem_pool_free(dnsc);
+}
+
+static int dns_async_result(dnsc_t * dns, int result_status, unsigned char * result)
+{
+	if(dns->cb)
+		dns->cb(result_status, result, dns->user_data);
+
+	return result_status == 0 ? 0 : -1;	
+}
+
+static int dns_cexp(con_t * c)
+{
+	dnsc_t * dns = c->data;
+	return dns_async_result(dns, -1, NULL);
 }

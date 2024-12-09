@@ -1,8 +1,7 @@
 #include "common.h"
 
 
-typedef struct
-{
+typedef struct {
     SSL_CTX *  ctx_client;
     SSL_CTX *  ctx_server;
     char       g_err_msg[1024];
@@ -36,53 +35,51 @@ static g_ssl_t * g_ssl_ctx = NULL;
     } \
 }
 
-
-int ssl_shutdown_handler(event_t * ev)
+int ssl_cexp(con_t * c)
 {
-    con_t * c = ev->data;
-    event_pt cb = c->ssl->cb;
-    timer_del(&ev->timer);
-
-    int rc = ssl_shutdown(c->ssl);
-    if(rc == -11) {
-        timer_add(&ev->timer, L_SSL_TIMEOUT);
-        return -11;
-    }
-    if(c->ssl && c->ssl->cache_ev_typ) {
-        event_opt(ev, c->fd, c->ssl->cache_ev_typ);
-        c->ssl->cache_ev_typ = 0;
-    }
-    return (cb ? cb(c->event) : rc);
+	c->ssl->f_err = 1;
+	return net_free(c);
 }
 
-int ssl_shutdown(ssl_con_t * ssl)
+int ssl_shutdown_cb(con_t * c)
 {
-    con_t * c = ssl->data;
+	
+    int rc = ssl_shutdown(c);
+    if(rc == -11) {
+        tm_add(c, ssl_cexp, SSL_TMOUT);
+        return -11;
+    }
+	tm_del(c);
+	
+	if(rc == -1) c->ssl->f_err = 1;
+	return net_free(c);
+}
+
+int ssl_shutdown(con_t * c)
+{
+	ssl_con_t * sslc = c->ssl;
     int sslerr = 0;
-    int try = 0;
+    int t = 0;
     
     ssl_clear_error();
-
-    for(try = 0; try < 2; try++) {
-        int rc = SSL_shutdown(c->ssl->con);
+    for(t = 0; t < 2; t++) {
+        int rc = SSL_shutdown(sslc->con);
         if(rc == 1) {
+			c->ssl->f_closed = 1;
             return 0;
         }
-        if(rc == 0 && try == 0) {
+        if(rc == 0 && t == 0) {
             continue;
         }
-        sslerr = SSL_get_error(c->ssl->con, rc);
+        sslerr = SSL_get_error(sslc->con, rc);
         if(sslerr == SSL_ERROR_WANT_READ || sslerr == SSL_ERROR_WANT_WRITE) {
-            c->ssl->f_shutdown_send = 1;
-            if(!ssl->cache_ev_typ)
-                ssl->cache_ev_typ = c->event->opt;
-
+            
             if(sslerr == SSL_ERROR_WANT_READ) {
-                c->event->read_pt = ssl_shutdown_handler;
-                event_opt(c->event, c->fd, EV_R);
+                c->ev->read_cb = ssl_shutdown_cb;
+                ev_opt(c, EV_R);
             } else {
-                c->event->write_pt = ssl_shutdown_handler;
-                event_opt(c->event, c->fd, EV_W);
+                c->ev->write_cb = ssl_shutdown_cb;
+                ev_opt(c, EV_W);
             }
             return -11;
         }
@@ -91,46 +88,57 @@ int ssl_shutdown(ssl_con_t * ssl)
     return -1;
 }
 
-
-static int ssl_handshake_handler(event_t * ev)
+static int ssl_handshake_cb(con_t * c)
 {
-    con_t * c = ev->data;
-    timer_del(&ev->timer);
-    
-    int rc = ssl_handshake(c->ssl);
+    int rc = ssl_handshake(c);
     if(rc == -11) {
-        timer_add(&ev->timer, L_SSL_TIMEOUT);
+        tm_add(c, ssl_cexp, SSL_TMOUT);
         return -11;
     } 
-    if(c->ssl && c->ssl->cache_ev_typ) {
-        event_opt(ev, c->fd, c->ssl->cache_ev_typ);
-        c->ssl->cache_ev_typ = 0;
-    }
-    return (c->ssl->cb ? c->ssl->cb(ev) : rc);
+	tm_del(c);
+
+	if(rc == 0) {
+		if(c->ssl->cc_ev_typ) ev_opt(c, c->ssl->cc_ev_typ);
+		
+		if(c->ssl->cc_ev_cbr) {
+			c->ev->read_cb = c->ssl->cc_ev_cbr;
+			c->ssl->cc_ev_cbr = NULL;
+			return c->ev->read_cb(c);
+		} else if (c->ssl->cc_ev_cbw) {
+			c->ev->write_cb = c->ssl->cc_ev_cbw;
+			c->ssl->cc_ev_cbw = NULL;
+			return c->ev->write_cb(c);
+		}
+	}
+    if(rc == -1) c->ssl->f_err = 1;
+	return net_free(c);
 }
 
-int ssl_handshake(ssl_con_t * ssl)
-{
-    con_t * c = ssl->data;
-    
+int ssl_handshake(con_t * c)
+{   
+	ssl_con_t * sslc = c->ssl;
     ssl_clear_error();
-    int rc = SSL_do_handshake(ssl->con);
+    int rc = SSL_do_handshake(sslc->con);
     if(rc == 1) {
-        ssl->f_handshaked = 1;
+        sslc->f_handshaked = 1;
         return 0;
     }
     
-    int sslerr = SSL_get_error(ssl->con, rc);
+    int sslerr = SSL_get_error(sslc->con, rc);
     if(sslerr == SSL_ERROR_WANT_READ || sslerr == SSL_ERROR_WANT_WRITE) {
-        if(!ssl->cache_ev_typ)
-            ssl->cache_ev_typ = c->event->opt; ///cache current event opt
+        if(!sslc->cc_ev_typ) 
+			sslc->cc_ev_typ = c->ev->opt; ///cache current event opt
+		if(!sslc->cc_ev_cbr)
+			if(c->ev->read_cb) sslc->cc_ev_cbr = c->ev->read_cb;
+		if(!sslc->cc_ev_cbw)
+			if(c->ev->write_cb) sslc->cc_ev_cbw = c->ev->write_cb;
    
         if(sslerr == SSL_ERROR_WANT_READ) {
-            c->event->read_pt = ssl_handshake_handler;
-            event_opt(c->event, c->fd, EV_R);
+            c->ev->read_cb = ssl_handshake_cb;
+            ev_opt(c, EV_R);
         } else if (sslerr == SSL_ERROR_WANT_WRITE) {
-            c->event->write_pt = ssl_handshake_handler;
-            event_opt(c->event, c->fd, EV_W);
+            c->ev->write_cb = ssl_handshake_cb;
+            ev_opt(c, EV_W);
         }
         return -11;
     }
@@ -138,43 +146,43 @@ int ssl_handshake(ssl_con_t * ssl)
     return -1;
 }
 
-inline static int ssl_write_handler(event_t * ev)
+static int ssl_read_cb(con_t * c)
 {
-    con_t * c = ev->data;
-    if(c->ssl && c->ssl->cache_ev_writept) {
-        c->event->write_pt = c->ssl->cache_ev_writept;
-        c->ssl->cache_ev_writept = NULL;
-    }
-    return ev->read_pt(ev);
+    return c->ev->read_cb(c);
 }
 
 int ssl_read(con_t * c, unsigned char * buf, int bufn)
 {
+	ssl_con_t * sslc = c->ssl;
+
     ssl_clear_error();
-    int rc = SSL_read(c->ssl->con, buf, bufn);
+    int rc = SSL_read(sslc->con, buf, bufn);
     if(rc > 0) {
-        if(c->ssl->cache_ev_typ) {
-            event_opt(c->event, c->fd, c->ssl->cache_ev_typ);
-            c->ssl->cache_ev_typ = 0;
+        if(sslc->cc_ev_typ) {
+            ev_opt(c, sslc->cc_ev_typ);
+           	sslc->cc_ev_typ = 0;
         }
-        if(c->ssl->cache_ev_writept) {
-            c->event->write_pt = c->ssl->cache_ev_writept;
-            c->ssl->cache_ev_writept = NULL;
+        if(sslc->cc_ev_cbw) {
+            c->ev->write_cb = sslc->cc_ev_cbw;
+            sslc->cc_ev_cbw = NULL;
         }
         return rc;
     }
     
-    int sslerr = SSL_get_error(c->ssl->con, rc);
+    int sslerr = SSL_get_error(sslc->con, rc);
     if(sslerr == SSL_ERROR_WANT_READ || sslerr == SSL_ERROR_WANT_WRITE) {
-        if(!c->ssl->cache_ev_typ) c->ssl->cache_ev_typ = c->event->opt;
-        if(!c->ssl->cache_ev_readpt) c->ssl->cache_ev_readpt = c->event->read_pt;
-        if(!c->ssl->cache_ev_writept) c->ssl->cache_ev_writept = c->event->write_pt;
+        if(!sslc->cc_ev_typ) 
+			sslc->cc_ev_typ = c->ev->opt;
+        if(!sslc->cc_ev_cbr)
+			if(c->ev->read_cb) sslc->cc_ev_cbr = c->ev->read_cb;
+        if(!sslc->cc_ev_cbw)
+			if(c->ev->write_cb) sslc->cc_ev_cbw = c->ev->write_cb;
 
         if(sslerr == SSL_ERROR_WANT_READ) {
-            event_opt(c->event, c->fd, EV_R);
+            ev_opt(c, EV_R);
         } else if(sslerr == SSL_ERROR_WANT_WRITE) {
-            c->event->write_pt = ssl_write_handler;
-            event_opt(c->event, c->fd, EV_W);
+            c->ev->write_cb = ssl_read_cb;
+            ev_opt(c, EV_W);
         }
         return -11;
     }
@@ -185,44 +193,43 @@ int ssl_read(con_t * c, unsigned char * buf, int bufn)
     return -1;
 }
 
-static int ssl_read_handler(event_t * ev)
+static int ssl_write_cb(con_t * c)
 {
-    con_t * c = ev->data;
-    if(c->ssl && c->ssl->cache_ev_readpt) {
-        c->event->read_pt = c->ssl->cache_ev_readpt;
-        c->ssl->cache_ev_readpt = NULL;
-    }
-    return ev->write_pt(ev);
+    return c->ev->write_cb(c);
 }
 
 int ssl_write(con_t * c, unsigned char * data, int datan)
 {
+	ssl_con_t * sslc = c->ssl;
+
     ssl_clear_error();
-    
-    int rc = SSL_write(c->ssl->con, data, datan);
+    int rc = SSL_write(sslc->con, data, datan);
     if(rc > 0) {
-        if(c->ssl->cache_ev_typ) {
-            event_opt(c->event, c->fd, c->ssl->cache_ev_typ);
-            c->ssl->cache_ev_typ = 0;
+        if(sslc->cc_ev_typ) {
+            ev_opt(c, c->ssl->cc_ev_typ);
+            sslc->cc_ev_typ = 0;
         }
-        if(c->ssl->cache_ev_readpt) {
-            c->event->read_pt = c->ssl->cache_ev_readpt;
-            c->ssl->cache_ev_readpt = NULL;
+        if(sslc->cc_ev_cbr) {
+            c->ev->read_cb = sslc->cc_ev_cbr;
+            sslc->cc_ev_cbr = NULL;
         }
         return rc;
     }
     
-    int sslerr = SSL_get_error(c->ssl->con, rc);
+    int sslerr = SSL_get_error(sslc->con, rc);
     if(sslerr == SSL_ERROR_WANT_READ || sslerr == SSL_ERROR_WANT_WRITE) {
-        if(!c->ssl->cache_ev_typ) c->ssl->cache_ev_typ = c->event->opt;
-        if(!c->ssl->cache_ev_readpt) c->ssl->cache_ev_readpt = c->event->read_pt;
-        if(!c->ssl->cache_ev_writept) c->ssl->cache_ev_writept = c->event->write_pt;
+        if(!sslc->cc_ev_typ)
+			c->ssl->cc_ev_typ = c->ev->opt;
+        if(!sslc->cc_ev_cbr) 
+			if(c->ev->read_cb) c->ssl->cc_ev_cbr = c->ev->read_cb;
+        if(!sslc->cc_ev_cbw)
+			if(c->ev->write_cb) c->ssl->cc_ev_cbw = c->ev->write_cb;
 
         if(sslerr == SSL_ERROR_WANT_READ) {
-            c->event->read_pt = ssl_read_handler;
-            event_opt(c->event, c->fd, EV_R);
+            c->ev->read_cb = ssl_write_cb;
+            ev_opt(c, EV_R);
         } else if(sslerr == SSL_ERROR_WANT_WRITE) {
-            event_opt(c->event, c->fd, EV_W);
+            ev_opt(c, EV_W);
         }
         return -11;
     }
@@ -309,28 +316,28 @@ int ssl_load_ctx_certificate(SSL_CTX ** ctx, int flag)
 
 int ssl_create_connection(con_t * c, int flag)
 {
-    ssl_con_t * sslcon = NULL;
+    ssl_con_t * sslc = NULL;
     schk(((flag == L_SSL_SERVER) || (flag == L_SSL_CLIENT)), return -1);
     
     do {
-        sslcon = mem_pool_alloc(sizeof(ssl_con_t));
-        schk(sslcon, return -1);
-        schk(ssl_load_ctx_certificate(&sslcon->session_ctx, flag) == 0, break);
-        schk(ssl_load_con_certificate(sslcon->session_ctx, flag, &sslcon->con) == 0, break);
-        schk(SSL_set_fd(sslcon->con, c->fd) != 0, break);
-        (flag == L_SSL_CLIENT) ? SSL_set_connect_state(sslcon->con) : SSL_set_accept_state(sslcon->con);
-        schk(SSL_set_ex_data(sslcon->con, 0, c) != 0, break);
+        sslc = mem_pool_alloc(sizeof(ssl_con_t));
+        schk(sslc, return -1);
+        schk(ssl_load_ctx_certificate(&sslc->session_ctx, flag) == 0, break);
+        schk(ssl_load_con_certificate(sslc->session_ctx, flag, &sslc->con) == 0, break);
+        schk(SSL_set_fd(sslc->con, c->fd) != 0, break);
+        (flag == L_SSL_CLIENT) ? SSL_set_connect_state(sslc->con) : SSL_set_accept_state(sslc->con);
+        schk(SSL_set_ex_data(sslc->con, 0, c) != 0, break);
         
-        c->ssl = sslcon;
-        sslcon->data = c;
+        c->ssl = sslc;
+        sslc->data = c;
         return 0;
     } while(0);
     
-    if(sslcon) {
-        if(sslcon->con) {
-            SSL_free(sslcon->con);
+    if(sslc) {
+        if(sslc->con) {
+            SSL_free(sslc->con);
         }
-        mem_pool_free(sslcon);
+        mem_pool_free(sslc);
     }
     return -1;
 }
@@ -339,16 +346,10 @@ int ssl_init(void)
 {
     schk(!g_ssl_ctx, return -1);
     schk(g_ssl_ctx = mem_pool_alloc(sizeof(g_ssl_t)), return -1);
-#if(1)
+
     SSL_library_init();
     SSL_load_error_strings();
     OpenSSL_add_all_algorithms();
-#else
-    OPENSSL_config(NULL);
-    SSL_library_init();
-    SSL_load_error_strings();
-    OpenSSL_add_all_algorithms();
-#endif
     return 0;
 }
 

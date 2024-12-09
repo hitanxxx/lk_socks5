@@ -1,50 +1,18 @@
 #include "common.h"
-#include "http_payload.h"
 #include "http_req.h"
 #include "webser.h"
 
-static int wapi_echo_post(event_t * ev)
+static int wapi_echo_post(con_t * c)
 {
-    con_t * c = ev->data;
-    webser_t * web = c->data;
-    
-    int rc = webser_req_payload(web);
-    if(rc == -1) {
-        err("web req body proc failed\n");
-        webser_free(web);
-        return -1;
-    } else if (rc == -11) {
-        timer_set_data(&ev->timer, web);
-        timer_set_pt(&ev->timer, webser_timeout_cycle);
-        timer_add(&ev->timer, WEBSER_TIMEOUT);
-        return -11;
-    }
-    timer_del(&ev->timer);
+    webser_t * webc = c->data;
 
-    ///show req body
-    dbg("http req data [%s]\n", web->http_payload->payload->pos);
-
-    webser_rsp_mime(web, ".html");
-	webser_rsp_code(web, 200);
-    schk(0 == webser_rsp_payload_push(web, (char*)web->http_payload->payload->pos), return -1);
-    schk(0 == webser_rsp_payload_push(web, systime_gmt()), return -1);
-    
-    ev->read_pt = webser_rsp_send;
-    return ev->read_pt( ev );
+    dbg("http req data [%s]\n", webc->webreq->payload->pos);
+	return webser_rsp(c, 200, NULL, webc->webreq->payload->pos, meta_getlen(webc->webreq->payload));
 }
 
-static int wapi_echo_get(event_t * ev)
+static int wapi_echo_get(con_t * c)
 {   
-    con_t * c = ev->data;
-    webser_t * web = c->data;
-
-    /// build the http rsp body datas
-    webser_rsp_mime(web, ".html");
-    webser_rsp_code(web, 200);
-    schk(0 == webser_rsp_payload_push(web, "Hello World!!! %s", systime_gmt()), return -1);
-    
-    ev->read_pt = webser_rsp_send;
-    return ev->read_pt(ev);
+	return webser_rsp(c, 200, NULL, "hello world!", strlen("hello world!"));
 }
 
 int webapi_init(  )
