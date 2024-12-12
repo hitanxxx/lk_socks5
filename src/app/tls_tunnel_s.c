@@ -86,7 +86,7 @@ static int tls_tunnel_traffic_send(con_t * c)
     con_t * cup = ses->cup;
     int sendn = 0;
 
-    tm_add(cdown, tls_ses_exp, TLS_TUNNEL_TMOUT);
+    tm_add(cup, tls_ses_exp, TLS_TUNNEL_TMOUT);
 
     while(meta_getlen(cdown->meta) > 0) {
         sendn = cup->send(cup, cdown->meta->pos, meta_getlen(cdown->meta));
@@ -152,7 +152,7 @@ static int tls_tunnel_traffic_reverse_send(con_t * c)
     con_t * cup = ses->cup;
     int sendn = 0;
     
-    tm_add(cup, tls_ses_exp, TLS_TUNNEL_TMOUT);
+    tm_add(cdown, tls_ses_exp, TLS_TUNNEL_TMOUT);
 
     while(meta_getlen(cup->meta) > 0) {
         sendn = cdown->send(cdown, cup->meta->pos, meta_getlen(cup->meta));
