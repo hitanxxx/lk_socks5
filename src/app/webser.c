@@ -26,14 +26,18 @@ static int webser_api_find(webser_t * web)
         if(!api_entry) {
             continue;
         }
-        if(strlen(api_entry->key) != web->webreq->uri.len)
-            continue;
+		
+        if(strlen(api_entry->key) != web->webreq->uri.len) {
+		    continue;
+		}
 
-        if(strncmp(api_entry->key, (char*)web->webreq->uri.data, web->webreq->uri.len))
-            continue;
+        if(strncmp(api_entry->key, (char*)web->webreq->uri.data, web->webreq->uri.len)) {
+			continue;
+		}
 
-        if(web->webreq->method_typ != api_entry->method)
-            continue;
+        if(web->webreq->method_typ != api_entry->method) {
+			continue;
+		}
 
         web->api = api_entry;
         return 0;

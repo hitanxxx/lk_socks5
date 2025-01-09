@@ -45,10 +45,7 @@ static int web_req_line(con_t * c, web_req_t * req)
     };
 
     for(;;) {
-        if(meta_getfree(c->meta) < 1) {
-            err("webreq meta full\n");
-            return -1;
-        }
+        
         if(meta_getlen(c->meta) < 1) {
             int recvd = c->recv(c, c->meta->last, meta_getfree(c->meta));
             if(recvd < 0) {
@@ -198,6 +195,11 @@ static int web_req_line(con_t * c, web_req_t * req)
                 }
             }
         }
+		
+		if(meta_getfree(c->meta) < 1) {
+            err("webreq meta full\n");
+            return -1;
+        }
     }
 }
 
@@ -215,10 +217,7 @@ static int web_req_hdrs(con_t * c, web_req_t * req)
     };
     
     for(;;) {
-        if(meta_getfree(c->meta) < 1) {
-            err("webreq meta full\n");
-            return -1;
-        }
+        
         if(meta_getlen(c->meta) < 1) {
             int recvd = c->recv(c, c->meta->last, meta_getfree(c->meta));
             if(recvd < 0) {
@@ -302,7 +301,7 @@ static int web_req_hdrs(con_t * c, web_req_t * req)
 
                     if(strncasecmp((char*)req->method.data, "GET", req->method.len) == 0) {
                         req->method_typ = HTTP_METHOD_GET;
-                    } else if (strncasecmp((char*)req->method.data, "GET", req->method.len) == 0) {
+                    } else if (strncasecmp((char*)req->method.data, "POST", req->method.len) == 0) {
                         req->method_typ = HTTP_METHOD_POST;
                     }
                     
@@ -312,6 +311,11 @@ static int web_req_hdrs(con_t * c, web_req_t * req)
                     return -1;
                 }
             }
+        }
+
+		if(meta_getfree(c->meta) < 1) {
+            err("webreq meta full\n");
+            return -1;
         }
     }
 }
