@@ -30,7 +30,6 @@ struct net_connection_t {
     net_cb_rw            recv;
 
     ssl_con_t* ssl;
-    char fclose:1;
     char fssl:1;
 };
 
@@ -50,8 +49,6 @@ int net_connect(con_t * c, struct sockaddr_in * addr);
 
 int net_alloc(con_t ** c);
 int net_free(con_t * c);
-int net_close(con_t * c);
-
 
 int net_init(void);
 int net_end(void);

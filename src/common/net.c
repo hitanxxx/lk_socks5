@@ -22,10 +22,10 @@ int net_socket_reuseaddr(int fd)
 
 int net_socket_fastopen(int fd)
 {
-    if(0) {
-        int  tcp_fastopen = 1;
-        return setsockopt(fd, IPPROTO_TCP, TCP_FASTOPEN, (const void *) &tcp_fastopen, sizeof(tcp_fastopen));
-    }
+#if 0
+	int  tcp_fastopen = 1;
+	return setsockopt(fd, IPPROTO_TCP, TCP_FASTOPEN, (const void *) &tcp_fastopen, sizeof(tcp_fastopen));
+#endif
     return 0;
 }
 
@@ -37,7 +37,7 @@ int net_socket_nodelay(  int fd)
 
 int net_socket_nopush(int fd)
 {
-#if(0)
+#if 0
     /// will be compile error in macintosh
     int tcp_cork = 1;
     return setsockopt( fd, IPPROTO_TCP, TCP_CORK, (const void *) &tcp_cork, sizeof(int));
@@ -47,10 +47,10 @@ int net_socket_nopush(int fd)
 
 int net_socket_lowat_send(int fd)
 {
-    if(0) {
-        int lowat = 0;
-        return setsockopt(fd, SOL_SOCKET, SO_SNDLOWAT, (const void*)&lowat, sizeof(int));
-    }
+#if 0
+    int lowat = 0;
+    return setsockopt(fd, SOL_SOCKET, SO_SNDLOWAT, (const void*)&lowat, sizeof(int));
+#endif
     return 0;
 }
 
@@ -163,7 +163,7 @@ int net_accept(con_t * c)
     return 0;
 }
 
-static int net_free_fast(con_t * c)
+static int net_free_direct(con_t * c)
 {
     if(c->fd) {
         ev_opt(c, EV_NONE);
@@ -188,7 +188,6 @@ static int net_free_fast(con_t * c)
         c->data = NULL;
     }
     
-    
     if(c->ssl) {
         SSL_free(c->ssl->con);
         mem_pool_free(c->ssl);
@@ -197,48 +196,43 @@ static int net_free_fast(con_t * c)
     return 0;
 }
 
-
-
 int net_free(con_t * c)
 {
     /*
-    if(have_ssl) {
-        if(ssl_err) {
-            ///do fast close
-        } else {
-            if(!ssl_close) {
-                ///do shutdown. 
-            } else {
-                ///fast close
-            }
-        }
-    }
+	if(is tls connection) {
+		if(tls connection have some error) {
+			close connection direct
+		} else {
+			if(tls connection already closed) {
+				close conenction direct
+			} else {
+				tear down tls connection 
+			}
+		}
+	}
     */
     
     if(c->ssl) {
         if(c->ssl->f_err) {
-            ///err("ssl shutdown err.\n");
-            return net_free_fast(c);
-        } 
-        
-        if(!c->ssl->f_closed) {
-            int rc = ssl_shutdown(c);
-            if(rc < 0) {
-                if(rc == -11) {
-                    tm_add(c, net_free_fast, NET_TMOUT);
-                    return -11;
-                }
-                ///err("ssl shutdown err.\n");
-                return net_free_fast(c);
-            }
-            ///dbg("ssl shutdown fin\n");
-            return net_free_fast(c);
+            return net_free_direct(c);
         } else {
-            ///dbg("ssl shutdown closed.\n");
-            return net_free_fast(c);
-        }
+			if(c->ssl->f_closed) {
+				return net_free_direct(c);
+			}
+		}
+
+		int rc = ssl_shutdown(c);
+		if(rc < 0) {
+			if(rc == -11) {
+				tm_add(c, net_free_direct, NET_TMOUT);
+				return -11;
+			}
+			return net_free_direct(c);
+		}
+		return net_free_direct(c);
     }
-    return net_free_fast(c);
+	
+    return net_free_direct(c);
 }
 
 int net_alloc(con_t ** c)
@@ -248,12 +242,6 @@ int net_alloc(con_t ** c)
     schk(0 == ev_alloc(&nc->ev), {mem_pool_free(nc); return -1;});
     nc->ev->c = nc;
     *c = nc;
-    return 0;
-}
-
-int net_close(con_t * c)
-{
-    c->fclose = 1;
     return 0;
 }
 

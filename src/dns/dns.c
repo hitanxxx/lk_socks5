@@ -394,7 +394,7 @@ int dns_alloc(dnsc_t ** outdns, char * domain, dns_async_cb cb, void * userdata)
 
 void dns_free(dnsc_t * dnsc)
 {
-    if(dnsc->c) net_close(dnsc->c);
+    if(dnsc->c) net_free(dnsc->c);
     mem_pool_free(dnsc);
 }
 

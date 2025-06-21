@@ -115,12 +115,12 @@ static int tls_tunnel_c_connect_chk(con_t * c)
 
 int tls_tunnel_c_accept(con_t * c)
 {
-    if(!c->meta) schk(0 == meta_alloc(&c->meta, TLS_TUNNEL_METAN), {net_close(c);return -1;});
+    if(!c->meta) schk(0 == meta_alloc(&c->meta, TLS_TUNNEL_METAN), {net_free(c);return -1;});
     c->ev->read_cb = tls_tunnel_c_recv;
     c->ev->write_cb = NULL;
     
     tls_tunnel_session_t * ses = NULL;
-    schk(0 == tls_ses_alloc(&ses), {net_close(c);return -1;});
+    schk(0 == tls_ses_alloc(&ses), {net_free(c);return -1;});
     c->data = ses;
     ses->typ = TLS_TUNNEL_C;
     ses->cdown = c;

@@ -31,8 +31,8 @@ int tls_ses_alloc(tls_tunnel_session_t ** ses)
 
 int tls_ses_free(tls_tunnel_session_t * ses)
 {
-    if(ses->cdown) net_close(ses->cdown);
-    if(ses->cup) net_close(ses->cup);
+    if(ses->cdown) net_free(ses->cdown);
+    if(ses->cup) net_free(ses->cup);
     if(ses->adata) mem_pool_free(ses->adata);
 
     mem_pool_free(ses);
@@ -249,7 +249,7 @@ static int tls_tunnel_s_auth_chk(con_t * c)
 
 int tls_tunnel_s_start(con_t * c)
 {
-    if(!c->meta) schk(0 == meta_alloc(&c->meta, TLS_TUNNEL_METAN), {net_close(c); return -1;});
+    if(!c->meta) schk(0 == meta_alloc(&c->meta, TLS_TUNNEL_METAN), {net_free(c); return -1;});
 
     tls_tunnel_session_t * ses = NULL;
     schk(0 == tls_ses_alloc(&ses), {net_free(c); return -1;});
@@ -266,7 +266,7 @@ int tls_tunnel_s_start(con_t * c)
 
 int tls_tunnel_s_accept(con_t * c)
 {
-    if(!c->ssl) schk(0 == ssl_create_connection(c, L_SSL_SERVER), {net_close(c);return -1;});
+    if(!c->ssl) schk(0 == ssl_create_connection(c, L_SSL_SERVER), {net_free(c);return -1;});
 
     if(!c->ssl->f_handshaked) {
         int rc = ssl_handshake(c);
@@ -276,7 +276,7 @@ int tls_tunnel_s_accept(con_t * c)
                 return -11;
             }
             err("TLS tunnel. handshek err\n");
-            net_close(c);
+            net_free(c);
             return -1;
         }
     }

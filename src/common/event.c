@@ -56,24 +56,7 @@ static int ev_epoll_opt(con_t * c, int want_opt)
 int ev_epoll_loop(time_t msec)
 {
     int i = 0;
-    queue_t * q = NULL;
-    queue_t * n = NULL;
-    con_t * c = NULL;
-
-    if(!queue_empty(&g_event_ctx->evqueue)) {
-         q = queue_head(&g_event_ctx->evqueue);
-        while(q != queue_tail(&g_event_ctx->evqueue)) {
-            n = queue_next(q);
-            
-            ev_t * ev = ptr_get_struct(q, ev_t, queue);
-            c = ev->c;
-            if(c->fclose) {
-                net_free(c);
-            }
-            q = n;
-        }    
-    }
-    
+	
     int all = epoll_wait(g_event_ctx->epfd, g_event_ctx->epev, MAX_NET_CON, (int)msec); 
     if(all <= 0) {
         if(all == 0) {
@@ -165,16 +148,11 @@ int ev_select_loop(time_t msec)
             
             ev = ptr_get_struct(q, ev_t, queue);
             c = ev->c;
-            if(c->fclose) {
-                net_free(c);
-            } else {
-                if(c->fd > fdmax) fdmax = c->fd;
-            }
+            if(c->fd > fdmax) fdmax = c->fd;
             q = n;
         }    
     }
-    
-
+   	
     memcpy(&rfds, &g_event_ctx->rfds, sizeof(fd_set)); ///select return will be change read fds and write fds
     memcpy(&wfds, &g_event_ctx->wfds, sizeof(fd_set));
     actall = select(fdmax + 1, &rfds, &wfds, NULL, (msec != -1) ? &wait_tm : NULL);

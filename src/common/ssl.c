@@ -43,7 +43,6 @@ int ssl_cexp(con_t * c)
 
 int ssl_shutdown_cb(con_t * c)
 {
-    
     int rc = ssl_shutdown(c);
     if(rc == -11) {
         tm_add(c, ssl_cexp, SSL_TMOUT);
@@ -51,7 +50,9 @@ int ssl_shutdown_cb(con_t * c)
     }
     tm_del(c);
     
-    if(rc == -1) c->ssl->f_err = 1;
+    if(rc == -1) 
+		c->ssl->f_err = 1;
+	
     return net_free(c);
 }
 
@@ -62,6 +63,12 @@ int ssl_shutdown(con_t * c)
     int t = 0;
     
     ssl_clear_error();
+
+	if(SSL_in_init(sslc->con)) {
+		c->ssl->f_closed = 1;
+		return 0;
+	}
+	
     for(t = 0; t < 2; t++) {
         int rc = SSL_shutdown(sslc->con);
         if(rc == 1) {
@@ -110,7 +117,9 @@ static int ssl_handshake_cb(con_t * c)
             return c->ev->write_cb(c);
         }
     }
-    if(rc == -1) c->ssl->f_err = 1;
+    if(rc == -1) 
+		c->ssl->f_err = 1;
+	
     return net_free(c);
 }
 
