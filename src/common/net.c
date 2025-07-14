@@ -163,7 +163,7 @@ int net_accept(con_t * c)
     return 0;
 }
 
-static int net_free_direct(con_t * c)
+int net_free_direct(con_t * c)
 {
     if(c->fd) {
         ev_opt(c, EV_NONE);
@@ -211,28 +211,20 @@ int net_free(con_t * c)
 		}
 	}
     */
-    
-    if(c->ssl) {
-        if(c->ssl->f_err) {
-            return net_free_direct(c);
-        } else {
-			if(c->ssl->f_closed) {
-				return net_free_direct(c);
-			}
-		}
+
+	if(c->ssl ) {
+		if(c->ssl->f_err || c->ssl->f_closed)  ///ssl con err or ssl closed
+			return net_free_direct(c);
 
 		int rc = ssl_shutdown(c);
-		if(rc < 0) {
-			if(rc == -11) {
-				tm_add(c, net_free_direct, NET_TMOUT);
-				return -11;
-			}
-			return net_free_direct(c);
+		if(rc == -11) {	///again
+			tm_add(c, net_free_direct, NET_TMOUT);
+			return -11;
 		}
+		///success or error
 		return net_free_direct(c);
-    }
-	
-    return net_free_direct(c);
+	}
+	return net_free_direct(c);
 }
 
 int net_alloc(con_t ** c)

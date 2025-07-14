@@ -49,6 +49,7 @@ int net_connect(con_t * c, struct sockaddr_in * addr);
 
 int net_alloc(con_t ** c);
 int net_free(con_t * c);
+int net_free_direct(con_t * c);
 
 int net_init(void);
 int net_end(void);

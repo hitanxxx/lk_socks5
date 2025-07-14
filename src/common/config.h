@@ -17,8 +17,7 @@ typedef struct gobal_conf
     char         ssl_key_path[FILEPATH_LENGTH+1];
 
     /// socks5
-    int             s5_mode;
-    
+    enum socks5_type      s5_mode;
     unsigned short     s5_serv_port;
     char            s5_serv_auth_path[FILEPATH_LENGTH+1];
     char            s5_serv_gw[32];

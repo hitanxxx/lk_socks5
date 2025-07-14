@@ -11,7 +11,7 @@ int recvs(con_t * c, unsigned char * buf, int bufn)
         rc = recv(c->fd, buf, bufn, 0);
         if(rc <= 0) {
             if(rc == 0) {
-                err("peer closed\n");
+                ///err("peer closed\n");
                 return -1;
             } else {
                 if((errno == EAGAIN) || (errno == EWOULDBLOCK)) {

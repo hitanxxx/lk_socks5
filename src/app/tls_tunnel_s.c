@@ -59,7 +59,7 @@ static int tls_tunnel_traffic_recv(con_t * c)
         recvn = cdown->recv(cdown, cdown->meta->last, meta_getfree(cdown->meta));
         if(recvn < 0) {
             if(recvn == -1) {
-                err("TLS tunnel. cdown recv err\n");
+                err("TLS tunnel <%s>. near => S5 => far. near recv err\n", config_get()->s5_mode == TLS_TUNNEL_C ? "C" : "S");
                 ses->frecv_err_down = 1;
             }
             break; ///break when -11 (EAGAIN)
@@ -92,7 +92,7 @@ static int tls_tunnel_traffic_send(con_t * c)
         sendn = cup->send(cup, cdown->meta->pos, meta_getlen(cdown->meta));
         if(sendn < 0) {
             if(sendn == -1) {
-                err("TLS tunnel cup send err\n");
+                err("TLS tunnel <%s>. near => S5 => far. far send err\n", config_get()->s5_mode == TLS_TUNNEL_C ? "C" : "S");
                 tls_ses_free(ses);
                 return -1;
             }
@@ -102,7 +102,7 @@ static int tls_tunnel_traffic_send(con_t * c)
     }
 
     if(ses->frecv_err_down) {
-        err("TLS tunnel. forward fin (cdown already err)\n");
+        err("TLS tunnel <%s>. near => S5 => far. near close notify\n", config_get()->s5_mode == TLS_TUNNEL_C ? "C" : "S");
         tls_ses_free(ses);
         return -1;
     }
@@ -125,7 +125,7 @@ static int tls_tunnel_traffic_reverse_recv(con_t * c)
         recvn = cup->recv(cup, cup->meta->last, meta_getfree(cup->meta));
         if(recvn < 0) {
             if(recvn == -1) {   
-                err("TLS tunnel. cup recv err\n");
+                err("TLS tunnel <%s>. far => S5 => near. far recv err\n", config_get()->s5_mode == TLS_TUNNEL_C ? "C" : "S");
                 ses->frecv_err_up = 1;
             }
             break;
@@ -158,7 +158,7 @@ static int tls_tunnel_traffic_reverse_send(con_t * c)
         sendn = cdown->send(cdown, cup->meta->pos, meta_getlen(cup->meta));
         if(sendn < 0) {
             if(sendn == -1) {
-                err("TLS tunnel. cdown send err\n");
+                err("TLS tunnel <%s>. far => S5 => near. near send err\n", config_get()->s5_mode == TLS_TUNNEL_C ? "C" : "S");
                 tls_ses_free(ses);
                 return -1;
             }
@@ -167,7 +167,7 @@ static int tls_tunnel_traffic_reverse_send(con_t * c)
         cup->meta->pos += sendn;
     }
     if(ses->frecv_err_up) {
-        err("TLS tunnel. forward fin (cup already err)\n");
+        err("TLS tunnel <%s>. far => S5 => near. far close notify\n", config_get()->s5_mode == TLS_TUNNEL_C ? "C" : "S");
         tls_ses_free(ses);
         return -1;
     }
