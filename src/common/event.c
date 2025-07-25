@@ -207,15 +207,15 @@ int ev_loop(time_t msec)
         if(g_event_ctx->evs[i]) {
             ev = g_event_ctx->evs[i];
             c = ev->c;
-            if(ev) {
-                if(ev->fread) {
-                    ev->fread = 0;
-                    if(ev->read_cb) ev->read_cb(c);
-                } else if (ev->fwrite) {
-                    ev->fwrite = 0;
-                    if(ev->write_cb) ev->write_cb(c);
-                }
-            }
+			if(!c->fclose) {
+				if(ev->fread) {
+	                ev->fread = 0;
+	                if(ev->read_cb) ev->read_cb(c);
+	            } else if (ev->fwrite) {
+	                ev->fwrite = 0;
+	                if(ev->write_cb) ev->write_cb(c);
+	            }
+			}
         }
     }
     return 0;

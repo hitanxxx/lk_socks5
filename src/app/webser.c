@@ -70,20 +70,23 @@ static int web_calloc(webser_t ** webser)
     return 0;
 }
 
-static void web_cfree(void * data)
+static void web_free(void * data)
 {
-    webser_t * webc = data;
-    if(webc->ffd) close(webc->ffd);
-      if(webc->webreq) web_req_free(webc->webreq);
-    meta_free(webc->rsp_hdr);
-    meta_free(webc->rsp_payload);
-    
-    mem_pool_free(webc);
+	webser_t * websrv = data;
+
+	if(websrv->c) net_free(websrv->c);
+	if(websrv->ffd) close(websrv->ffd);
+	if(websrv->webreq) web_req_free(websrv->webreq);
+	meta_free(websrv->rsp_hdr);
+    meta_free(websrv->rsp_payload);
+	mem_pool_free(websrv);
 }
 
-inline static int web_cexp(con_t * c)
+static void web_exp(void * data)
 {
-    return net_free(c);
+	con_t * c = data;
+    webser_t * websrv = c->data;
+	web_free(websrv);
 }
 
 static int webser_try_read(con_t * c)
@@ -96,14 +99,14 @@ static int webser_try_read(con_t * c)
             return -11;
         }
         err("peek recv err. <%d:%s>\n", errno, strerror(errno));
-        net_free(c);
+        web_free(c->data);
         return -1;
     }
     if (n == 1) {
         return 0;
     }
     err("peek recv peer closed\n");
-    net_free(c);
+    web_free(c->data);
     return -1;
 }
 
@@ -111,7 +114,14 @@ static int webser_keepalive(con_t * c)
 {
     webser_t * webc = c->data;
 
-    ///process pipeline 
+	///clear websrv other object except net con
+	if(webc->ffd) close(webc->ffd);
+	if(webc->webreq) web_req_free(webc->webreq);
+	meta_free(webc->rsp_hdr);
+    meta_free(webc->rsp_payload);
+	mem_pool_free(webc);
+	
+    ///process net con meta remian data 
     int remain = meta_getlen(c->meta);
     if(remain) {
         memcpy(c->meta->start, c->meta->pos, remain);
@@ -120,8 +130,7 @@ static int webser_keepalive(con_t * c)
     } else {
         meta_clr(c->meta);
     }
-    web_cfree(webc);
-    
+
     c->ev->read_cb = webser_start;
     c->ev->write_cb = NULL;
     return c->ev->read_cb(c);
@@ -141,11 +150,11 @@ static int webser_rsp_payload_send_api(con_t * c)
         int rc = c->send_chain(c, webc->rsp_payload);
         if(rc < 0)  {
             if(rc == -11) {
-                tm_add(c, web_cexp, WEB_TMOUT);
+                tm_add(c, web_exp, WEB_TMOUT);
                 return -11;
             }
             err("webser send resp body failed\n");
-            net_free(c);
+            web_free(webc);
             return -1;
         }
     }
@@ -155,7 +164,7 @@ static int webser_rsp_payload_send_api(con_t * c)
         c->ev->write_cb = webser_keepalive;
         return c->ev->write_cb(c);
     }
-    net_free(c);
+    web_free(webc);
     return 0;
 }
 
@@ -169,11 +178,11 @@ static int webser_rsp_payload_send_ff(con_t * c)
             int sendn = c->send(c, meta->pos, meta_getlen(meta));
             if(sendn < 0) {
                 if(sendn == -11) {
-                    tm_add(c, web_cexp, WEB_TMOUT);
+                    tm_add(c, web_exp, WEB_TMOUT);
                     return -11;
                 }
-                   err("webser file content send error\n");
-                net_free(c);
+                err("webser file content send error\n");
+                web_free(webc);
                 return -1;
             }
             meta->pos += sendn;
@@ -186,7 +195,7 @@ static int webser_rsp_payload_send_ff(con_t * c)
             int readn = read(webc->ffd, meta->last, meta_getfree(meta));
             if(readn <= 0) {
                 err("webserv rff err. [%d] [%d] [%d]\n", errno, webc->fsend, webc->fsize);
-                net_free(c);
+                web_free(webc);
                 return -1;
             }
             meta->last += readn;
@@ -198,7 +207,7 @@ static int webser_rsp_payload_send_ff(con_t * c)
         c->ev->write_cb = webser_keepalive;
         return c->ev->write_cb(c);
     }
-    net_free(c);
+    web_free(webc);
     return 0;
 }
 
@@ -207,7 +216,7 @@ static int webser_rsp_payload_send(con_t * c)
     webser_t * webc = c->data;
 
     if(webc->type == WEBSER_FILE) {
-        schk(0 == meta_alloc(&webc->rsp_payload, WEB_PAYLOAD_LEN - sizeof(meta_t)), {net_free(c);return -1;});
+        schk(0 == meta_alloc(&webc->rsp_payload, WEB_PAYLOAD_LEN - sizeof(meta_t)), {web_free(webc);return -1;});
         c->ev->write_cb = webser_rsp_payload_send_ff;
         return c->ev->write_cb(c);
     } else if (webc->type == WEBSER_API) {
@@ -215,7 +224,7 @@ static int webser_rsp_payload_send(con_t * c)
         return c->ev->write_cb(c);
     } 
     err("webser type not support. [%d]\n", webc->type);
-    net_free(c);
+    web_free(webc);
     return -1;
 }
 
@@ -227,11 +236,11 @@ static int webser_rsp_hdr_send(con_t * c)
     int rc = c->send_chain(c, webc->rsp_hdr);
     if(rc < 0) {
         if(rc == -11) {
-            tm_add(c, web_cexp, WEB_TMOUT);
+            tm_add(c, web_exp, WEB_TMOUT);
             return -11;
         }
         err("webser resp head send failed\n");
-        net_free(c);
+        web_free(webc);
         return -1;
     }
     tm_del(c);
@@ -245,7 +254,7 @@ static int webser_rsp_hdr_send(con_t * c)
         c->ev->write_cb = webser_keepalive;
         return c->ev->write_cb(c);
     }
-    net_free(c);
+    web_free(webc);
     return 0;
 }
 
@@ -266,7 +275,7 @@ static int webser_rsp_hdrp(con_t * c, const char * str, ...)
 
 
     if(!webc->rsp_hdr) {
-        schk(0 == meta_alloc(&webc->rsp_hdr, 4096), {net_free(c);return -1;});        
+        schk(0 == meta_alloc(&webc->rsp_hdr, 4096), {web_free(webc);return -1;});        
     }
     meta_t * n = webc->rsp_hdr;
     meta_t * p = NULL;
@@ -278,8 +287,8 @@ static int webser_rsp_hdrp(con_t * c, const char * str, ...)
         }
         n = n->next;
     }
-    schk(0 == meta_alloc(&n, 4096), {net_free(c);return -1;});
-    schk(0 == meta_pdata(n, buf, strlen(buf)), {net_free(c);return -1;});
+    schk(0 == meta_alloc(&n, 4096), {web_free(webc);return -1;});
+    schk(0 == meta_pdata(n, buf, strlen(buf)), {web_free(webc);return -1;});
     p->next = n;
     return 0;
 }
@@ -320,7 +329,7 @@ int webser_rsp(con_t * c, int rcode, char * exthdr, void * payload, int payloadn
     } while(0);
 
     if(ret != 0) {
-        net_free(c);
+        web_free(webc);
         return -1;
     }
     
@@ -393,13 +402,11 @@ static int webser_req_router(con_t * c)
         c->ev->write_cb = NULL;
     } else {
         webc->type = WEBSER_FILE;
-        schk(HTTP_METHOD_GET == webc->webreq->method_typ, 
-            {net_free(c);return -1;});
+        schk(HTTP_METHOD_GET == webc->webreq->method_typ, {web_free(webc);return -1;});
         
         char uri[1024] = {0};
         memcpy(uri, webc->webreq->uri.data, webc->webreq->uri.len > 1024 ? 1024 : webc->webreq->uri.len);
-        schk(!strstr(uri, "../"), 
-            {net_free(c);return -1;});
+        schk(!strstr(uri, "../"), {web_free(webc);return -1;});
         
         c->ev->read_cb = webser_req_file;
         c->ev->write_cb = NULL;
@@ -414,11 +421,11 @@ static int webser_req_proc(con_t * c)
     int rc = webc->webreq->cb(c, webc->webreq);
     if(rc < 0) {
         if(rc == -11) {
-            tm_add(c, web_cexp, WEB_TMOUT);
+            tm_add(c, web_exp, WEB_TMOUT);
             return -11;
         }
         err("webser process request header failed\n");
-        net_free(c);
+        web_free(webc);
         return -1;
     }
     tm_del(c);
@@ -438,10 +445,9 @@ static int webser_start(con_t * c)
     schk(0 == web_calloc(&webc), {net_free(c); return -1;});
     webc->c = c;
     c->data = webc;
-    c->data_cb = web_cfree;
 
     ///start http request parse, try to read http request form socket and parse it 
-    schk(webc->webreq = web_req_alloc(), {net_free(c); return -1;});
+    schk(webc->webreq = web_req_alloc(), {web_free(webc); return -1;});
     
     c->ev->read_cb = webser_req_proc;
     c->ev->write_cb = NULL;
@@ -464,7 +470,7 @@ static int webser_transfer_to_tlstunnel(con_t * c)
         rc = c->recv(c, meta->last, meta_getfree(meta));
         if(rc < 0) {
             if(rc == -11) {
-                tm_add(c, web_cexp, WEB_TMOUT);
+                tm_add(c, net_exp, WEB_TMOUT);
                 return -11;
             }
             if(rc == -1) {
@@ -496,7 +502,7 @@ int webser_accept_cb_ssl(con_t * c)
         int rc = ssl_handshake(c);
         if(rc < 0) {
             if(rc == -11) {
-                tm_add(c, web_cexp, 5000);
+                tm_add(c, net_exp, WEB_TMOUT);
                 return -11;
             }
             err("webser ssl handshake failed\n");

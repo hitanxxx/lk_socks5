@@ -249,9 +249,10 @@ static int tls_tunnel_s_auth_chk(con_t * c)
 
 int tls_tunnel_s_start(con_t * c)
 {
-    if(!c->meta) schk(0 == meta_alloc(&c->meta, TLS_TUNNEL_METAN), {net_free(c); return -1;});
+	tls_tunnel_session_t * ses = NULL;
 
-    tls_tunnel_session_t * ses = NULL;
+	if(!c->meta) schk(0 == meta_alloc(&c->meta, TLS_TUNNEL_METAN), {net_free(c); return -1;});
+    
     schk(0 == tls_ses_alloc(&ses), {net_free(c); return -1;});
     ses->cdown = c;
     c->data = ses;
@@ -259,7 +260,7 @@ int tls_tunnel_s_start(con_t * c)
     ses->atyp = 0;
     if(ses->atyp == 0) schk(ses->adata = mem_pool_alloc(sizeof(s5_t)), {tls_ses_free(ses);return -1;});
     
-    c->ev->read_cb    = tls_tunnel_s_auth_chk;
+    c->ev->read_cb = tls_tunnel_s_auth_chk;
     c->ev->write_cb = NULL;
     return c->ev->read_cb(c);
 }
@@ -272,7 +273,7 @@ int tls_tunnel_s_accept(con_t * c)
         int rc = ssl_handshake(c);
         if(rc < 0) {
             if(rc == -11) {
-                tm_add(c, tls_ses_exp, TLS_TUNNEL_TMOUT);
+                tm_add(c, net_exp, TLS_TUNNEL_TMOUT);
                 return -11;
             }
             err("TLS tunnel. handshek err\n");

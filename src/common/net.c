@@ -155,10 +155,9 @@ int net_accept(con_t * c)
 
         cc->ev->read_cb = listen->cb;
         cc->ev->write_cb = NULL;
-        ev_opt(cc, EV_R|EV_W);
+        ev_opt(cc, EV_R);
 
-        ///!!! just accept continue. don't do that 
-        //return cc->ev->read_cb(cc);
+		tm_add(cc, net_exp, 5);
     }
     return 0;
 }
@@ -169,19 +168,17 @@ int net_free_direct(con_t * c)
         ev_opt(c, EV_NONE);
         close(c->fd);
     }
+
     if(c->ev) {
         tm_del(c);
         ev_free(c->ev);
         c->ev = NULL;
     }
-    
-    meta_t * m = c->meta;
-    meta_t * n = NULL;
-    while(m) {
-        n = m->next;
-        meta_free(m);
-        m = n;
-    }
+
+	if(c->meta) {
+		meta_free(c->meta);
+		c->meta = NULL;
+	}
 
     if(c->data) {
         if(c->data_cb) c->data_cb(c->data);
@@ -212,7 +209,9 @@ int net_free(con_t * c)
 	}
     */
 
-	if(c->ssl ) {
+	c->fclose = 1;
+
+	if(c->ssl) {
 		if(c->ssl->f_err || c->ssl->f_closed)  ///ssl con err or ssl closed
 			return net_free_direct(c);
 
@@ -225,6 +224,12 @@ int net_free(con_t * c)
 		return net_free_direct(c);
 	}
 	return net_free_direct(c);
+}
+
+void net_exp(void * data)
+{	
+	con_t * c = data;
+	net_free(c);
 }
 
 int net_alloc(con_t ** c)

@@ -403,7 +403,7 @@ static int dns_async_result(dnsc_t * dns, int result_status, unsigned char * res
     if(dns->cb)
         dns->cb(result_status, result, dns->user_data);
 
-    return result_status == 0 ? 0 : -1;    
+    return result_status == 0 ? 0 : -1;
 }
 
 static int dns_cexp(con_t * c)

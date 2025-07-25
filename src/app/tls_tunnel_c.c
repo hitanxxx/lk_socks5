@@ -115,19 +115,37 @@ static int tls_tunnel_c_connect_chk(con_t * c)
 
 int tls_tunnel_c_accept(con_t * c)
 {
-    if(!c->meta) schk(0 == meta_alloc(&c->meta, TLS_TUNNEL_METAN), {net_free(c);return -1;});
+    tls_tunnel_session_t * ses = NULL;
+
+	if(!c->meta) {
+		if(0 != meta_alloc(&c->meta, TLS_TUNNEL_METAN)) {
+            net_free(c);
+            return -1;
+        }
+	}
     c->ev->read_cb = tls_tunnel_c_recv;
     c->ev->write_cb = NULL;
-    
-    tls_tunnel_session_t * ses = NULL;
-    schk(0 == tls_ses_alloc(&ses), {net_free(c);return -1;});
-    c->data = ses;
-    ses->typ = TLS_TUNNEL_C;
-    ses->cdown = c;
 
-    schk(0 == net_alloc(&ses->cup), {tls_ses_free(ses);return -1;});
+
+    if(0 != tls_ses_alloc(&ses)) {
+        net_free(c);
+        return -1;
+    }
+    ses->cdown = c;
+    c->data = ses;
+
+
+    if(0 != net_alloc(&ses->cup)) {
+        tls_ses_free(ses);
+        return -1;
+    }
     ses->cup->data = ses;
-    schk(0 == meta_alloc(&ses->cup->meta, TLS_TUNNEL_METAN), {tls_ses_free(ses);return -1;});
+    if(!ses->cup->meta) {
+        if(0 != meta_alloc(&ses->cup->meta, TLS_TUNNEL_METAN)) {
+            tls_ses_free(ses);
+            return -1;
+        }
+    }
 
     ses->cup->ev->read_cb = NULL;
     ses->cup->ev->write_cb = tls_tunnel_c_connect_chk;
@@ -136,7 +154,7 @@ int tls_tunnel_c_accept(con_t * c)
     int rc = net_connect(ses->cup, &ses->cup->addr);
     if(rc < 0) {
         if(rc == -11) {
-               tm_add(c, tls_ses_exp, TLS_TUNNEL_TMOUT);
+            tm_add(c, tls_ses_exp, TLS_TUNNEL_TMOUT);
             return -11;
         }
         err("TLS tunnel cup connect failed\n");

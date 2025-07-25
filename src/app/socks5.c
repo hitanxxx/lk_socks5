@@ -93,8 +93,11 @@ void s5_cup_dns_cb(int status, unsigned char * result, void * data)
     s5_ph2_req_t * s5p2 = &s5->s5p2;
     char ipstr[128] = {0};
 
-    if(0 == status) {
-        uint16_t addr_port = 0;
+	///!free dns cycle in here 
+	dns_free(dnsc);
+
+	if(status == 0) {
+		uint16_t addr_port = 0;
         memcpy(&addr_port, s5p2->dst_port, sizeof(uint16_t));
         snprintf(ipstr, sizeof(ipstr), "%d.%d.%d.%d", result[0], result[1], result[2], result[3]);
         
@@ -105,13 +108,11 @@ void s5_cup_dns_cb(int status, unsigned char * result, void * data)
         ses->cup->ev->read_cb = NULL;
         ses->cup->ev->write_cb = s5_cup_connect;
         ses->cup->ev->write_cb(ses->cup);
-        dns_free(dnsc);
-    } else {
-        err("TLS tunnel. dns resolv failed\n");
-        dns_free(dnsc);
-        tls_ses_free(ses);
-    }
-    
+	} else {
+		err("TLS tunnel. dns resolv failed\n");
+		tls_ses_free(ses);
+	}
+	return;
 }
 
 int s5_cup_addr(con_t * c)
@@ -343,7 +344,7 @@ int s5_p1_rsp(con_t * c)
     tm_del(c);
     meta_clr(meta);
     
-    c->ev->read_cb    = s5_p2_req;
+    c->ev->read_cb = s5_p2_req;
     c->ev->write_cb = NULL;
     return c->ev->read_cb(c);
 }

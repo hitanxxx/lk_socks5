@@ -19,8 +19,8 @@ typedef void (*con_data_cb) (void * data);
 struct net_connection_t {
     struct sockaddr_in addr;    ///listen storget cli addr. connect set server addr
     int fd;
-    meta_t * meta;
     ev_t * ev;
+    meta_t * meta;
     
     void *       data;
     con_data_cb data_cb;
@@ -31,6 +31,8 @@ struct net_connection_t {
 
     ssl_con_t* ssl;
     char fssl:1;
+
+	char fclose:1;
 };
 
 
@@ -50,6 +52,7 @@ int net_connect(con_t * c, struct sockaddr_in * addr);
 int net_alloc(con_t ** c);
 int net_free(con_t * c);
 int net_free_direct(con_t * c);
+void net_exp(void * data);
 
 int net_init(void);
 int net_end(void);
