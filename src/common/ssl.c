@@ -86,8 +86,10 @@ int ssl_shutdown(con_t * c)
             
             if(sslerr == SSL_ERROR_WANT_READ) {
                 c->ev->read_cb = ssl_shutdown_cb;
+				c->ev->write_cb = NULL;
                 ev_opt(c, EV_R);
             } else {
+				c->ev->read_cb = NULL;
                 c->ev->write_cb = ssl_shutdown_cb;
                 ev_opt(c, EV_W);
             }
@@ -101,8 +103,16 @@ int ssl_shutdown(con_t * c)
 static int ssl_handshake_cb(con_t * c)
 {
     int rc = ssl_handshake(c);
-	if(rc == -1) {		///error
+	if(rc == -1) {
 		tm_del(c);
+
+		if(c->ssl->handshake_cb) {
+			c->ev->write_cb = c->ssl->handshake_cb;
+            ev_opt(c, EV_R);
+
+			///give result to previous level
+			return c->ev->write_cb(c);
+		}
 		return net_free_direct(c);
 	} else {
 		if(c->ssl->f_handshaked) {
@@ -132,7 +142,6 @@ static int ssl_handshake_cb(con_t * c)
 		
 		tm_add(c, ssl_cexp, SSL_TMOUT);
 		return -11;
-	
 	}
 }
 
@@ -140,6 +149,7 @@ int ssl_handshake(con_t * c)
 {   
     ssl_con_t * sslc = c->ssl;
     ssl_clear_error();
+	
     int rc = SSL_do_handshake(sslc->con);
     if(rc == 1) {
         sslc->f_handshaked = 1;
@@ -147,7 +157,8 @@ int ssl_handshake(con_t * c)
     }
     
     int sslerr = SSL_get_error(sslc->con, rc);
-    if(sslerr == SSL_ERROR_WANT_READ || sslerr == SSL_ERROR_WANT_WRITE) {
+    if((sslerr == SSL_ERROR_WANT_READ) || (sslerr == SSL_ERROR_WANT_WRITE)) {
+		
         if(!sslc->cc_ev_typ) 
             sslc->cc_ev_typ = c->ev->opt; ///cache current event opt
             

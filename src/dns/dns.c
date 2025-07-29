@@ -180,6 +180,8 @@ int dns_response_analyze(con_t * c)
             }
         }
     }
+    err("dns rsp find result error.\n");
+    dns_async_result(dnsc, -1, NULL);
     return -1;
 }
 
@@ -388,7 +390,7 @@ int dns_alloc(dnsc_t ** outdns, char * domain, dns_async_cb cb, void * userdata)
         return dns->c->ev->write_cb(dns->c);
     } while(0);
 
-    dns_free(dns);
+    cb(-1, NULL, userdata);
     return -1;
 }
 

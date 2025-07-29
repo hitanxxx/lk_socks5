@@ -45,8 +45,8 @@ static int ev_epoll_opt(con_t * c, int want_opt)
             struct epoll_event evsys;
             memset(&evsys, 0, sizeof(struct epoll_event));
             evsys.data.ptr = (void*)c->ev;
-            evsys.events = EPOLLET|want_opt;
-              schk(epoll_ctl(g_event_ctx->epfd, (c->ev->opt == EV_NONE ? EPOLL_CTL_ADD : EPOLL_CTL_MOD), c->fd, &evsys) != -1, return -1);
+            evsys.events = EPOLLET | want_opt;
+            schk(epoll_ctl(g_event_ctx->epfd, (c->ev->opt == EV_NONE ? EPOLL_CTL_ADD : EPOLL_CTL_MOD), c->fd, &evsys) != -1, return -1);
         }
         c->ev->opt = want_opt;
     }
@@ -56,7 +56,7 @@ static int ev_epoll_opt(con_t * c, int want_opt)
 int ev_epoll_loop(time_t msec)
 {
     int i = 0;
-	
+
     int all = epoll_wait(g_event_ctx->epfd, g_event_ctx->epev, MAX_NET_CON, (int)msec); 
     if(all <= 0) {
         if(all == 0) {
@@ -72,8 +72,9 @@ int ev_epoll_loop(time_t msec)
     
     for(i = 0; i < all; i++) {
         ev_t * ev = g_event_ctx->epev[i].data.ptr;
-        int opt = g_event_ctx->epev[i].events;
-       
+        ev->idxr = ev->idxw = 0;
+
+        int opt = g_event_ctx->epev[i].events;   
         if(opt & EV_R) {
             ev->fread = 1;
             ev->idxr = g_event_ctx->evn;
@@ -105,7 +106,7 @@ static int ev_select_end(void)
 static int ev_select_opt(con_t * c, int want_opt)
 {
     if(c->ev->opt != want_opt) {
-        if(want_opt == (EV_R|EV_W)) {
+        if(want_opt == (EV_R | EV_W)) {
             if(!(c->ev->opt & EV_R))  FD_SET(c->fd, &g_event_ctx->rfds);
             if(!(c->ev->opt & EV_W))  FD_SET(c->fd, &g_event_ctx->wfds);
         } else if (want_opt == EV_R) {
@@ -171,6 +172,8 @@ int ev_select_loop(time_t msec)
     q = queue_head(&g_event_ctx->evqueue);
     while(q != queue_tail(&g_event_ctx->evqueue) && actn < actall) {
         ev = ptr_get_struct(q, ev_t, queue);
+        ev->idxr = ev->idxw = 0;
+
         c = ev->c;
         if(FD_ISSET(c->fd, &rfds)) {
             ev->fread = 1;
@@ -194,28 +197,29 @@ int ev_opt(con_t * c, int want_opt)
 }
 
 int ev_loop(time_t msec)
-{    
+{   
     int i = 0;
     ev_t * ev = NULL;
     con_t * c = NULL;
-    
+
     g_event_ctx->evn = 0;
     if(g_event_handler.run) g_event_handler.run(msec);
     systime_update();
       
     for(i = 0; i < g_event_ctx->evn; i++) {
         if(g_event_ctx->evs[i]) {
+            
             ev = g_event_ctx->evs[i];
             c = ev->c;
-			if(!c->fclose) {
-				if(ev->fread) {
-	                ev->fread = 0;
-	                if(ev->read_cb) ev->read_cb(c);
-	            } else if (ev->fwrite) {
-	                ev->fwrite = 0;
-	                if(ev->write_cb) ev->write_cb(c);
-	            }
-			}
+
+            if(ev->fread) {
+                ev->fread = 0;
+                if(ev->read_cb) ev->read_cb(c);
+                
+            } else if (ev->fwrite) {
+                ev->fwrite = 0;
+                if(ev->write_cb) ev->write_cb(c);
+            }
         }
     }
     return 0;
@@ -269,13 +273,13 @@ int ev_init(void)
     int i = 0;
     for(i = 0; i < 8; i++) {
         if(g_listens[i].fuse) {
-            con_t * c = NULL;
-            schk(0 == net_alloc(&c), return -1);
-            c->fd = g_listens[i].fd;
-            c->ev->read_cb = net_accept;
-            c->data = &g_listens[i];
-            c->data_cb = NULL;
-            ev_opt(c, EV_R);
+            
+            schk(0 == net_alloc(&g_listens[i].c), return -1);
+            g_listens[i].c->fd = g_listens[i].fd;
+            g_listens[i].c->ev->read_cb = net_accept;
+            g_listens[i].c->data = &g_listens[i];
+            g_listens[i].c->data_cb = NULL;
+            ev_opt(g_listens[i].c, EV_R);
         }
     }
     
@@ -284,7 +288,14 @@ int ev_init(void)
 
 int ev_exit(void)
 {
-    if(g_event_ctx) {        
+    int i = 0;
+    for(i = 0; i < 8; i++) {
+        if(g_listens[i].fuse) {
+            net_free(g_listens[i].c);
+        }
+    }
+    
+    if(g_event_ctx) {
         if(g_event_handler.end) g_event_handler.end();
         ///todo. clear queue data
         mem_pool_free(g_event_ctx);

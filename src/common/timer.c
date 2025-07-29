@@ -54,8 +54,9 @@ int timer_expire(int * timer)
             oldest->f_timeout = 1;
             ev_t * ev = ptr_get_struct(oldest, ev_t, timer);
             tm_del(ev->c);
-            if(oldest->cb)
-                oldest->cb(ev->c);
+            if(oldest->cb) {
+				oldest->cb(ev->c);
+			}
         }
     }
 }

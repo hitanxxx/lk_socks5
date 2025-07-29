@@ -13,17 +13,19 @@ extern "C"
 
 
 typedef struct {
-    SSL_CTX    * session_ctx;
+    SSL_CTX * session_ctx;
     SSL* con;
     
     void * data;
+	ev_cb handshake_cb;
+	
     int cc_ev_typ;
     ev_cb cc_ev_cbr;
     ev_cb cc_ev_cbw;
     
     char    f_handshaked:1;
     char    f_err:1;
-    char     f_closed:1;
+    char    f_closed:1;
 } ssl_con_t;
 
 int ssl_init(void);

@@ -33,9 +33,10 @@ typedef struct {
 } tls_tunnel_session_t;
 
 
-int tls_ses_free(tls_tunnel_session_t * s5);
-int tls_ses_alloc(tls_tunnel_session_t ** s5);
+int tls_ses_alloc(tls_tunnel_session_t ** ses);
 void tls_ses_exp(void * data);
+void tls_ses_release_cdown(void * data);
+void tls_ses_release_cup(void * data);
 
 
 int tls_tunnel_traffic_proc(con_t * c);

@@ -1,5 +1,17 @@
 #include "common.h"
 
+//#define MEM_BY_SYSCALL
+
+
+#if defined(MEM_BY_SYSCALL)
+void * sys_alloc(int size) { return calloc(1, size); }
+void sys_free(void * addr) { free(addr); }
+int mem_pool_deinit() { return 0; }
+int mem_pool_init() { return 0; }
+int mem_pool_free(void * p) { sys_free(p); return 0; }
+void * mem_pool_alloc(int size) { return sys_alloc(size); }
+char * mem_pool_ver() { return "MEM_BY_SYSCALL"; }
+#else
 
 #define MP_OBJ_MAGIC   0xa100beef
 #define MP_BLK_MAX     6
@@ -172,4 +184,5 @@ char * mem_pool_ver()
 {
     return g_mp_ver;
 }
+#endif
 

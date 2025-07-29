@@ -8,6 +8,8 @@ extern "C"
 
 typedef struct listen listen_t;
 struct listen {
+	con_t * c;
+
     unsigned short port;
     int fd;
     ev_cb cb;

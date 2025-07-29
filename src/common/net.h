@@ -22,7 +22,7 @@ struct net_connection_t {
     ev_t * ev;
     meta_t * meta;
     
-    void *       data;
+    void * data;
     con_data_cb data_cb;
         
     net_cb_rw_chain      send_chain;
@@ -31,8 +31,6 @@ struct net_connection_t {
 
     ssl_con_t* ssl;
     char fssl:1;
-
-	char fclose:1;
 };
 
 

@@ -30,10 +30,14 @@ int ezhash_free(ezhash_t * hash)
     if(hash) {
         for(i = 0; i < hash->arrn; i++) {
             ezhash_obj_t * p = hash->arr[i];
+			ezhash_obj_t * n = NULL;
             while(p) {
+				n = p->next;
                 if(p->key) mem_pool_free(p->key);
                 if(p->val) mem_pool_free(p->val);
-                p = p->next;
+                
+				mem_pool_free(p);
+				p = n;
             }
         }
         mem_pool_free(hash->arr);

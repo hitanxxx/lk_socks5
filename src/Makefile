@@ -48,7 +48,6 @@ CFLAGS += -Wall -ffunction-sections -fdata-sections $(DEFINE) $(INCLUDE)
 CFLAGS += -O2
 CFLAGS += -fstrict-aliasing -march=native -mtune=native -pipe
 
-
 .c.o:
 	@echo "> $<"
 	@$(CC) -c $(CFLAGS)  -o $@ $<
