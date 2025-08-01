@@ -526,7 +526,14 @@ int webser_accept_cb_ssl(con_t * c)
             return -1;
         });
 
+    if(c->ssl->f_err) {
+        err("webser ssl handshake error\n");
+        net_free(c);
+        return -1;
+    }
+
     if(!c->ssl->f_handshaked) {
+        c->ssl->handshake_cb = webser_accept_cb_ssl;
         int rc = ssl_handshake(c);
         if(rc < 0) {
             if(rc == -11) {

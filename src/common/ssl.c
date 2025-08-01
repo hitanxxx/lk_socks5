@@ -44,19 +44,15 @@ int ssl_cexp(con_t * c)
 int ssl_shutdown_cb(con_t * c)
 {
     int rc = ssl_shutdown(c);
-	
-	if(rc == -1) {		///error
-		tm_del(c);
-		return net_free_direct(c);
-	} else {
-		if(rc == -11) {	///again
-			tm_add(c, ssl_cexp, SSL_TMOUT);
-			return -11;
-		} 
-		///success
-		tm_del(c);
-		return net_free_direct(c);
-	}
+    if(rc == -11) {
+        tm_add(c, ssl_cexp, SSL_TMOUT);
+        return -11;
+    }
+
+    ///do this whether the result is success or error
+    ///(endness of connection's life cycle)
+    tm_del(c);
+    return net_free_direct(c);
 }
 
 int ssl_shutdown(con_t * c)
@@ -64,14 +60,14 @@ int ssl_shutdown(con_t * c)
     ssl_con_t * sslc = c->ssl;
     int sslerr = 0;
     int t = 0;
-    
+
     ssl_clear_error();
 
-	if(SSL_in_init(sslc->con)) {
-		c->ssl->f_closed = 1;
-		return 0;
-	}
-	
+    if(SSL_in_init(sslc->con)) {
+        c->ssl->f_closed = 1;
+        return 0;
+    }
+
     for(t = 0; t < 2; t++) {
         int rc = SSL_shutdown(sslc->con);
         if(rc == 1) {
@@ -83,13 +79,16 @@ int ssl_shutdown(con_t * c)
         }
         sslerr = SSL_get_error(sslc->con, rc);
         if(sslerr == SSL_ERROR_WANT_READ || sslerr == SSL_ERROR_WANT_WRITE) {
+
+            ///must clear read/write cb in here.
+            ///make sure connection will not do
+            ///another thing expect shutdown 
+            c->ev->read_cb = c->ev->write_cb = NULL;
             
             if(sslerr == SSL_ERROR_WANT_READ) {
                 c->ev->read_cb = ssl_shutdown_cb;
-				c->ev->write_cb = NULL;
                 ev_opt(c, EV_R);
             } else {
-				c->ev->read_cb = NULL;
                 c->ev->write_cb = ssl_shutdown_cb;
                 ev_opt(c, EV_W);
             }
@@ -103,53 +102,52 @@ int ssl_shutdown(con_t * c)
 static int ssl_handshake_cb(con_t * c)
 {
     int rc = ssl_handshake(c);
-	if(rc == -1) {
-		tm_del(c);
+    if(rc == -11) {
+        tm_add(c, ssl_cexp, SSL_TMOUT);
+        return -11;
+    }
 
-		if(c->ssl->handshake_cb) {
-			c->ev->write_cb = c->ssl->handshake_cb;
-            ev_opt(c, EV_R);
+    tm_del(c);
+    if(c->ssl->f_handshaked) {
+        if(c->ssl->cc_ev_typ) {
+            ev_opt(c, c->ssl->cc_ev_typ);
+        }
 
-			///give result to previous level
-			return c->ev->write_cb(c);
-		}
-		return net_free_direct(c);
-	} else {
-		if(c->ssl->f_handshaked) {
-			///success
-			tm_del(c);
+        if(c->ssl->cc_ev_cbw) {
+            c->ev->write_cb = c->ssl->cc_ev_cbw;
+            c->ssl->cc_ev_cbw = NULL;
+        }
 
-			///recovery cc opt and callback
-			if(c->ssl->cc_ev_typ) 
-				ev_opt(c, c->ssl->cc_ev_typ);
+        if(c->ssl->cc_ev_cbr) {
+            c->ev->read_cb = c->ssl->cc_ev_cbr;
+            c->ssl->cc_ev_cbr = NULL;
+        }
 
-			///when in ssl handshake state. only have one kind of read/write
-			if(c->ssl->cc_ev_cbw) {
-				c->ev->write_cb = c->ssl->cc_ev_cbw;
-				c->ssl->cc_ev_cbw = NULL;
-			}
+        if(c->ev->write_cb) return c->ev->write_cb(c);
+        return c->ev->read_cb(c);
+    }
 
-			if(c->ssl->cc_ev_cbr) {
-				c->ev->read_cb = c->ssl->cc_ev_cbr;
-				c->ssl->cc_ev_cbr = NULL;
-			}
 
-			if(c->ev->write_cb) 
-				return c->ev->write_cb(c);
+    if(!c->ssl->handshake_cb) {
+        err("for safety, it is bast to set up ssl's"
+        "handshakecb to handle resouce release when error happend\n");
+        return net_free_direct(c);
+    }
 
-			return c->ev->read_cb(c);	
-		}
-		
-		tm_add(c, ssl_cexp, SSL_TMOUT);
-		return -11;
-	}
+
+    if(c->ev->write_cb) {
+        c->ev->write_cb = c->ssl->handshake_cb;
+        return c->ev->write_cb(c);
+    }
+    c->ev->read_cb = c->ssl->handshake_cb;
+    return c->ev->read_cb(c);
 }
 
 int ssl_handshake(con_t * c)
 {   
     ssl_con_t * sslc = c->ssl;
     ssl_clear_error();
-	
+
     int rc = SSL_do_handshake(sslc->con);
     if(rc == 1) {
         sslc->f_handshaked = 1;
@@ -158,13 +156,13 @@ int ssl_handshake(con_t * c)
     
     int sslerr = SSL_get_error(sslc->con, rc);
     if((sslerr == SSL_ERROR_WANT_READ) || (sslerr == SSL_ERROR_WANT_WRITE)) {
-		
+
         if(!sslc->cc_ev_typ) 
             sslc->cc_ev_typ = c->ev->opt; ///cache current event opt
             
         if(!sslc->cc_ev_cbr)
             if(c->ev->read_cb) sslc->cc_ev_cbr = c->ev->read_cb;
-			
+
         if(!sslc->cc_ev_cbw)
             if(c->ev->write_cb) sslc->cc_ev_cbw = c->ev->write_cb;
    
