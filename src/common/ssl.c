@@ -175,6 +175,7 @@ int ssl_handshake(con_t * c)
         }
         return -11;
     }
+    sslc->f_err = 1;
     ssl_dump_error(sslerr);
     return -1;
 }

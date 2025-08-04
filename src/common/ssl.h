@@ -17,7 +17,7 @@ typedef struct {
     SSL* con;
     
     void * data;
-	ev_cb handshake_cb;
+    ev_cb handshake_cb;
 	
     int cc_ev_typ;
     ev_cb cc_ev_cbr;
