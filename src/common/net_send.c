@@ -1,20 +1,19 @@
 #include "common.h"
 
-int recvs(con_t * c, unsigned char * buf, int bufn)
-{
+int recvs(con_t *c, unsigned char *buf, int bufn) {
     int rc;
     sassert(bufn > 0);
     sassert(buf != NULL);
     sassert(c != NULL);
 
-    for(;;) {
+    for (;;) {
         rc = recv(c->fd, buf, bufn, 0);
-        if(rc <= 0) {
-            if(rc == 0) {
+        if (rc <= 0) {
+            if (rc == 0) {
                 ///err("peer closed\n");
                 return -1;
             } else {
-                if((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
+                if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
                     return -11;
                 } else if (errno == EINTR) {
                     continue;
@@ -28,19 +27,17 @@ int recvs(con_t * c, unsigned char * buf, int bufn)
     };
 }
 
-
-int sends(con_t * c, unsigned char * buf, int bufn)
-{
+int sends(con_t *c, unsigned char *buf, int bufn) {
     int rc;
     
     sassert(bufn > 0);
     sassert(buf != NULL);
     sassert(c != NULL);
 
-    for(;;) {
+    for (;;) {
         rc = send(c->fd, buf, bufn, 0);
-        if(rc < 0) {
-            if((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
+        if (rc < 0) {
+            if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
                 return -11;
             } else if (errno == EINTR) {
                 continue;
@@ -53,25 +50,25 @@ int sends(con_t * c, unsigned char * buf, int bufn)
     };
 }
 
-int send_chains(con_t * c, meta_t * head)
+int send_chains(con_t *c, meta_t *head)
 {
     sassert(c != NULL);
     sassert(head != NULL);
     
-    for(;;) {
+    for (;;) {
         meta_t * n = head;
-        while(n) {
-            if(meta_getlen(n) > 0) {
+        while (n) {
+            if (meta_getlen(n) > 0) {
                 break;
             }
             n = n->next;
         }
-        if(!n) {
+        if (!n) {
             return 1;
         }
         int sendn = sends(c, n->pos, meta_getlen(n));
-        if(sendn < 0) {
-            if(-11 == sendn) {
+        if (sendn < 0) {
+            if (-11 == sendn) {
                 return -11;
             }
             return -1;
@@ -80,7 +77,7 @@ int send_chains(con_t * c, meta_t * head)
     }
 }
 
-int udp_recvs(con_t * c, unsigned char * buf, int bufn)
+int udp_recvs(con_t *c, unsigned char *buf, int bufn)
 {
     socklen_t socklen = sizeof(struct sockaddr);
     
@@ -88,13 +85,13 @@ int udp_recvs(con_t * c, unsigned char * buf, int bufn)
     sassert(buf != NULL);
     sassert(bufn > 0);
 
-    for(;;) {
+    for (;;) {
         int recvd = recvfrom(c->fd, buf, bufn, 0, (struct sockaddr*)&c->addr, &socklen);
-        if(recvd <= 0) {
-            if(recvd == 0) {
+        if (recvd <= 0) {
+            if (recvd == 0) {
                 return -1;
             } else {
-                if((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
+                if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
                     return -11;
                 } else if (errno == EINTR) {
                     continue;
@@ -107,7 +104,7 @@ int udp_recvs(con_t * c, unsigned char * buf, int bufn)
     };
 }
 
-int udp_sends(con_t * c, unsigned char * buf, int bufn)
+int udp_sends(con_t *c, unsigned char *buf, int bufn)
 {
     socklen_t socklen = sizeof(struct sockaddr);
 
@@ -115,10 +112,10 @@ int udp_sends(con_t * c, unsigned char * buf, int bufn)
     sassert(buf != NULL);
     sassert(bufn > 0);
 
-    for(;;) {
+    for (;;) {
         int sendn = sendto(c->fd, buf, bufn, 0, (struct sockaddr*)&c->addr, socklen);
-        if(sendn < 0) {
-            if((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
+        if (sendn < 0) {
+            if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
                 return -11;
             } else if (errno == EINTR) {
                 continue;

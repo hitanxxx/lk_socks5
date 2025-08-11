@@ -6,6 +6,8 @@ extern "C"
 {
 #endif
 
+#define REQ_KV_MAX  16
+
 typedef struct web_req web_req_t;
 typedef int (*web_req_cb) (con_t * c, web_req_t * req);
 
@@ -27,7 +29,7 @@ struct web_req {
     string_t http_ver;
 
     int kvn;
-    web_kv_t kvs[12];
+    web_kv_t kvs[REQ_KV_MAX];
     
     char fkeepalive:1;
     int payloadn;

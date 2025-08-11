@@ -24,20 +24,18 @@ enum e_log_level {
 
 typedef struct 
 {
-    uint32        level;
-    uint32        id;
+    uint32  level;
+    uint32  id;
+    int line;
+    const char *func;
+    const char *args;
 
-    char         func[64];
-    int            line;
-
-    va_list        args_list;
-    const char* args;
-
-    char *         pos;
-    char *         last;
+    va_list args_list;
+    char *pos;
+    char *last;
 } log_content_t;
 
-int log_print(int id, int level,  const char * func, int line, const char * str, ...);
+int log_print(int id, int level,  const char *func, int line, const char *str, ...);
 int log_init(void);
 int log_end(void);
 

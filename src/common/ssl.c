@@ -20,13 +20,12 @@ static g_ssl_t *g_ssl_ctx = NULL;
 #define ssl_dump_error(sslerr)                          \
 {                                                       \
     unsigned long n = 0;                                \
-    unsigned char errstr[1024] = {0};                   \
+    unsigned char errstr[512] = {0};                    \
     unsigned char *p = errstr;                          \
     unsigned char *last = errstr + sizeof(errstr);      \
     if (ERR_peek_error()) {                             \
         while((n = ERR_peek_error())) {                 \
             if (p < last - 1) {                         \
-                *p++ = ' ';                             \
                 ERR_error_string_n(n, (char*)p, last-p);\
             }                                           \
             (void)ERR_get_error();                      \
@@ -182,6 +181,7 @@ int ssl_read(con_t *c, unsigned char *buf, int bufn) {
     ssl_con_t * sslc = c->ssl;
 
     ssl_clear_error();
+
     int rc = SSL_read(sslc->con, buf, bufn);
     if (rc > 0) {
         if (sslc->cc_ev_typ) {
@@ -324,6 +324,7 @@ int ssl_load_ctx_certificate(SSL_CTX **ctx, int flag) {
             int ret = -1;
             do {
                 schk(g_ssl_ctx->ctx_server = SSL_CTX_new(TLS_server_method()), return -1);
+                #if 1
                 schk(1 == SSL_CTX_set_min_proto_version(g_ssl_ctx->ctx_server, TLS1_2_VERSION), return -1);
                 schk(1 == SSL_CTX_set_max_proto_version(g_ssl_ctx->ctx_server, TLS1_3_VERSION), return -1);
                 schk(1 == SSL_CTX_set_cipher_list(g_ssl_ctx->ctx_server,
@@ -332,19 +333,21 @@ int ssl_load_ctx_certificate(SSL_CTX **ctx, int flag) {
                                     "ECDHE-ECDSA-AES256-GCM-SHA384:"
                                     "ECDHE-RSA-AES256-GCM-SHA384"
                                     ), return -1);
-                #if 0
-                schk(1 == SSL_CTX_set_ciphersuites(g_ssl_ctx->ctx_server, 
+                if (1) {
+                    schk(1 == SSL_CTX_set_ciphersuites(g_ssl_ctx->ctx_server, 
                                     "TLS_AES_128_GCM_SHA256:"
                                     "TLS_AES_256_GCM_SHA384:"
                                     "TLS_CHACHA20_POLY1305_SHA256"
                                 ), return -1);
-                #else
-                schk(1 == SSL_CTX_set_ciphersuites(g_ssl_ctx->ctx_server, 
+                } else {
+                    schk(1 == SSL_CTX_set_ciphersuites(g_ssl_ctx->ctx_server, 
                                     "TLS_CHACHA20_POLY1305_SHA256"
                                 ), return -1);
-                #endif
+                }
                 
                 SSL_CTX_set_session_cache_mode(g_ssl_ctx->ctx_server, SSL_SESS_CACHE_SERVER);
+                #endif
+                SSL_CTX_set_verify(g_ssl_ctx->ctx_server, SSL_VERIFY_NONE, NULL);
                 schk(SSL_CTX_use_certificate_file(g_ssl_ctx->ctx_server, (char*)config_get()->ssl_crt_path, SSL_FILETYPE_PEM) == 1, break);
                 schk(SSL_CTX_use_PrivateKey_file(g_ssl_ctx->ctx_server, (char*)config_get()->ssl_key_path, SSL_FILETYPE_PEM) == 1, break);
                 schk(SSL_CTX_check_private_key(g_ssl_ctx->ctx_server) == 1, break);
