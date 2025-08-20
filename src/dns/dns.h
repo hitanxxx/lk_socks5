@@ -9,6 +9,7 @@ extern "C"
 
 #define DNS_TMOUT   5000
 #define DNS_METAN    1500
+#define DNS_TTL_MAX  (3600*1000*3)
 
 #pragma pack(push,1)
 /// dns format in here

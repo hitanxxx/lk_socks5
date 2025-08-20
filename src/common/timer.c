@@ -2,23 +2,24 @@
 
 static heap_t *g_heap = NULL;
 
-int tm_del(con_t *c) {
-    if (c->ev->timer.f_timeset) {
-        c->ev->timer.f_timeset = 0;
-        schk(heap_del(g_heap, c->ev->timer.node.index) == 0, return -1);
+int tm_del(ev_timer_t *timer) {
+    if (timer->f_timeset) {
+        timer->f_timeset = 0;
+        schk(heap_del(g_heap, timer->node.index) == 0, return -1);
     }
     return 0;
 }
 
-int tm_add(con_t *c, void *cb, int delay_ms) {
-    if (c->ev->timer.f_timeset)
-        tm_del(c);
+int tm_add(ev_timer_t *timer, timer_cb cb, void *data, int delay_ms) {
+    if (timer->f_timeset)
+        tm_del(timer);
 
-    schk(0 == heap_add(g_heap, &c->ev->timer.node), return -1);
-    c->ev->timer.node.key = (systime_msec() + delay_ms);
-    c->ev->timer.cb = cb;
-    c->ev->timer.f_timeout = 0;
-    c->ev->timer.f_timeset = 1;
+    timer->f_timeout = 0;
+    timer->f_timeset = 1;
+    timer->cb = cb;
+    timer->data = data;
+    timer->node.key = (systime_msec() + delay_ms);
+    schk(0 == heap_add(g_heap, &timer->node), return -1);
     return 0;
 }
 
@@ -31,26 +32,25 @@ static ev_timer_t *timer_min(void) {
     return min_timer;
 }
 
-int timer_expire(int *timer) {
+int timer_expire(int *wait_ms) {
     ev_timer_t *oldest = NULL;
 
     for (;;) {
 
         oldest = timer_min();
         if (!oldest) {
-            *timer = 200;
+            *wait_ms = 200;
             return 0;
         }
 
         if (oldest->node.key > systime_msec()) {
-            *timer = (int)(oldest->node.key - systime_msec());
+            *wait_ms = (int)(oldest->node.key - systime_msec());
             return 0;
         } else {
             oldest->f_timeout = 1;
-            ev_t *ev = ptr_get_struct(oldest, ev_t, timer);
-            tm_del(ev->c);
-            if (oldest->cb)
-                oldest->cb(ev->c);
+            tm_del(oldest);
+            if(oldest->cb)
+                oldest->cb(oldest->data);
         }
     }
 }

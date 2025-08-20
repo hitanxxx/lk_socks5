@@ -34,22 +34,25 @@ static g_ssl_t *g_ssl_ctx = NULL;
     }                                                   \
 }
 
-int ssl_cexp(con_t *c) {
+void ssl_cexp(void *data) {
+    con_t *c = data;
     c->ssl->f_err = 1;
-    return net_free(c);
+    net_free(c);
+    return;
 }
 
 int ssl_shutdown_cb(con_t *c) {
     int rc = ssl_shutdown(c);
     if (rc == -11) {
-        tm_add(c, ssl_cexp, SSL_TMOUT);
+        EZ_TMADD(c, ssl_cexp, SSL_TMOUT);
         return -11;
     }
 
     ///do this whether the result is success or error
     ///(endness of connection's life cycle)
-    tm_del(c);
-    return net_free_direct(c);
+    EZ_TMDEL(c);
+    net_free_direct(c);
+    return 0;
 }
 
 int ssl_shutdown(con_t *c) {
@@ -98,11 +101,11 @@ int ssl_shutdown(con_t *c) {
 static int ssl_handshake_cb(con_t *c) {
     int rc = ssl_handshake(c);
     if (rc == -11) {
-        tm_add(c, ssl_cexp, SSL_TMOUT);
+        EZ_TMADD(c, ssl_cexp, SSL_TMOUT);
         return -11;
     }
 
-    tm_del(c);
+    EZ_TMDEL(c);
     if (c->ssl->f_handshaked) {
         if (c->ssl->cc_ev_typ) {
             ev_opt(c, c->ssl->cc_ev_typ);
@@ -124,9 +127,10 @@ static int ssl_handshake_cb(con_t *c) {
     }
 
     if (!c->ssl->handshake_cb) {
-        err("for safety, it is bast to set up ssl's"
-        "handshakecb to handle resouce release when error happend\n");
-        return net_free_direct(c);
+        err("for safety, it is best to set up ssl's"
+        "'handshakecb' to process resouce release when error happend\n");
+        net_free_direct(c);
+        return -1;
     }
 
     if (c->ev->write_cb) {

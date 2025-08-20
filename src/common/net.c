@@ -167,19 +167,20 @@ int net_accept(con_t *c) {
         ///only check readable event for accept result 
         ev_opt(cc, EV_R);
 
-        tm_add(cc, net_exp, 5);
+        EZ_TMADD(cc, net_exp, 5);
     }
     return 0;
 }
 
-int net_free_direct(con_t *c) {
+void net_free_direct(void *data) {
+    con_t *c = data;
     if (c->fd > 0) {
         close(c->fd);
         c->fd = 0;
     }
 
     if (c->ev) {
-        tm_del(c);
+        EZ_TMDEL(c);
         ev_free(c->ev);
         c->ev = NULL;
     }
@@ -203,7 +204,7 @@ int net_free_direct(con_t *c) {
     }
 
     mem_pool_free(c);
-    return 0;
+    return;
 }
 
 int net_free(con_t *c) {
@@ -222,18 +223,22 @@ int net_free(con_t *c) {
     */
 
     if (c->ssl) {
-        if (c->ssl->f_err || c->ssl->f_closed)  ///ssl con err or ssl closed
-            return net_free_direct(c);
+        if (c->ssl->f_err || c->ssl->f_closed) { ///ssl con err or ssl closed
+            net_free_direct(c);
+            return 0;
+        }
 
         int rc = ssl_shutdown(c);
         if (rc == -11) {	///again
-            tm_add(c, net_free_direct, NET_TMOUT);
+            EZ_TMADD(c, net_free_direct, NET_TMOUT);
             return -11;
         }
         /// success or error
-        return net_free_direct(c);
+        net_free_direct(c);
+        return 0;
     }
-    return net_free_direct(c);
+    net_free_direct(c);
+    return 0;
 }
 
 void net_exp(void *data) {

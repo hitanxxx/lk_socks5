@@ -1,82 +1,83 @@
 #include "common.h"
 #include "dns.h"
 
-#define DNS_REC_MAX    1024
 
 typedef struct dns_cache_s {
     queue_t     queue;
     long long   expire_msec;
     char        query[DOMAIN_LENGTH+1];
-    char        addr[4];
+    char        addr[4]; ///only ipv4 addr
 } dns_cache_t;
 
 typedef struct dns_ctx_s {
-    int   recn;
-    queue_t   record_mng;
+    ezhash_t *dns_hash;
+    ev_timer_t dns_timer;
 } dns_ctx_t;
 static dns_ctx_t *dns_ctx = NULL;
 
 static int dns_async_result(dnsc_t *dns, int result_status, unsigned char *result);
-static int dns_cexp(con_t *c);
+static void dns_cexp(void *data);
+
 
 
 static int dns_rec_add(char *query, char *addr, int msec) {
-    dns_cache_t *rdns = NULL;
-    schk(rdns = mem_pool_alloc(sizeof(dns_cache_t)), return -1);
-    queue_init(&rdns->queue);
-    strncpy(rdns->query, query, sizeof(rdns->query));
-    rdns->addr[0] = addr[0];
-    rdns->addr[1] = addr[1];
-    rdns->addr[2] = addr[2];
-    rdns->addr[3] = addr[3];
-    rdns->expire_msec = systime_msec() + msec;
-    queue_insert_tail(&dns_ctx->record_mng, &rdns->queue);
+    dns_cache_t rdns = {0};
+    
+    strncpy(rdns.query, query, sizeof(rdns.query)-1);
+    rdns.addr[0] = addr[0];
+    rdns.addr[1] = addr[1];
+    rdns.addr[2] = addr[2];
+    rdns.addr[3] = addr[3];
+    if (msec > DNS_TTL_MAX)
+        msec = DNS_TTL_MAX;
+    rdns.expire_msec = systime_msec() + msec;
+
+    ezhash_add(dns_ctx->dns_hash, query, strlen(query), &rdns, sizeof(dns_cache_t));
     ///dbg("dns cache add entry: [%s]. ttl [%d] msec\n", query, msec);
     return 0;
 }
 
 int dns_rec_find(char *query, char *out_addr) {
-    queue_t *q = queue_head(&dns_ctx->record_mng);
-    queue_t *n = NULL;
-    dns_cache_t *rdns = NULL;
-    int found = 0;
-    long long current_msec = systime_msec();
-    
-    if (queue_empty(&dns_ctx->record_mng)) {
-        return -1;
+    dns_cache_t *dnsc = ezhash_find(dns_ctx->dns_hash, query, strlen(query));
+    if (dnsc) {
+        if (out_addr) memcpy(out_addr, dnsc->addr, 4);
+        return 0;
     }
-    while (q != queue_tail(&dns_ctx->record_mng)) {
-        n = queue_next(q);
-        rdns = ptr_get_struct(q, dns_cache_t, queue);
-
-        if (current_msec < rdns->expire_msec) {
-            if ((strlen(rdns->query) == strlen(query)) && (!strcmp( rdns->query, query))) {  
-                if (out_addr) {
-                    out_addr[0] = rdns->addr[0];
-                    out_addr[1] = rdns->addr[1];
-                    out_addr[2] = rdns->addr[2];
-                    out_addr[3] = rdns->addr[3];
-                }
-                found = 1;
-                if (dns_ctx->recn <= 8)
-                    break;
-            }
-        } else {
-            queue_remove(q);
-            mem_pool_free(rdns);
-        }
-        q = n;
-    }
-    if (dns_ctx->recn > 8) {
-        dns_ctx->recn = 0;
-    }
-    dns_ctx->recn++;
-    return (found ? 0 : -1);
+    return -1;
 }
+
+void dns_rec_chk(void *data) {
+    ezhash_t *hash = data;
+    int i = 0;
+    long long now = systime_msec();
+    if (hash) {
+        for (i = 0; i < hash->arrn; i++) {
+            ezhash_obj_t *p = hash->arr[i];
+            ezhash_obj_t *n = NULL;
+            while (p) {
+                n = p->next;
+                
+                dns_cache_t *c = p->val;
+                if (c->expire_msec > now) {
+                    if (p == hash->arr[i]) hash->arr[i] = n;
+                    if (p->key)
+                        mem_pool_free(p->key);
+                    if (p->val)
+                        mem_pool_free(p->val);
+                    mem_pool_free(p);
+                }
+                p = n;
+            }
+        }
+    }
+
+    tm_add(&dns_ctx->dns_timer, dns_rec_chk, dns_ctx->dns_hash, 30*1000);
+}
+
 
 inline static char * dns_get_serv(void) {
     /// try to get gateway 
-    if(strlen(config_get()->s5_serv_gw) > 0) {
+    if (strlen(config_get()->s5_serv_gw) > 0) {
         return config_get()->s5_serv_gw;
     } else {
         return "8.8.8.8";
@@ -192,7 +193,7 @@ int dns_response_recv(con_t *c) {
         if (size <= 0) {
             if (size == -11) {
                 // add timer for recv
-                tm_add(c, dns_cexp, DNS_TMOUT);
+                EZ_TMADD(c, dns_cexp, DNS_TMOUT);
                 return -11;
             }
             err("dns recv response failed, errno [%d]\n", errno);
@@ -201,7 +202,7 @@ int dns_response_recv(con_t *c) {
         }
         meta->last += size;
     }
-    tm_del(c);
+    EZ_TMDEL(c);
 
     /// do basic filter in here, check req question count and answer count     
     header = (dns_header_t*)meta->pos;
@@ -229,7 +230,7 @@ int dns_request_send(con_t *c) {
         if (sendn <= 0) {
             if (sendn == -11) {
                 // add timer for send
-                tm_add(c, dns_cexp, DNS_TMOUT);
+                EZ_TMADD(c, dns_cexp, DNS_TMOUT);
                 return -11;
             }
             err("dns send request failed, errno [%d]\n", errno);
@@ -238,7 +239,7 @@ int dns_request_send(con_t *c) {
         }
         meta->pos += sendn;
     }
-    tm_del(c);
+
     meta_clr(meta);
     
     c->ev->write_cb = NULL;
@@ -314,27 +315,20 @@ static int dns_request_packet(con_t *c) {
     return c->ev->write_cb(c);
 }
 
+
 int dns_init(void) {
     schk(!dns_ctx, return -1);
     schk(dns_ctx = mem_pool_alloc(sizeof(dns_ctx_t)), return -1);
-    queue_init(&dns_ctx->record_mng);
+    
+    schk(0 == ezhash_create(&dns_ctx->dns_hash, 256), return -1);
+    tm_add(&dns_ctx->dns_timer, dns_rec_chk, dns_ctx->dns_hash, 30*1000);
     return 0;
 }
 
 int dns_end(void) {
     if (dns_ctx) {
-        queue_t * q = queue_head(&dns_ctx->record_mng);
-        queue_t * n = NULL;
-        /// free dns cache if need 
-        while (q != queue_tail(&dns_ctx->record_mng)) {
-            n = queue_next(q);
-            
-            dns_cache_t * rdns = ptr_get_struct(q, dns_cache_t, queue);
-            queue_remove(q);
-            mem_pool_free(rdns);
-
-            q = n;
-        }
+        ezhash_free(dns_ctx->dns_hash);
+        dns_ctx->dns_hash = NULL;
         mem_pool_free(dns_ctx);
         dns_ctx = NULL;
     }
@@ -390,7 +384,8 @@ static int dns_async_result(dnsc_t *dns, int result_status, unsigned char *resul
     return result_status == 0 ? 0 : -1;
 }
 
-static int dns_cexp(con_t *c) {
+static void dns_cexp(void *data) {
+    con_t *c = data;
     dnsc_t *dns = c->data;
-    return dns_async_result(dns, -1, NULL);
+    dns_async_result(dns, -1, NULL);
 }

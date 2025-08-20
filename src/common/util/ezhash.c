@@ -1,21 +1,21 @@
 #include "common.h"
 
-static uint32_t fnv1a_32(void * data, int datan)
-{
-    uint8_t * p = data;
+#define EZHS_FAV1A
+///#define EZHS_MURMUR3
+
+static uint32_t fnv1a_32(void *data, int datan) {
+    uint8_t *p = data;
     uint32_t hash = 0x811c9dc5;
     uint32_t prime = 0x01000193;
-    while(datan--) {
+    while (datan--) {
         hash ^= *p++;
         hash *= prime;
     }
     return hash;
 }
 
-
-int ezhash_create(ezhash_t ** hash, int space)
-{
-    ezhash_t * nhash = NULL;
+int ezhash_create(ezhash_t **hash, int space) {
+    ezhash_t *nhash = NULL;
     schk(nhash = mem_pool_alloc(sizeof(ezhash_t)), return -1);
     nhash->arrn = space;
     schk(nhash->arr = mem_pool_alloc(nhash->arrn *sizeof(ezhash_obj_t*)), {mem_pool_free(nhash); return -1;});
@@ -24,20 +24,21 @@ int ezhash_create(ezhash_t ** hash, int space)
 }
 
 
-int ezhash_free(ezhash_t * hash)
-{
+int ezhash_free(ezhash_t *hash) {
     int i = 0;
-    if(hash) {
-        for(i = 0; i < hash->arrn; i++) {
-            ezhash_obj_t * p = hash->arr[i];
-			ezhash_obj_t * n = NULL;
-            while(p) {
-				n = p->next;
-                if(p->key) mem_pool_free(p->key);
-                if(p->val) mem_pool_free(p->val);
+    if (hash) {
+        for (i = 0; i < hash->arrn; i++) {
+            ezhash_obj_t *p = hash->arr[i];
+            ezhash_obj_t *n = NULL;
+            while (p) {
+                n = p->next;
+                if (p->key) 
+                    mem_pool_free(p->key);
+                if (p->val) 
+                    mem_pool_free(p->val);
                 
-				mem_pool_free(p);
-				p = n;
+                mem_pool_free(p);
+                p = n;
             }
         }
         mem_pool_free(hash->arr);
@@ -46,30 +47,46 @@ int ezhash_free(ezhash_t * hash)
     return 0;
 }
 
-int ezhash_del(ezhash_t * hash, void * key, int keyn)
-{
+int ezhash_del(ezhash_t *hash, void *key, int keyn) {
+#if defined EZHS_FAV1A
     uint32_t hash_val = fnv1a_32(key, keyn);
     int idx = hash_val % hash->arrn;
-    if(!hash->arr[idx]) {
+#endif
+    
+    if (!hash->arr[idx]) {
         return -1;
     }
-    ezhash_obj_t * p = hash->arr[idx];
-    if(p->next)
-        hash->arr[idx] = p->next;
-    if(p) {
-        if(p->key) mem_pool_free(p->key);
-        if(p->val) mem_pool_free(p->val);
-        mem_pool_free(p);
+    ezhash_obj_t *p = hash->arr[idx];
+    ezhash_obj_t *n = NULL;
+    while (p) {
+        n = p->next;
+        if (p->keyn == keyn && !memcmp(p->key, key, keyn)) {
+            if(p == hash->arr[idx]) hash->arr[idx] = n;
+            if(p->key)
+                mem_pool_free(p->key);
+            if(p->val)
+                mem_pool_free(p->val);
+            mem_pool_free(p);
+        }
+        p = n;
     }
+    
     return 0;
 }
 
-int ezhash_add(ezhash_t * hash, void * key, int keyn, void * val, int valn)
-{
+int ezhash_add(ezhash_t *hash, void *key, int keyn, void *val, int valn) {
+
+    if(ezhash_find(hash, key, keyn)) {
+        err("ezhash already exist. ignore add request\n");
+        return 0;
+    }
+
+#if defined EZHS_FAV1A
     uint32_t hash_value = fnv1a_32(key, keyn);
     int idx = hash_value % hash->arrn;
+#endif
     
-    ezhash_obj_t * nhash = NULL;
+    ezhash_obj_t *nhash = NULL;
     schk(nhash = mem_pool_alloc(sizeof(ezhash_obj_t)), return -1);
     nhash->next = NULL;
     nhash->keyn = keyn;
@@ -80,11 +97,11 @@ int ezhash_add(ezhash_t * hash, void * key, int keyn, void * val, int valn)
     schk(nhash->val = mem_pool_alloc(valn), {mem_pool_free(nhash->key);mem_pool_free(nhash);return -1;});
     memcpy(nhash->val, val, valn);
 
-    if(!hash->arr[idx]) {
+    if (!hash->arr[idx]) {
         hash->arr[idx] = nhash;
     } else {
-        ezhash_obj_t * p = hash->arr[idx];
-        while(p->next) {
+        ezhash_obj_t *p = hash->arr[idx];
+        while (p->next) {
             p = p->next;
         }
         p->next = nhash;
@@ -92,15 +109,16 @@ int ezhash_add(ezhash_t * hash, void * key, int keyn, void * val, int valn)
     return 0;
 }
 
-void * ezhash_find(ezhash_t * hash, void * key, int keyn)
-{
+void * ezhash_find(ezhash_t *hash, void *key, int keyn) {
+#if defined EZHS_FAV1A
     uint32_t hash_value = fnv1a_32(key, keyn);
     int idx = hash_value % hash->arrn;
+#endif
 
-    if(hash->arr[idx]) {
-        ezhash_obj_t * p = hash->arr[idx];
+    if (hash->arr[idx]) {
+        ezhash_obj_t *p = hash->arr[idx];
         while (p) {
-            if(p->keyn == keyn && !memcmp(p->key, key, keyn)) {
+            if (p->keyn == keyn && !memcmp(p->key, key, keyn)) {
                 return p->val;
             }
             p = p->next;
@@ -108,5 +126,4 @@ void * ezhash_find(ezhash_t * hash, void * key, int keyn)
     }
     return NULL;
 }
-
 

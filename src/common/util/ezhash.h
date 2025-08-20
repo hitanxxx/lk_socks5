@@ -16,21 +16,21 @@ struct ezhash_obj {
 };
 typedef struct {
     int arrn;  ///recommand set to big prime
-    ezhash_obj_t ** arr;
+    ezhash_obj_t **arr;
 } ezhash_t;
 
-int ezhash_free(ezhash_t * hash);
-int ezhash_create(ezhash_t ** hash, int space);
+int ezhash_free(ezhash_t *hash);
+int ezhash_create(ezhash_t **hash, int space);
 
-void * ezhash_find(ezhash_t * hash, void * key, int keyn);
-int ezhash_add(ezhash_t * hash, void * key, int keyn, void * val, int valn);
-int ezhash_del(ezhash_t * hash, void * key, int keyn);
+void *ezhash_find(ezhash_t *hash, void *key, int keyn);
+int ezhash_add(ezhash_t *hash, void *key, int keyn, void *val, int valn);
+int ezhash_del(ezhash_t *hash, void *key, int keyn);
 
 
 #ifdef __cplusplus
 }
 #endif
-        
+
 #endif
 
 

@@ -7,8 +7,8 @@ extern "C"
 #endif
 
 typedef struct {
-    int64_t     key;
-    int     index;
+    int  index;
+    int64_t  key;
 } heap_node_t;
 
 // bheap

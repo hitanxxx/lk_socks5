@@ -82,6 +82,7 @@ static void web_release_c(void *data) {
 static void web_exp(void *data) {
     con_t *c = data;
     net_free(c);
+    return;
 }
 
 static int webser_try_read(con_t *c) {
@@ -145,7 +146,7 @@ static int webser_rsp_payload_send_api(con_t *c) {
         int rc = c->send_chain(c, webc->rsp_payload);
         if (rc < 0)  {
             if (rc == -11) {
-                tm_add(c, web_exp, WEB_TMOUT);
+                EZ_TMADD(c, web_exp, WEB_TMOUT);
                 return -11;
             }
             err("webser send resp body failed\n");
@@ -153,7 +154,7 @@ static int webser_rsp_payload_send_api(con_t *c) {
             return -1;
         }
     }
-    tm_del(c);
+    EZ_TMDEL(c);
     
     if (webc->webreq->fkeepalive) {
         c->ev->write_cb = webser_keepalive;
@@ -172,7 +173,7 @@ static int webser_rsp_payload_send_ff(con_t *c) {
             int sendn = c->send(c, meta->pos, meta_getlen(meta));
             if (sendn < 0) {
                 if (sendn == -11) {
-                    tm_add(c, web_exp, WEB_TMOUT);
+                    EZ_TMADD(c, web_exp, WEB_TMOUT);
                     return -11;
                 }
                 err("webser file content send error\n");
@@ -198,7 +199,7 @@ static int webser_rsp_payload_send_ff(con_t *c) {
             meta->last += readn;
         }
     }
-    tm_del(c);
+    EZ_TMDEL(c);
     
     if (webc->webreq->fkeepalive) {
         c->ev->write_cb = webser_keepalive;
@@ -234,14 +235,14 @@ static int webser_rsp_hdr_send(con_t *c) {
     int rc = c->send_chain(c, webc->rsp_hdr);
     if (rc < 0) {
         if (rc == -11) {
-            tm_add(c, web_exp, WEB_TMOUT);
+            EZ_TMADD(c, web_exp, WEB_TMOUT);
             return -11;
         }
         err("webser resp head send failed\n");
         net_free(c);
         return -1;
     }
-    tm_del(c);
+    EZ_TMDEL(c);
 
     fpayload = (webc->type == WEBSER_FILE ? 
             (webc->fsize > 0 ? 1 : 0) :
@@ -419,14 +420,14 @@ static int webser_req_proc(con_t *c) {
     int rc = webc->webreq->cb(c, webc->webreq);
     if (rc < 0) {
         if (rc == -11) {
-            tm_add(c, web_exp, WEB_TMOUT);
+            EZ_TMADD(c, web_exp, WEB_TMOUT);
             return -11;
         }
         err("webser process request header failed\n");
         net_free(c);
         return -1;
     }
-    tm_del(c);
+    EZ_TMDEL(c);
 
     /// if don't have body, excute down 
     c->ev->read_cb = webser_req_router;
@@ -480,7 +481,7 @@ static int webser_transfer_to_tlstunnel(con_t *c) {
         rc = c->recv(c, meta->last, meta_getfree(meta));
         if (rc < 0) {
             if (rc == -11) {
-                tm_add(c, net_exp, WEB_TMOUT);
+                EZ_TMADD(c, net_exp, WEB_TMOUT);
                 return -11;
             }
             if (rc == -1) {
@@ -491,7 +492,7 @@ static int webser_transfer_to_tlstunnel(con_t *c) {
         }
         meta->last += rc;
     }
-    tm_del(c);
+    EZ_TMDEL(c);
 
     tls_tunnel_auth_t * auth = (tls_tunnel_auth_t*)meta->pos;
     if (htonl(TLS_TUNNEL_AUTH_MAGIC_NUM) != auth->magic) {
@@ -505,7 +506,7 @@ static int webser_transfer_to_tlstunnel(con_t *c) {
 }
 
 int webser_accept_cb_ssl(con_t *c) {
-    tm_del(c);
+    EZ_TMDEL(c);
 
     if (!c->ssl) 
         schk(ssl_create_connection(c, L_SSL_SERVER) == 0, {
@@ -524,7 +525,7 @@ int webser_accept_cb_ssl(con_t *c) {
         int rc = ssl_handshake(c);
         if (rc < 0) {
             if (rc == -11) {
-                tm_add(c, net_exp, WEB_TMOUT);
+                EZ_TMADD(c, net_exp, WEB_TMOUT);
                 return -11;
             }
             err("webser ssl handshake failed\n");
@@ -547,7 +548,7 @@ int webser_accept_cb_ssl(con_t *c) {
 }
 
 int webser_accept_cb(con_t *c) {
-    tm_del(c);
+    EZ_TMDEL(c);
 
     c->ev->read_cb = webser_start;
     c->ev->write_cb = NULL;
