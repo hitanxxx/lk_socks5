@@ -8,15 +8,17 @@ extern "C"
 
 typedef struct ezhash_obj ezhash_obj_t;
 struct ezhash_obj {
-    ezhash_obj_t * next;
+    queue_t queue;
+    
     void * key;
     int keyn;
     void * val;
     int valn;
 };
+
 typedef struct {
-    int arrn;  ///recommand set to big prime
-    ezhash_obj_t **arr;
+    int arrn;       ///recommand set to big prime
+    queue_t *arr;   ///queue header of hash obj
 } ezhash_t;
 
 int ezhash_free(ezhash_t *hash);

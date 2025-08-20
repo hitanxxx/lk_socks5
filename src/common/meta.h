@@ -5,11 +5,9 @@
 extern "C"
 {
 #endif
-    
 
 typedef struct meta meta_t;
-struct meta
-{
+struct meta {
     meta_t* next;
     // memory pointer
     unsigned char *     start;

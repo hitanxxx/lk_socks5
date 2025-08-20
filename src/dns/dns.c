@@ -15,10 +15,18 @@ typedef struct dns_ctx_s {
 } dns_ctx_t;
 static dns_ctx_t *dns_ctx = NULL;
 
-static int dns_async_result(dnsc_t *dns, int result_status, unsigned char *result);
-static void dns_cexp(void *data);
+static int dns_async_result(dnsc_t *dns, int result_status, unsigned char *result) {
+    if(dns->cb)
+        dns->cb(result_status, result, dns->user_data);
 
+    return result_status == 0 ? 0 : -1;
+}
 
+static void dns_cexp(void *data) {
+    con_t *c = data;
+    dnsc_t *dns = c->data;
+    dns_async_result(dns, -1, NULL);
+}
 
 static int dns_rec_add(char *query, char *addr, int msec) {
     dns_cache_t rdns = {0};
@@ -52,28 +60,30 @@ void dns_rec_chk(void *data) {
     long long now = systime_msec();
     if (hash) {
         for (i = 0; i < hash->arrn; i++) {
-            ezhash_obj_t *p = hash->arr[i];
-            ezhash_obj_t *n = NULL;
-            while (p) {
-                n = p->next;
-                
-                dns_cache_t *c = p->val;
-                if (c->expire_msec > now) {
-                    if (p == hash->arr[i]) hash->arr[i] = n;
-                    if (p->key)
-                        mem_pool_free(p->key);
-                    if (p->val)
-                        mem_pool_free(p->val);
-                    mem_pool_free(p);
+            if (!queue_empty(&hash->arr[i])) {
+                queue_t *p = queue_head(&hash->arr[i]);
+                while (p != queue_tail(&hash->arr[i])) {
+                    queue_t *n = queue_next(p);
+
+                    ezhash_obj_t *obj = ptr_get_struct(p, ezhash_obj_t, queue);
+                    dns_cache_t *dnsc = obj->val;
+                    if (dnsc->expire_msec > now) {
+                        if (obj->key) 
+                            mem_pool_free(obj->key);
+                        if (obj->val)
+                            mem_pool_free(obj->val);
+                        queue_remove(&obj->queue);
+                        mem_pool_free(obj);
+                    }
+                    
+                    p = n;
                 }
-                p = n;
             }
         }
     }
 
     tm_add(&dns_ctx->dns_timer, dns_rec_chk, dns_ctx->dns_hash, 30*1000);
 }
-
 
 inline static char * dns_get_serv(void) {
     /// try to get gateway 
@@ -315,26 +325,6 @@ static int dns_request_packet(con_t *c) {
     return c->ev->write_cb(c);
 }
 
-
-int dns_init(void) {
-    schk(!dns_ctx, return -1);
-    schk(dns_ctx = mem_pool_alloc(sizeof(dns_ctx_t)), return -1);
-    
-    schk(0 == ezhash_create(&dns_ctx->dns_hash, 256), return -1);
-    tm_add(&dns_ctx->dns_timer, dns_rec_chk, dns_ctx->dns_hash, 30*1000);
-    return 0;
-}
-
-int dns_end(void) {
-    if (dns_ctx) {
-        ezhash_free(dns_ctx->dns_hash);
-        dns_ctx->dns_hash = NULL;
-        mem_pool_free(dns_ctx);
-        dns_ctx = NULL;
-    }
-    return 0;
-}
-
 int dns_alloc(dnsc_t **outdns, char *domain, dns_async_cb cb, void *userdata) {
     dnsc_t * dns = mem_pool_alloc(sizeof(dnsc_t));
     schk(dns, return -1);
@@ -377,15 +367,23 @@ void dns_free(dnsc_t *dnsc) {
     mem_pool_free(dnsc);
 }
 
-static int dns_async_result(dnsc_t *dns, int result_status, unsigned char *result) {
-    if(dns->cb)
-        dns->cb(result_status, result, dns->user_data);
-
-    return result_status == 0 ? 0 : -1;
+int dns_init(void) {
+    schk(!dns_ctx, return -1);
+    schk(dns_ctx = mem_pool_alloc(sizeof(dns_ctx_t)), return -1);
+    
+    schk(0 == ezhash_create(&dns_ctx->dns_hash, 279), return -1);
+    tm_add(&dns_ctx->dns_timer, dns_rec_chk, dns_ctx->dns_hash, 30*1000);
+    return 0;
 }
 
-static void dns_cexp(void *data) {
-    con_t *c = data;
-    dnsc_t *dns = c->data;
-    dns_async_result(dns, -1, NULL);
+int dns_end(void) {
+    if (dns_ctx) {
+        ezhash_free(dns_ctx->dns_hash);
+        dns_ctx->dns_hash = NULL;
+        mem_pool_free(dns_ctx);
+        dns_ctx = NULL;
+    }
+    return 0;
 }
+
+
