@@ -6,21 +6,17 @@ extern "C"
 {
 #endif
 
-#define TLS_TUNNEL_TMOUT     10*1000
-#define TLS_TUNNEL_AUTH_MAGIC_NUM     0xa001beef
+#define TLS_TUNNEL_TMOUT    12*1000
 #define TLS_TUNNEL_METAN    (4096*3)
 
 
-/// @brief struct of private authorization. 16 Byte
-typedef struct {
-    uint32_t magic; 
-    char  key[16];
-    char  secret[16];
-} __attribute__((packed)) tls_tunnel_auth_t;
-
+/// @brief MG1 + MG2 + 1BYTE DATA LEN + DATA
+#define TLS_AUTH_MG1    0xae
+#define TLS_AUTH_MG2    0x86
 
 typedef struct {
-    char typ;   //tls tunnel work mode: (c)/(s)/(s screct)
+    char typ;   /// work mode: (c:1)/(s:2)/(s screct:3)
+    char state; /// auth state 
     char frecv_err_down:1;
     char frecv_err_up:1;
     con_t * cdown;
@@ -28,6 +24,9 @@ typedef struct {
     
     dnsc_t * dns;
 
+    char *auth_data;
+    char auth_datan;
+    char auth_recvd;
     int atyp;
     void * adata;
 } tls_tunnel_session_t;

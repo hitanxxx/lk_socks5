@@ -438,10 +438,12 @@ static int webser_req_proc(con_t *c) {
 static int webser_start(con_t *c) {
     webser_t *webc = NULL;
     ///init web connection page and meta memory for use
-    schk(0 == meta_alloc(&c->meta, 4096), {
-        net_free(c);
-        return -1;
-    });
+    if (!c->meta) {
+        schk(0 == meta_alloc(&c->meta, 4096), {
+            net_free(c);
+            return -1;
+        });
+    }
 
     schk(0 == web_calloc(&webc), {
         net_free(c);
@@ -462,45 +464,38 @@ static int webser_start(con_t *c) {
     return c->ev->read_cb(c);
 }
 
-/// @brief  transfer request to s5 module 
-/// @param ev 
-/// @return 
-static int webser_transfer_to_tlstunnel(con_t *c) {
-    meta_t *meta = NULL;
-    ssize_t rc = 0;
+int webser_chk_s5_or_web(con_t *c) {
+    EZ_TMDEL(c);
 
-    if (!c->meta) 
-        schk(meta_alloc(&c->meta, 8192) == 0, {
+    if (!c->meta) {
+        schk(0 == meta_alloc(&c->meta, 8192), {
             net_free(c);
             return -1;
         });
+    }
 
-    /// try to recv TLS tunnel authorization header 
-    meta = c->meta;
-    while (meta_getlen(meta) < sizeof(tls_tunnel_auth_t)) {
-        rc = c->recv(c, meta->last, meta_getfree(meta));
-        if (rc < 0) {
-            if (rc == -11) {
+    while (meta_getlen(c->meta) < 2) {
+        int recvd = c->recv(c, c->meta->last, meta_getfree(c->meta));
+        if (recvd < 0) {
+            if (recvd == -1) {
+                err("webser chk recvd err. [%d]\n", errno);
+                net_free(c);
+                return -1;
+            } else if (recvd == -11) {
                 EZ_TMADD(c, net_exp, WEB_TMOUT);
                 return -11;
             }
-            if (rc == -1) {
-                err("webser procotol route recv failed\n");
-                net_free(c);
-                return -1;
-            }
         }
-        meta->last += rc;
+        c->meta->last += recvd;
     }
-    EZ_TMDEL(c);
-
-    tls_tunnel_auth_t * auth = (tls_tunnel_auth_t*)meta->pos;
-    if (htonl(TLS_TUNNEL_AUTH_MAGIC_NUM) != auth->magic) {
+    
+    if (c->meta->pos[0] == TLS_AUTH_MG1 && 
+        c->meta->pos[1] == TLS_AUTH_MG2 &&
+        config_get()->s5_mode == TLS_TUNNEL_S_SCRECT) {
+        c->ev->read_cb = tls_tunnel_s_start;
+    } else {
         c->ev->read_cb = webser_start;
-        c->ev->write_cb = NULL;
-        return c->ev->read_cb(c);
-    } 
-    c->ev->read_cb = tls_tunnel_s_start;
+    }
     c->ev->write_cb = NULL;
     return c->ev->read_cb(c);
 }
@@ -538,11 +533,7 @@ int webser_accept_cb_ssl(con_t *c) {
     c->send = ssl_write;
     c->send_chain = ssl_write_chain;
 
-    if (config_get()->s5_mode == TLS_TUNNEL_S_SCRECT)
-        c->ev->read_cb = webser_transfer_to_tlstunnel;
-    else
-        c->ev->read_cb = webser_start;
-    
+    c->ev->read_cb = webser_chk_s5_or_web;
     c->ev->write_cb = NULL;
     return c->ev->read_cb(c);
 }

@@ -42,6 +42,13 @@ int meta_pdata(meta_t *meta, void *data, int datan) {
     return 0;
 }
 
+int meta_pnum(meta_t *meta, unsigned char num) {
+    schk(meta_getfree(meta) > 0, return -1);
+    *meta->last = num;
+    meta->last += 1;
+    return 0;
+}
+
 meta_t * meta_dump(meta_t *meta) {
     if (!meta->next) return meta;
 

@@ -52,7 +52,8 @@ static int web_req_line(con_t *c, web_req_t *req) {
         }
 
         meta_t * meta = c->meta;
-        for (p = meta->pos; p < meta->last; p++) {
+        for (; meta->pos < meta->last; meta->pos++) {
+            p = meta->pos;
             if ((*p < 32 || *p > 127) && *p != CR && *p != LF) {
                 err("webreq contains non-printable character. [%d]\n", *p);
                 return -1;
@@ -208,7 +209,6 @@ static int web_req_hdrs(con_t *c, web_req_t *req) {
     };
 
     for (;;) {
-        
         if (meta_getlen(c->meta) < 1) {
             int recvd = c->recv(c, c->meta->last, meta_getfree(c->meta));
             if (recvd < 0) {
@@ -222,7 +222,8 @@ static int web_req_hdrs(con_t *c, web_req_t *req) {
         }
 
         meta_t * meta = c->meta;
-        for (p = meta->pos; p < meta->last; p++) {
+        for (; meta->pos < meta->last; meta->pos++) {
+            p = meta->pos;
             if ((*p < 32 || *p > 127) && *p != CR && *p != LF) {
                 err("webreq contains non-printable character. [%d]\n", *p);
                 return -1;

@@ -229,41 +229,79 @@ int tls_tunnel_traffic_proc(con_t *c) {
 }
 
 static int tls_tunnel_s_auth_chk(con_t *cdown) {
-    meta_t *meta = cdown->meta;
-    
-    while (meta_getlen(meta) < sizeof(tls_tunnel_auth_t)) {
-        int recvn = cdown->recv(cdown, meta->last, meta_getfree(meta));
-        if (recvn < 0) {
-            if (recvn == -11) {
-                EZ_TMADD(cdown, tls_ses_exp, TLS_TUNNEL_TMOUT);
-                return -11;
-            }
-            err("TLS tunnel auth recv failed\n");
-            net_free(cdown);
-            return -1;
-        }
-        meta->last += recvn;
-    }
-    EZ_TMDEL(cdown);
+    tls_tunnel_session_t *ses = cdown->data;
 
-    ///chk auth hdr
-    tls_tunnel_auth_t * auth = (tls_tunnel_auth_t*)meta->pos;
-    int auth_chk = -1;
-    do {
-        schk(auth->magic == htonl(TLS_TUNNEL_AUTH_MAGIC_NUM), break);
-        schk(0 == ezac_find(g_ses_ctx->ac, auth->key, strlen(auth->key)), break);
-        auth_chk = 0;
-    } while(0);
-    
-    if (0 != auth_chk) {
-       net_free(cdown);
-       return -1;
+    enum {
+        s_mg1 = 0,
+        s_mg2,
+        s_len,
+        s_data
+    };
+
+    for (;;) {
+        if (meta_getlen(cdown->meta) < 1) {
+            int recvd = cdown->recv(cdown, cdown->meta->last, meta_getfree(cdown->meta));
+            if (recvd < 0) {
+                if (recvd == -11) {
+                    EZ_TMADD(cdown, tls_ses_exp, TLS_TUNNEL_TMOUT);
+                    return -11;
+                }
+                err("webreq recv err\n");
+                return -1;
+            }
+            cdown->meta->last += recvd;
+        }
+        
+        unsigned char *p = NULL;
+        for (; cdown->meta->pos < cdown->meta->last; cdown->meta->pos++) {
+            p = cdown->meta->pos;
+            if (ses->state == s_mg1) {
+                if (*p != TLS_AUTH_MG1) {
+                    err("TLS auth chk. mg1 err\n");
+                    net_free(cdown);
+                    return -1;
+                }
+                ses->state = s_mg2;
+            } else if (ses->state == s_mg2) {
+                if (*p != TLS_AUTH_MG2) {
+                    err("TLS auth chk. mg2 err\n");
+                    net_free(cdown);
+                    return -1;
+                }
+                ses->state = s_len;
+            } else if (ses->state == s_len) {
+                ses->auth_datan = *p;
+                if (ses->auth_datan < 1 || ses->auth_datan > 128) {
+                    err("TLS auth chk. slen [%d] illegal\n", ses->auth_datan);
+                    net_free(cdown);
+                    return -1;
+                }
+                ses->state = s_data;
+            } else if (ses->state == s_data) {
+                if (ses->auth_recvd == 0) ses->auth_data = (char*)p;
+                ses->auth_recvd++;
+                if (ses->auth_recvd == ses->auth_datan) {
+                    if (0 == ezac_find(g_ses_ctx->ac, ses->auth_data, ses->auth_datan)) {
+                        EZ_TMDEL(cdown);
+                        
+                        meta_clr(cdown->meta);
+                        
+                        cdown->ev->read_cb = s5_p1_req;
+                        cdown->ev->write_cb = NULL;
+                        return cdown->ev->read_cb(cdown);
+                    } else {
+                        err("TLS auth chk. auth not found\n");
+                        net_free(cdown);
+                        return -1;
+                    }
+                }
+            }
+        }
     }
-    meta_clr(meta);
-    
-    cdown->ev->read_cb = s5_p1_req;
-    cdown->ev->write_cb = NULL;
-    return cdown->ev->read_cb(cdown);
+
+    err("TLS auth chk not fin. state [%d]\n", ses->state);
+    net_free(cdown);
+    return -1;
 }
 
 int tls_tunnel_s_start(con_t *cdown) {
@@ -271,18 +309,23 @@ int tls_tunnel_s_start(con_t *cdown) {
 
     EZ_TMDEL(cdown);
 
-    if (!cdown->meta) 
+    if (!cdown->meta) { 
         schk(0 == meta_alloc(&cdown->meta, TLS_TUNNEL_METAN), {
             net_free(cdown);
             return -1;
         });
+    }
 
-    schk(0 == tls_ses_alloc(&ses), {net_free(cdown); return -1;});
+    schk(0 == tls_ses_alloc(&ses),{
+        net_free(cdown);
+        return -1;
+    });
     ses->cdown = cdown;
+    
     cdown->data = ses;
     cdown->data_cb = tls_ses_release_cdown;
 
-    ses->atyp = 0;
+    ses->atyp = 0;  ///s5 
     if (ses->atyp == 0) {
         ses->adata = mem_pool_alloc(sizeof(s5_t));
         if (!ses->adata) {
@@ -337,7 +380,7 @@ int tls_tunnel_s_accept(con_t *cdown) {
     return cdown->ev->read_cb(cdown);
 }
 
-static int tls_tunnel_s_auth_fparse(meta_t *meta) {
+static int tls_tunnel_s_auth_mgr_fparse(meta_t *meta) {
     cJSON *root = cJSON_Parse((char*)meta->pos);
     if (root) {  /// traversal the array 
         int i = 0;
@@ -352,7 +395,7 @@ static int tls_tunnel_s_auth_fparse(meta_t *meta) {
     return 0;
 }
 
-static int tls_tunnel_s_auth_fread(meta_t *meta) {
+static int tls_tunnel_s_auth_mgr_fread(meta_t *meta) {
     ssize_t size = 0;
     int fd = open((char*)config_get()->s5_serv_auth_path, O_RDONLY);
     schk(fd > 0, return -1);
@@ -363,14 +406,14 @@ static int tls_tunnel_s_auth_fread(meta_t *meta) {
     return 0;
 }
 
-static int tls_tunnel_s_auth_init(void) {
+static int tls_tunnel_s_auth_mgr_init(void) {
     meta_t *meta = NULL;
     int rc = -1;
     do {
         schk(g_ses_ctx->ac = ezac_init(), break);
         schk(meta_alloc(&meta, TLS_TUNNEL_AUTH_FILE_MAX) == 0, break);
-        schk(tls_tunnel_s_auth_fread(meta) == 0, break);
-        schk(tls_tunnel_s_auth_fparse(meta) == 0, break);
+        schk(tls_tunnel_s_auth_mgr_fread(meta) == 0, break);
+        schk(tls_tunnel_s_auth_mgr_fparse(meta) == 0, break);
         ezac_compiler(g_ses_ctx->ac);
         rc = 0;
     } while(0);
@@ -383,8 +426,9 @@ static int tls_tunnel_s_auth_init(void) {
 int tls_tunnel_s_init(void) {
     schk(!g_ses_ctx, return -1);
     schk(g_ses_ctx = (tls_tunnel_s_t*)mem_pool_alloc(sizeof(tls_tunnel_s_t)), return -1);
-    if (config_get()->s5_mode > TLS_TUNNEL_C) 
-        schk(tls_tunnel_s_auth_init() == 0, return -1);
+    if (config_get()->s5_mode > TLS_TUNNEL_C) {
+        schk(tls_tunnel_s_auth_mgr_init() == 0, return -1);
+    }
     return 0;
 }
 

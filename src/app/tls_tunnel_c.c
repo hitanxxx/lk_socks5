@@ -72,14 +72,11 @@ static int tls_tunnel_c_auth_build(con_t *cup) {
 
     ///build auth req
     meta_clr(meta);
-    tls_tunnel_auth_t * auth = (tls_tunnel_auth_t*)meta->last;
-    auth->magic = htonl(TLS_TUNNEL_AUTH_MAGIC_NUM);
-    memset(auth->secret, 0, sizeof(auth->secret));
-    memset(auth->key, 0, sizeof(auth->key));
-    memcpy((char*)auth->key, config_get()->s5_local_auth, sizeof(auth->key));
-    meta->last += sizeof(tls_tunnel_auth_t);
-
-
+    meta_pnum(meta, TLS_AUTH_MG1);
+    meta_pnum(meta, TLS_AUTH_MG2);
+    meta_pnum(meta, strlen(config_get()->s5_local_auth));
+    meta_pdata(meta, config_get()->s5_local_auth, strlen(config_get()->s5_local_auth));
+    
     cup->ev->read_cb = NULL;
     cup->ev->write_cb = tls_tunnel_c_auth_send;
     return cup->ev->write_cb(cup);
@@ -128,7 +125,6 @@ static int tls_tunnel_c_connect_ssl(con_t *cup) {
     cup->ev->write_cb = tls_tunnel_c_auth_build;
     return cup->ev->write_cb(cup);
 }
-
 
 static int tls_tunnel_c_connect_chk(con_t *cup) {
     tls_tunnel_session_t *ses = cup->data;

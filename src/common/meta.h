@@ -28,6 +28,7 @@ void meta_free(meta_t * meta);
 meta_t * meta_dump(meta_t * meta);
 int meta_getlens(meta_t * m);
 int meta_pdata(meta_t * meta, void * data, int datan);
+int meta_pnum(meta_t *meta, unsigned char num);
 
 
 #ifdef __cplusplus
