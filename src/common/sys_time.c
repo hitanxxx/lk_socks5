@@ -7,13 +7,13 @@ static char *arr_week[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 static char *arr_month[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
                             "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
-char *systime_log() { return time_str_log; }
+char *systime_log(void) { return time_str_log; }
 
-char *systime_gmt() { return time_str_gmt; }
+char *systime_gmt(void) { return time_str_gmt; }
 
-long long systime_msec() { return time_msec; }
+long long systime_msec(void) { return time_msec; }
 
-status systime_update(void) {
+int systime_update(void) {
     struct timeval tv;
     time_t sec;
     int msec;

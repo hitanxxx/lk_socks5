@@ -167,7 +167,7 @@ int net_accept(con_t *c) {
         ///only check readable event for accept result 
         ev_opt(cc, EV_R);
 
-        EZ_TMADD(cc, net_exp, 5);
+        EZ_TMADD(cc, net_exp, NET_TMOUT);
     }
     return 0;
 }

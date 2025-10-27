@@ -503,11 +503,15 @@ int webser_chk_s5_or_web(con_t *c) {
 int webser_accept_cb_ssl(con_t *c) {
     EZ_TMDEL(c);
 
-    if (!c->ssl) 
+    if (!c->ssl) {
         schk(ssl_create_connection(c, L_SSL_SERVER) == 0, {
             net_free(c);
             return -1;
         });
+        c->ssl->cc_ev_cbr = c->ev->read_cb;
+        c->ssl->cc_ev_cbw = c->ev->write_cb;
+        c->ssl->cc_ev_typ = c->ev->opt;
+    }
 
     if (c->ssl->f_err) {
         err("webser ssl handshake error\n");

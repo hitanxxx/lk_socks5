@@ -32,7 +32,7 @@ typedef struct dns_question {
 typedef struct dns_rdata {
     unsigned short  type;
     unsigned short  rclass;
-    uint32          ttl;
+    uint32_t        ttl;
     unsigned short  data_len;
 }  dns_rdata_t;
 
@@ -46,18 +46,17 @@ typedef struct dns_record {
 typedef void (* dns_async_cb)(int status, unsigned char * res, void * data);
 typedef struct dnsc {
     // in && out
-    unsigned char   query[DOMAIN_LENGTH+1];    /// stoege dns query host and convert qnam e
-    con_t *  c;
+    unsigned char  query[DOMAIN_LENGTH+1];    /// stoege dns query host and convert qnam e
+    con_t *c;
     
-    dns_async_cb       cb;
-    void *          user_data;
+    dns_async_cb   cb;
+    void *         user_data;
     
-    //int              result_status; // OK:success     -1:error
-    unsigned char     result[16];
+    unsigned char  result[16];
     
     // private
-    uint32          qname_len;    /// question qnamelen, qname data storge in query 
-    dns_record_t    answer;    /// dns answer
+    uint32_t       qname_len;    /// question qnamelen, qname data storge in query 
+    dns_record_t   answer;    /// dns answer
 } dnsc_t;
 
 void dns_free(dnsc_t * dnsc);

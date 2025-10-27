@@ -5,14 +5,14 @@
 extern "C"
 {
 #endif
-    
+
 #define    MAXPROCESS 128
 
 typedef struct {
-    uint32            sequence_num;
-    pid_t            pid;
+    uint32_t  sequence_num;
+    pid_t    pid;
 
-    int32            exited;
+    int32_t   exited;
 } process_t ;
 
 void proc_master_run(void);

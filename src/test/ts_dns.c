@@ -34,18 +34,18 @@ static void ts_dns_timer_pt( void * data )
 }
 #endif
 
-static void ts_dns_conv_qname( void )
+static void ts_dns_conv_qname(void)
 {
     unsigned char host[255] = {0};
     unsigned char dns[255] = {0};
-    uint32 len = 0;
+    uint32_t len = 0;
     
-    strcpy( (char*)host, "www.baidu.com" );
-    len = dns_request_host2qname( dns, (unsigned char*)host );
+    strcpy((char*)host, "www.baidu.com");
+    len = dns_request_host2qname(dns, (unsigned char*)host);
 #if(1)
     int j = 0;
-    for( j = 0; j < len; j ++ ){
-        t_echo("[%d]\n", dns[j] );
+    for(j = 0; j < len; j ++){
+        t_echo("[%d]\n", dns[j]);
     }
 #endif
     return ;

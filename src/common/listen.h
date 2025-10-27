@@ -21,9 +21,9 @@ struct listen {
 extern listen_t g_listens[8];
 
 
-status listen_start(void);
-status listen_init(void);
-status listen_end(void);
+int listen_start(void);
+int listen_init(void);
+int listen_end(void);
 
 
 #ifdef __cplusplus

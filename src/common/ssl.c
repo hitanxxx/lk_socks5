@@ -8,17 +8,16 @@ typedef struct {
 
 static g_ssl_t *g_ssl_ctx = NULL;
 
-#define ssl_clear_error()                   \
-{                                           \
+
+#define ssl_clear_error()  {                \
     unsigned long rc = 0;                   \
     do {                                    \
-        rc = ERR_peek_error();              \
+        rc = ERR_get_error();               \
     } while(rc);                            \
     ERR_clear_error();                      \
 }
 
-#define ssl_dump_error(sslerr)                          \
-{                                                       \
+#define ssl_dump_error(sslerr) {                        \
     unsigned long n = 0;                                \
     unsigned char errstr[512] = {0};                    \
     unsigned char *p = errstr;                          \
@@ -61,13 +60,14 @@ int ssl_shutdown(con_t *c) {
     int t = 0;
 
     ssl_clear_error();
-
-    if (SSL_in_init(sslc->con)) {
-        c->ssl->f_closed = 1;
-        return 0;
-    }
-
     for (t = 0; t < 2; t++) {
+        /// if ssl in handshaking. then goto closed direct
+        /// to avoid <SSL_shutdown:shutdown while in init>
+        if (1 == SSL_in_init(sslc->con)) { 
+            c->ssl->f_closed = 1;
+            return 0;
+        }
+    
         int rc = SSL_shutdown(sslc->con);
         if (rc == 1) {
             c->ssl->f_closed = 1;
@@ -78,7 +78,6 @@ int ssl_shutdown(con_t *c) {
         }
         sslerr = SSL_get_error(sslc->con, rc);
         if (sslerr == SSL_ERROR_WANT_READ || sslerr == SSL_ERROR_WANT_WRITE) {
-
             /// must clear read/write cb in here.
             /// make sure connection will not do
             /// another thing expect shutdown 
@@ -107,22 +106,18 @@ static int ssl_handshake_cb(con_t *c) {
 
     EZ_TMDEL(c);
     if (c->ssl->f_handshaked) {
+        /// ssl handshake successful
         if (c->ssl->cc_ev_typ) {
             ev_opt(c, c->ssl->cc_ev_typ);
+            c->ssl->cc_ev_typ = 0;
         }
-
-        if (c->ssl->cc_ev_cbw) {
-            c->ev->write_cb = c->ssl->cc_ev_cbw;
-            c->ssl->cc_ev_cbw = NULL;
-        }
-
-        if (c->ssl->cc_ev_cbr) {
-            c->ev->read_cb = c->ssl->cc_ev_cbr;
-            c->ssl->cc_ev_cbr = NULL;
-        }
-
-        if (c->ev->write_cb) 
+        c->ev->read_cb = c->ssl->cc_ev_cbr;
+        c->ev->write_cb = c->ssl->cc_ev_cbw;
+        c->ssl->cc_ev_cbr = c->ssl->cc_ev_cbw = NULL;
+        
+        if (c->ev->write_cb) {
             return c->ev->write_cb(c);
+        }
         return c->ev->read_cb(c);
     }
 
@@ -143,8 +138,8 @@ static int ssl_handshake_cb(con_t *c) {
 
 int ssl_handshake(con_t *c) {
     ssl_con_t * sslc = c->ssl;
+    
     ssl_clear_error();
-
     int rc = SSL_do_handshake(sslc->con);
     if (rc == 1) {
         sslc->f_handshaked = 1;
@@ -153,18 +148,6 @@ int ssl_handshake(con_t *c) {
     
     int sslerr = SSL_get_error(sslc->con, rc);
     if ((sslerr == SSL_ERROR_WANT_READ) || (sslerr == SSL_ERROR_WANT_WRITE)) {
-
-        if (!sslc->cc_ev_typ) 
-            sslc->cc_ev_typ = c->ev->opt; ///cache current event opt
-            
-        if (!sslc->cc_ev_cbr)
-            if(c->ev->read_cb) 
-                sslc->cc_ev_cbr = c->ev->read_cb;
-
-        if (!sslc->cc_ev_cbw)
-            if (c->ev->write_cb) 
-                sslc->cc_ev_cbw = c->ev->write_cb;
-   
         if (sslerr == SSL_ERROR_WANT_READ) {
             c->ev->read_cb = ssl_handshake_cb;
             ev_opt(c, EV_R);
@@ -185,7 +168,6 @@ int ssl_read(con_t *c, unsigned char *buf, int bufn) {
     ssl_con_t * sslc = c->ssl;
 
     ssl_clear_error();
-
     int rc = SSL_read(sslc->con, buf, bufn);
     if (rc > 0) {
         if (sslc->cc_ev_typ) {
@@ -218,9 +200,6 @@ int ssl_read(con_t *c, unsigned char *buf, int bufn) {
         }
         return -11;
     }
-    /// if (sslerr == SSL_ERROR_ZERO_RETURN || ERR_peek_error() == 0) {
-    ///     err("ssl read eof\n"); ///eof form ssl peer(shutdown)
-    /// }
     ssl_dump_error(sslerr);
     return -1;
 }
@@ -332,21 +311,21 @@ int ssl_load_ctx_certificate(SSL_CTX **ctx, int flag) {
                 schk(1 == SSL_CTX_set_min_proto_version(g_ssl_ctx->ctx_server, TLS1_2_VERSION), return -1);
                 schk(1 == SSL_CTX_set_max_proto_version(g_ssl_ctx->ctx_server, TLS1_3_VERSION), return -1);
                 schk(1 == SSL_CTX_set_cipher_list(g_ssl_ctx->ctx_server,
-                                    "ECDHE-ECDSA-AES128-GCM-SHA256:"
-                                    "ECDHE-RSA-AES128-GCM-SHA256:"
-                                    "ECDHE-ECDSA-AES256-GCM-SHA384:"
-                                    "ECDHE-RSA-AES256-GCM-SHA384"
-                                    ), return -1);
+                    "ECDHE-ECDSA-AES128-GCM-SHA256:"
+                    "ECDHE-RSA-AES128-GCM-SHA256:"
+                    "ECDHE-ECDSA-AES256-GCM-SHA384:"
+                    "ECDHE-RSA-AES256-GCM-SHA384"
+                    ), return -1);
                 if (1) {
                     schk(1 == SSL_CTX_set_ciphersuites(g_ssl_ctx->ctx_server, 
-                                    "TLS_AES_128_GCM_SHA256:"
-                                    "TLS_AES_256_GCM_SHA384:"
-                                    "TLS_CHACHA20_POLY1305_SHA256"
-                                ), return -1);
+                        "TLS_AES_128_GCM_SHA256:"
+                        "TLS_AES_256_GCM_SHA384:"
+                        "TLS_CHACHA20_POLY1305_SHA256"
+                    ), return -1);
                 } else {
                     schk(1 == SSL_CTX_set_ciphersuites(g_ssl_ctx->ctx_server, 
-                                    "TLS_CHACHA20_POLY1305_SHA256"
-                                ), return -1);
+                        "TLS_CHACHA20_POLY1305_SHA256"
+                    ), return -1);
                 }
                 
                 SSL_CTX_set_session_cache_mode(g_ssl_ctx->ctx_server, SSL_SESS_CACHE_SERVER);

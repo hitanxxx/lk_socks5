@@ -17,7 +17,7 @@ typedef struct process_ctx {
 static process_ctx_t *g_proc_ctx = NULL;
 
 
-status proc_pid(void) {
+int proc_pid(void) {
     return g_proc_ctx->processes[g_proc_ctx->process_id].pid;
 }
 
@@ -30,7 +30,7 @@ int proc_pid_form_file(pid_t *pid) {
     return 0;
 }
 
-int proc_signal_send(pid_t pid, int32 signal) {
+int proc_signal_send(pid_t pid, int32_t signal) {
     schk(0 == kill(pid, signal), return -1);
     return 0;
 }
@@ -47,7 +47,7 @@ static int proc_signal_bcast(int sig) {
 }
 
 void proc_worker_run(void) {
-    int32 timer;
+    int32_t timer;
     sigset_t set;
     sigemptyset(&set); ///clear signal set
     sigprocmask(SIG_SETMASK, &set, NULL); ///worker process set the empty signal set to block. it is equal to not block any signal
@@ -196,7 +196,7 @@ void proc_signal_cb(int signal) {
     errno = err_cc; ///recovery errno
 }
 
-status proc_signal_init(void) {
+int proc_signal_init(void) {
     int i;
     struct sigaction sa;
     int sig_arr[] = {
@@ -235,9 +235,9 @@ int process_init(void) {
     return 0;
 }
 
-status process_end(void) {
-    if(g_proc_ctx) {
-        if(g_proc_ctx->shm.size > 0 && g_proc_ctx->shm.data) {
+int process_end(void) {
+    if (g_proc_ctx) {
+        if (g_proc_ctx->shm.size > 0 && g_proc_ctx->shm.data) {
             sys_shm_free(&g_proc_ctx->shm);
             g_proc_ctx->shm.size = 0;
         }

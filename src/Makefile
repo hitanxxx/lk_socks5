@@ -44,9 +44,10 @@ COBJS += $(patsubst %.c,%.o,$(patsubst %.cpp,%.o,$(CSRCS)))
 ### COMPLE FALGS
 LDFLAGS += -lcrypto -lssl -lpthread -lm -ldl
 
-CFLAGS += -Wall -ffunction-sections -fdata-sections $(DEFINE) $(INCLUDE)
+CFLAGS += -Wall -ffunction-sections -fdata-sections
 CFLAGS += -O2
 CFLAGS += -fstrict-aliasing -march=native -mtune=native -pipe
+CFLAGS += $(DEFINE) $(INCLUDE)
 
 .c.o:
 	@echo "> $<"

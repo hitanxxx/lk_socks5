@@ -2,8 +2,7 @@
 #include "modules.h"
 #include "test_main.h"
 
-int proc_daemon( void )
-{
+int proc_daemon(void) {
     if(!config_get()->sys_daemon) 
         return 0;
 
@@ -29,8 +28,7 @@ int proc_daemon( void )
 
 /// @brief storge pid file into file 
 /// @return 
-int proc_pid_create()
-{
+int proc_pid_create(void) {
     char str[32] = {0};
 
     int fd = open(S5_PATH_PID, O_CREAT|O_RDWR|O_TRUNC, 0644);
@@ -46,8 +44,7 @@ int proc_pid_create()
 /// @param argc 
 /// @param argv 
 /// @return 
-status option_parse(int argc, char * argv[])
-{
+int option_parse(int argc, char * argv[]) {
     pid_t pid;
     char * opt_string = NULL;
     int opt_type = -1;

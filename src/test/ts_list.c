@@ -7,12 +7,11 @@ static string_t y = string("2");
 static string_t z = string("3");
 
 // ---------------------------
-static void ts_list_create( void )
-{
-    status rc;
+static void ts_list_create(void) {
+    int rc;
     
-    rc = mem_arr_create( &list, sizeof(string_t) );
-    t_assert( rc == OK );
+    rc = mem_arr_create(&list, sizeof(string_t));
+    t_assert(rc == OK);
 }
 // -----------------------------
 static void ts_list_push( void )
@@ -69,18 +68,16 @@ static void ts_list_check( void )
     t_assert( list->elem_num == 3 );
 }
 // ----------------------------
-static void ts_list_free( void )
-{
-    status rc;
+static void ts_list_free(void) {
+    int rc;
     
-    rc = mem_arr_free( list );
-    t_assert ( rc == OK ); 
+    rc = mem_arr_free(list);
+    t_assert (rc == OK); 
 }
 // -----------------------
-static void ts_list_get_null( void )
-{
+static void ts_list_get_null(void) {
     char * c;
-    status rc;
+    int rc;
     
     rc = mem_arr_create( &list, sizeof(char) );
     t_assert( rc == OK );  

@@ -8,8 +8,8 @@ extern "C"
 
 
 typedef struct shm_t {
-    uint32      size;
-    char *      data;
+    uint32_t size;
+    char *data;
 } sys_shm_t;
 
 int sys_shm_alloc(sys_shm_t * shm, int size);

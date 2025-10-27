@@ -76,7 +76,7 @@ int s5_cup_connect_chk(con_t *cup) {
 
 int s5_cup_connect(con_t *cup) {
     tls_tunnel_session_t *ses = cup->data;
-    status rc = 0;
+    int rc = 0;
 
     cup->ev->read_cb = NULL;
     cup->ev->write_cb = s5_cup_connect_chk;

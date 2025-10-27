@@ -36,7 +36,7 @@ void queue_remove(queue_t *q) {
     q->next = NULL;
 }
 
-status queue_empty(queue_t *h) {
+int queue_empty(queue_t *h) {
     return ((h == h->prev) ? 1 : 0);
 }
 

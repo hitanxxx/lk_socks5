@@ -28,7 +28,7 @@ void * mem_arr_push(mem_arr_t * list)
     return narr->data;
 }
 
-status mem_arr_free(mem_arr_t * list)
+int mem_arr_free(mem_arr_t * list)
 {
     mem_arr_part_t * cur, *next;
 

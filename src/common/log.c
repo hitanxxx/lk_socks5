@@ -28,14 +28,14 @@ static int log_format_text(log_content_t *ctx) {
     return 0;
 }
 
-static int log_write_stdout(char *str, int32 strn) {
+static int log_write_stdout(char *str, int32_t strn) {
     int rc = write(STDOUT_FILENO, str, (size_t)strn);
     if(rc == -1) 
         return -1;
     return 0;
 }
 
-static int log_write_file_main(char *str, int32 strn) {
+static int log_write_file_main(char *str, int32_t strn) {
     ssize_t rc;
     if(log_ctx && (log_ctx->log_fd_main > 0)) {
         rc = write(log_ctx->log_fd_main, str, (size_t)strn);
@@ -45,7 +45,7 @@ static int log_write_file_main(char *str, int32 strn) {
     return 0;
 }
 
-static int log_write_file_access(char *str, int32 strn) {
+static int log_write_file_access(char *str, int32_t strn) {
     ssize_t rc;
     if (log_ctx && (log_ctx->log_fd_access > 0)) {
         rc = write(log_ctx->log_fd_access, str, (size_t)strn);

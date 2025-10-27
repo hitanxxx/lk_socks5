@@ -6,10 +6,10 @@ extern "C"
 {
 #endif
 
-status systime_update( void );
-long long systime_msec( );
-char * systime_gmt( );
-char * systime_log( );    
+int systime_update(void);
+long long systime_msec(void);
+char *systime_gmt(void);
+char *systime_log(void);    
 
 #ifdef __cplusplus
 }

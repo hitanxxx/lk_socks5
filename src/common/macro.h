@@ -155,25 +155,21 @@ enum status_value {
 };
 
 // types
-typedef char                    byte;
-typedef int32_t                 int32;
-typedef int32_t                 status;
-typedef uint32_t                uint32;
-typedef volatile uint32         atomic_t;
-typedef struct net_connection_t   con_t;
-typedef int (*ev_cb) (con_t * c);
+typedef volatile uint32_t       atomic_t;
+typedef struct net_connection_t con_t;
+typedef int (*ev_cb) (con_t *c);
 
 
 // macros
 #define l_abs(x)                            (((x)>=0)?(x):(-(x)))
 #define l_unused(x)                         ((void)x)
-#define l_strlen(str)                       ((uint32)strlen((char*)str))
+#define l_strlen(str)                       ((uint32_t)strlen((char*)str))
 #define l_min(x,y)                          (((x)<(y))?(x):(y))
 #define l_max(x,y)                          (((x)>(y))?(x):(y))
 
 
 
-#define ptr_get_struct( ptr, struct_type, struct_member ) \
+#define ptr_get_struct(ptr, struct_type, struct_member) \
 (\
     (struct_type *)\
     (((unsigned char*)ptr)-offsetof(struct_type,struct_member))\

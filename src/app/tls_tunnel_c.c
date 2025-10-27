@@ -3,7 +3,6 @@
 #include "tls_tunnel_c.h"
 #include "tls_tunnel_s.h"
 
-
 static int tls_tunnel_c_recv(con_t *cdown) {
     /// cache read data    
     tls_tunnel_session_t *ses = cdown->data;
@@ -32,7 +31,6 @@ static int tls_tunnel_c_recv(con_t *cdown) {
         meta->last += readn;
     }
 }
-
 
 static inline void tls_tunnel_s_addr(struct sockaddr_in *addr) {
     memset(addr, 0, sizeof(struct sockaddr_in));
@@ -92,6 +90,9 @@ static int tls_tunnel_c_connect_ssl(con_t *cup) {
             net_free(ses->cdown);
             return -1;
         }
+        cup->ssl->cc_ev_cbr = cup->ev->read_cb;
+        cup->ssl->cc_ev_cbw = cup->ev->write_cb;
+        cup->ssl->cc_ev_typ = cup->ev->opt;
     }
 
     if (cup->ssl->f_err) {
@@ -103,7 +104,6 @@ static int tls_tunnel_c_connect_ssl(con_t *cup) {
 
     if (!cup->ssl->f_handshaked) {
         cup->ssl->handshake_cb = tls_tunnel_c_connect_ssl;
-
         int rc = ssl_handshake(cup);
         if (rc < 0) {
             if (rc == -11) {
@@ -116,7 +116,7 @@ static int tls_tunnel_c_connect_ssl(con_t *cup) {
             return -1;
         }
     }
-    
+
     cup->recv = ssl_read;
     cup->send = ssl_write;
     cup->send_chain = ssl_write_chain;
@@ -187,7 +187,6 @@ int tls_tunnel_c_accept(con_t *cdown) {
 
     ses->cup->ev->read_cb = NULL;
     ses->cup->ev->write_cb = tls_tunnel_c_connect_chk;
-
 
     tls_tunnel_s_addr(&ses->cup->addr);
     int rc = net_connect(ses->cup, &ses->cup->addr);

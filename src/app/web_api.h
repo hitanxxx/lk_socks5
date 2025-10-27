@@ -6,7 +6,7 @@ extern "C"
 {
 #endif
 
-status webapi_init(void);
+int webapi_init(void);
 
 #ifdef __cplusplus
 }

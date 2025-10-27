@@ -10,7 +10,7 @@ extern "C"
 //#define MAX_NET_CON    FD_SETSIZE
 #define MAX_NET_CON  768
 
-#define NET_TMOUT 5
+#define NET_TMOUT 5000
 
 typedef int (*net_cb_rw_chain) (con_t * c, meta_t * meta);
 typedef int (*net_cb_rw) (con_t * c, unsigned char * buf, int bufn);

@@ -1,9 +1,8 @@
 #include "common.h"
 
 
-unsigned char * l_find_str( unsigned char * str, uint32 strn, unsigned char * find, uint32 findn )
-{
-    uint32 i, j;
+unsigned char * l_find_str(unsigned char *str, uint32_t strn, unsigned char *find, uint32_t findn) {
+    uint32_t i = 0, j = 0;
 
     assert(strn > 0);
     assert(findn > 0);

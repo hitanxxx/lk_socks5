@@ -41,7 +41,7 @@ static int listen_set_opt(listen_t *l) {
         schk(net_socket_fastopen(l->fd) == 0, break);
         schk(net_socket_nodelay(l->fd) == 0, break);
         schk(bind(l->fd, (struct sockaddr *)&addr, sizeof(struct sockaddr)) == 0, break);
-        schk(listen(l->fd, 10) == 0, break);
+        schk(listen(l->fd, SOMAXCONN) == 0, break);
         return 0;
     } while(0);
     return -1;
@@ -76,7 +76,7 @@ int listen_init(void) {
     return 0;
 }
 
-status listen_end(void) {
+int listen_end(void) {
     int i = 0;
     for (i = 0; i < 8; i++) {
         if (g_listens[i].fuse) {

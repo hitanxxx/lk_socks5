@@ -22,10 +22,9 @@ enum e_log_level {
 #define access_log(...)   log_print(LOG_ID_ACCESS, LOG_LEVEL_INFO, __func__, __LINE__, ##__VA_ARGS__)
 
 
-typedef struct 
-{
-    uint32  level;
-    uint32  id;
+typedef struct {
+    uint32_t  level;
+    uint32_t  id;
     int line;
     const char *func;
     const char *args;

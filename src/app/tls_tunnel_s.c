@@ -349,6 +349,9 @@ int tls_tunnel_s_accept(con_t *cdown) {
             net_free(cdown);
             return -1;
         }
+        cdown->ssl->cc_ev_cbr = cdown->ev->read_cb;
+        cdown->ssl->cc_ev_cbw = cdown->ev->write_cb;
+        cdown->ssl->cc_ev_typ = cdown->ev->opt;
     }
 
     if (cdown->ssl->f_err) {

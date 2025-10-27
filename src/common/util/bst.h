@@ -12,7 +12,7 @@ extern "C"
 #define BST_RIGHT                2
 
 typedef struct bst_node_t bst_node_t;
-typedef status (*bst_travesal_handler)(bst_node_t * node);
+typedef int (*bst_travesal_handler)(bst_node_t * node);
 struct bst_node_t {
     long long num;
     bst_node_t *parent, *left, *right;
