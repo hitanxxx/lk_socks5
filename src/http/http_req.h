@@ -2,14 +2,13 @@
 #define _HTTP_REQ_H_INCLUDED_
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
-#define REQ_KV_MAX  16
+#define REQ_KV_MAX 16
 
 typedef struct web_req web_req_t;
-typedef int (*web_req_cb) (con_t * c, web_req_t * req);
+typedef int (*web_req_cb)(con_t *c, web_req_t *req);
 
 typedef struct web_kv {
     string_t k;
@@ -30,21 +29,17 @@ struct web_req {
 
     int kvn;
     web_kv_t kvs[REQ_KV_MAX];
-    
-    char fkeepalive:1;
+
+    unsigned char fkeepalive : 1;
     int payloadn;
-    meta_t * payload;
+    meta_t *payload;
 };
 
+web_req_t *web_req_alloc(void);
+void web_req_free(web_req_t *webreq);
 
-web_req_t * web_req_alloc(void);
-void web_req_free(web_req_t * webreq);
-
-
-    
 #ifdef __cplusplus
 }
 #endif
-        
-    
+
 #endif

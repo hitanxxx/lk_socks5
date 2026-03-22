@@ -1,7 +1,7 @@
+#include "socks5.h"
 #include "common.h"
 #include "dns.h"
 #include "tls_tunnel_s.h"
-#include "socks5.h"
 
 static int s5_try_read(con_t *cdown) {
     tls_tunnel_session_t *ses = cdown->data;
@@ -36,7 +36,7 @@ int s5_p2_rsp(con_t *cdown) {
     }
     EZ_TMDEL(cdown);
     meta_clr(meta);
-    
+
     cdown->ev->read_cb = tls_tunnel_traffic_proc;
     cdown->ev->write_cb = NULL;
     return cdown->ev->read_cb(cdown);
@@ -57,7 +57,7 @@ int s5_cup_connect_chk(con_t *cup) {
     }
     net_socket_nodelay(cup->fd);
 
-    s5_ph2_rsp_t * resp = (s5_ph2_rsp_t*)meta->last;
+    s5_ph2_rsp_t *resp = (s5_ph2_rsp_t *)meta->last;
     resp->ver = 0x05;
     resp->rep = 0x00;
     resp->rsv = 0x00;
@@ -98,24 +98,23 @@ int s5_cup_connect(con_t *cup) {
 void s5_cup_dns_cb(int status, unsigned char *result, void *data) {
     tls_tunnel_session_t *ses = data;
     dnsc_t *dnsc = ses->dns;
-    s5_t *s5 = (s5_t*)ses->adata;
+    s5_t *s5 = (s5_t *)ses->adata;
     s5_ph2_req_t *s5p2 = &s5->s5p2;
     char ipstr[128] = {0};
-
 
     if (status == 0) {
         uint16_t addr_port = 0;
         memcpy(&addr_port, s5p2->dst_port, sizeof(uint16_t));
-        snprintf(ipstr, sizeof(ipstr), "%d.%d.%d.%d",
-            result[0], result[1], result[2], result[3]);
- 
-        //after result used 
-        dns_free(dnsc); 	
+        snprintf(ipstr, sizeof(ipstr), "%d.%d.%d.%d", result[0], result[1],
+                 result[2], result[3]);
+
+        // after result used
+        dns_free(dnsc);
 
         ses->cup->addr.sin_family = AF_INET;
         ses->cup->addr.sin_port = addr_port;
         ses->cup->addr.sin_addr.s_addr = inet_addr(ipstr);
-        
+
         ses->cup->ev->read_cb = NULL;
         ses->cup->ev->write_cb = s5_cup_connect;
         ses->cup->ev->write_cb(ses->cup);
@@ -130,10 +129,10 @@ void s5_cup_dns_cb(int status, unsigned char *result, void *data) {
 
 int s5_cup_addr(con_t *cdown) {
     tls_tunnel_session_t *ses = cdown->data;
-    s5_t *s5 = (s5_t*)ses->adata;
+    s5_t *s5 = (s5_t *)ses->adata;
     s5_ph2_req_t *s5p2 = &s5->s5p2;
     char ipstr[128] = {0};
-    
+
     cdown->ev->read_cb = s5_try_read;
     cdown->ev->write_cb = NULL;
 
@@ -149,10 +148,10 @@ int s5_cup_addr(con_t *cdown) {
             uint16_t addr_port = 0;
             memcpy(&addr_port, s5p2->dst_port, sizeof(uint16_t));
             snprintf(ipstr, sizeof(ipstr), "%d.%d.%d.%d",
-                (unsigned char )s5p2->dst_addr[0],
-                (unsigned char )s5p2->dst_addr[1],
-                (unsigned char )s5p2->dst_addr[2],
-                (unsigned char )s5p2->dst_addr[3]);
+                     (unsigned char)s5p2->dst_addr[0],
+                     (unsigned char)s5p2->dst_addr[1],
+                     (unsigned char)s5p2->dst_addr[2],
+                     (unsigned char)s5p2->dst_addr[3]);
 
             ses->cup->addr.sin_family = AF_INET;
             ses->cup->addr.sin_port = addr_port;
@@ -162,16 +161,14 @@ int s5_cup_addr(con_t *cdown) {
             ses->cup->ev->write_cb = s5_cup_connect;
             return ses->cup->ev->write_cb(ses->cup);
         }
-        ///DOMAIN typ
-        if (0 == dns_rec_find((char*)s5p2->dst_addr, ipstr)) {
+        /// DOMAIN typ
+        if (0 == dns_rec_find((char *)s5p2->dst_addr, ipstr)) {
             uint16_t addr_port = 0;
             memcpy(&addr_port, s5p2->dst_port, sizeof(uint16_t));
             snprintf(ipstr, sizeof(ipstr), "%d.%d.%d.%d",
-                (unsigned char )ipstr[0],
-                (unsigned char )ipstr[1],
-                (unsigned char )ipstr[2],
-                (unsigned char )ipstr[3]);
-            
+                     (unsigned char)ipstr[0], (unsigned char)ipstr[1],
+                     (unsigned char)ipstr[2], (unsigned char)ipstr[3]);
+
             ses->cup->addr.sin_family = AF_INET;
             ses->cup->addr.sin_port = addr_port;
             ses->cup->addr.sin_addr.s_addr = inet_addr(ipstr);
@@ -180,10 +177,8 @@ int s5_cup_addr(con_t *cdown) {
             ses->cup->ev->write_cb = s5_cup_connect;
             return ses->cup->ev->write_cb(ses->cup);
         } else {
-            return dns_alloc(&ses->dns,
-                            (char*)s5p2->dst_addr,
-                            s5_cup_dns_cb,
-                            ses);
+            return dns_alloc(&ses->dns, (char *)s5p2->dst_addr, s5_cup_dns_cb,
+                             ses);
         }
     }
 
@@ -192,12 +187,11 @@ int s5_cup_addr(con_t *cdown) {
     return -1;
 }
 
-
 int s5_p2_req(con_t *cdown) {
     unsigned char *p = NULL;
 
     tls_tunnel_session_t *ses = cdown->data;
-    s5_t *s5 = (s5_t*)ses->adata;
+    s5_t *s5 = (s5_t *)ses->adata;
     s5_ph2_req_t *s5p2 = &s5->s5p2;
     meta_t *meta = cdown->meta;
 
@@ -234,10 +228,10 @@ int s5_p2_req(con_t *cdown) {
             }
             meta->last += recvn;
         }
-        
+
         for (; meta->pos < meta->last; meta->pos++) {
             p = meta->pos;
-            if (s5->s5_state == VER) {  ///ver is fixed. 0x05
+            if (s5->s5_state == VER) { /// ver is fixed. 0x05
                 s5p2->ver = *p;
                 s5->s5_state = CMD;
                 continue;
@@ -253,7 +247,7 @@ int s5_p2_req(con_t *cdown) {
                 s5->s5_state = RSV;
                 continue;
             }
-            if (s5->s5_state == RSV) {    // RSV means resverd
+            if (s5->s5_state == RSV) { // RSV means resverd
                 s5p2->rsv = *p;
                 s5->s5_state = TYP;
                 continue;
@@ -304,8 +298,10 @@ int s5_p2_req(con_t *cdown) {
             if (s5->s5_state == TYP_DOMAINN) {
                 s5p2->dst_addr_n = *p;
                 s5->s5_state = TYP_DOMAIN;
-                if (s5p2->dst_addr_n < 0) s5p2->dst_addr_n = 0;
-                if (s5p2->dst_addr_n > 255) s5p2->dst_addr_n = 255;
+                if (s5p2->dst_addr_n < 0)
+                    s5p2->dst_addr_n = 0;
+                if (s5p2->dst_addr_n > 255)
+                    s5p2->dst_addr_n = 255;
                 continue;
             }
             if (s5->s5_state == TYP_DOMAIN) {
@@ -329,13 +325,15 @@ int s5_p2_req(con_t *cdown) {
 
                 do {
                     schk(0x05 == s5p2->ver, break);
-                    schk(0x01 == s5p2->cmd, break);    /// only support CONNECT 0x01 request
-                    schk(s5p2->atyp != S5_RFC_IPV6, break); /// not support IPV6 request
-    
+                    schk(0x01 == s5p2->cmd,
+                         break); /// only support CONNECT 0x01 request
+                    schk(s5p2->atyp != S5_RFC_IPV6,
+                         break); /// not support IPV6 request
+
                     cdown->ev->read_cb = s5_cup_addr;
                     cdown->ev->write_cb = NULL;
                     return cdown->ev->read_cb(cdown);
-                } while(0);
+                } while (0);
 
                 net_free(cdown);
                 return -1;
@@ -362,7 +360,7 @@ int s5_p1_rsp(con_t *cdown) {
     }
     EZ_TMDEL(cdown);
     meta_clr(meta);
-    
+
     cdown->ev->read_cb = s5_p2_req;
     cdown->ev->write_cb = NULL;
     return cdown->ev->read_cb(cdown);
@@ -370,7 +368,7 @@ int s5_p1_rsp(con_t *cdown) {
 
 int s5_p1_req(con_t *cdown) {
     tls_tunnel_session_t *ses = cdown->data;
-    s5_t *s5 = (s5_t*)ses->adata;
+    s5_t *s5 = (s5_t *)ses->adata;
     s5_ph1_req_t *s5p1 = &s5->s5p1;
     unsigned char *p = NULL;
     meta_t *meta = cdown->meta;
@@ -379,14 +377,10 @@ int s5_p1_req(con_t *cdown) {
         1 byte    1 byte        nmethods
         VERSION | METHODS | METHOD
     */
-    enum {
-        VERSION = 0,
-        METHODN,
-        METHOD
-    };
+    enum { VERSION = 0, METHODN, METHOD };
 
     for (;;) {
-        if (meta_getlen(meta) < 1) { ///try recv
+        if (meta_getlen(meta) < 1) { /// try recv
             int recvn = cdown->recv(cdown, meta->last, meta_getfree(meta));
             if (recvn < 0) {
                 if (recvn == -11) {
@@ -420,12 +414,12 @@ int s5_p1_req(con_t *cdown) {
 
                     s5->s5_state = 0;
                     meta_clr(meta);
-                    
-                    s5_ph1_rsp_t * ack = (s5_ph1_rsp_t*)meta->pos;
+
+                    s5_ph1_rsp_t *ack = (s5_ph1_rsp_t *)meta->pos;
                     ack->ver = 0x05;
                     ack->method = 0x00;
                     meta->last += sizeof(s5_ph1_rsp_t);
-                    
+
                     cdown->ev->read_cb = NULL;
                     cdown->ev->write_cb = s5_p1_rsp;
                     return cdown->ev->write_cb(cdown);

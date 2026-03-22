@@ -1,25 +1,21 @@
+#include "tls_tunnel_s.h"
 #include "common.h"
 #include "dns.h"
-#include "tls_tunnel_c.h"
-#include "tls_tunnel_s.h"
 #include "socks5.h"
+#include "tls_tunnel_c.h"
 
-
-#define TLS_TUNNEL_AUTH_FILE_MAX  (4*1024)
+#define TLS_TUNNEL_AUTH_FILE_MAX (4 * 1024)
 
 typedef struct {
     ezac_ctx_t *ac;
 } tls_tunnel_s_t;
 static tls_tunnel_s_t *g_ses_ctx = NULL;
 
-
 static int tls_tunnel_traffic_recv(con_t *c);
 static int tls_tunnel_traffic_send(con_t *c);
 
 static int tls_tunnel_traffic_reverse_recv(con_t *c);
 static int tls_tunnel_traffic_reverse_send(con_t *c);
-
-
 
 int tls_ses_alloc(tls_tunnel_session_t **ses) {
     tls_tunnel_session_t *nses = NULL;
@@ -38,9 +34,8 @@ void tls_ses_release_cdown(void *data) {
     mem_pool_free(ses);
 }
 
-
 void tls_ses_release_cup(void *data) {
-    ///do nothing 
+    /// do nothing
     return;
 }
 
@@ -48,28 +43,30 @@ void tls_ses_exp(void *data) {
     con_t *c = data;
     tls_tunnel_session_t *ses = c->data;
 
-    if(ses->cup) net_free(ses->cup);
-    if(ses->cdown) net_free(ses->cdown);
+    if (ses->cup)
+        net_free(ses->cup);
+    if (ses->cdown)
+        net_free(ses->cdown);
     return;
 }
-
 
 static int tls_tunnel_traffic_recv(con_t *c) {
     tls_tunnel_session_t *ses = c->data;
     con_t *cdown = ses->cdown;
-    con_t *cup = ses->cup;    
+    con_t *cup = ses->cup;
     int recvn = 0;
 
     EZ_TMADD(cdown, tls_ses_exp, TLS_TUNNEL_TMOUT);
 
     while (meta_getfree(cdown->meta) > 0) {
-        recvn = cdown->recv(cdown, cdown->meta->last, meta_getfree(cdown->meta));
+        recvn =
+            cdown->recv(cdown, cdown->meta->last, meta_getfree(cdown->meta));
         if (recvn < 0) {
             if (recvn == -1) {
                 err("near recv error\n");
                 ses->frecv_err_down = 1;
             }
-            break; ///break when -11 (EAGAIN)
+            break; /// break when -11 (EAGAIN)
         }
         cdown->meta->last += recvn;
     }
@@ -133,7 +130,7 @@ static int tls_tunnel_traffic_reverse_recv(con_t *c) {
     while (meta_getfree(cup->meta) > 0) {
         recvn = cup->recv(cup, cup->meta->last, meta_getfree(cup->meta));
         if (recvn < 0) {
-            if (recvn == -1) {   
+            if (recvn == -1) {
                 err("far recv error\n");
                 ses->frecv_err_up = 1;
             }
@@ -160,7 +157,7 @@ static int tls_tunnel_traffic_reverse_send(con_t *c) {
     con_t *cdown = ses->cdown;
     con_t *cup = ses->cup;
     int sendn = 0;
-    
+
     EZ_TMADD(cdown, tls_ses_exp, TLS_TUNNEL_TMOUT);
 
     while (meta_getlen(cup->meta) > 0) {
@@ -211,36 +208,32 @@ int tls_tunnel_traffic_proc(con_t *c) {
             return -1;
         }
     }
-    ///only clear up meta in here. because local run in here too.
-    ///local(down) mabey recv some data.
+    /// only clear up meta in here. because local run in here too.
+    /// local(down) mabey recv some data.
     meta_clr(cup->meta);
 
-    ///down -> up
+    /// down -> up
     cdown->ev->read_cb = tls_tunnel_traffic_recv;
     cup->ev->write_cb = NULL;
 
-    ///up -> down
+    /// up -> down
     cup->ev->read_cb = tls_tunnel_traffic_reverse_recv;
     cdown->ev->write_cb = NULL;
-    
+
     ev_opt(cdown, EV_R | EV_W);
-    ev_opt(cup, EV_R | EV_W);    
+    ev_opt(cup, EV_R | EV_W);
     return cdown->ev->read_cb(cdown);
 }
 
 static int tls_tunnel_s_auth_chk(con_t *cdown) {
     tls_tunnel_session_t *ses = cdown->data;
 
-    enum {
-        s_mg1 = 0,
-        s_mg2,
-        s_len,
-        s_data
-    };
+    enum { s_mg1 = 0, s_mg2, s_len, s_data };
 
     for (;;) {
         if (meta_getlen(cdown->meta) < 1) {
-            int recvd = cdown->recv(cdown, cdown->meta->last, meta_getfree(cdown->meta));
+            int recvd = cdown->recv(cdown, cdown->meta->last,
+                                    meta_getfree(cdown->meta));
             if (recvd < 0) {
                 if (recvd == -11) {
                     EZ_TMADD(cdown, tls_ses_exp, TLS_TUNNEL_TMOUT);
@@ -251,7 +244,7 @@ static int tls_tunnel_s_auth_chk(con_t *cdown) {
             }
             cdown->meta->last += recvd;
         }
-        
+
         unsigned char *p = NULL;
         for (; cdown->meta->pos < cdown->meta->last; cdown->meta->pos++) {
             p = cdown->meta->pos;
@@ -278,14 +271,16 @@ static int tls_tunnel_s_auth_chk(con_t *cdown) {
                 }
                 ses->state = s_data;
             } else if (ses->state == s_data) {
-                if (ses->auth_recvd == 0) ses->auth_data = (char*)p;
+                if (ses->auth_recvd == 0)
+                    ses->auth_data = (char *)p;
                 ses->auth_recvd++;
                 if (ses->auth_recvd == ses->auth_datan) {
-                    if (0 == ezac_find(g_ses_ctx->ac, ses->auth_data, ses->auth_datan)) {
+                    if (0 == ezac_find(g_ses_ctx->ac, ses->auth_data,
+                                       ses->auth_datan)) {
                         EZ_TMDEL(cdown);
-                        
+
                         meta_clr(cdown->meta);
-                        
+
                         cdown->ev->read_cb = s5_p1_req;
                         cdown->ev->write_cb = NULL;
                         return cdown->ev->read_cb(cdown);
@@ -309,23 +304,23 @@ int tls_tunnel_s_start(con_t *cdown) {
 
     EZ_TMDEL(cdown);
 
-    if (!cdown->meta) { 
+    if (!cdown->meta) {
         schk(0 == meta_alloc(&cdown->meta, TLS_TUNNEL_METAN), {
             net_free(cdown);
             return -1;
         });
     }
 
-    schk(0 == tls_ses_alloc(&ses),{
+    schk(0 == tls_ses_alloc(&ses), {
         net_free(cdown);
         return -1;
     });
     ses->cdown = cdown;
-    
+
     cdown->data = ses;
     cdown->data_cb = tls_ses_release_cdown;
 
-    ses->atyp = 0;  ///s5 
+    ses->atyp = 0; /// s5
     if (ses->atyp == 0) {
         ses->adata = mem_pool_alloc(sizeof(s5_t));
         if (!ses->adata) {
@@ -384,12 +379,13 @@ int tls_tunnel_s_accept(con_t *cdown) {
 }
 
 static int tls_tunnel_s_auth_mgr_fparse(meta_t *meta) {
-    cJSON *root = cJSON_Parse((char*)meta->pos);
-    if (root) {  /// traversal the array 
+    cJSON *root = cJSON_Parse((char *)meta->pos);
+    if (root) { /// traversal the array
         int i = 0;
         for (i = 0; i < cJSON_GetArraySize(root); i++) {
-            cJSON * arrobj = cJSON_GetArrayItem(root, i);
-            if (0 != ezac_add(g_ses_ctx->ac, cJSON_GetStringValue(arrobj), strlen(cJSON_GetStringValue(arrobj)))) {
+            cJSON *arrobj = cJSON_GetArrayItem(root, i);
+            if (0 != ezac_add(g_ses_ctx->ac, cJSON_GetStringValue(arrobj),
+                              strlen(cJSON_GetStringValue(arrobj)))) {
                 err("s5 srv auth add ac err\n", cJSON_GetStringValue(arrobj));
             }
         }
@@ -400,7 +396,7 @@ static int tls_tunnel_s_auth_mgr_fparse(meta_t *meta) {
 
 static int tls_tunnel_s_auth_mgr_fread(meta_t *meta) {
     ssize_t size = 0;
-    int fd = open((char*)config_get()->s5_serv_auth_path, O_RDONLY);
+    int fd = open((char *)config_get()->s5_serv_auth_path, O_RDONLY);
     schk(fd > 0, return -1);
     size = read(fd, meta->pos, meta_getfree(meta));
     close(fd);
@@ -419,8 +415,8 @@ static int tls_tunnel_s_auth_mgr_init(void) {
         schk(tls_tunnel_s_auth_mgr_fparse(meta) == 0, break);
         ezac_compiler(g_ses_ctx->ac);
         rc = 0;
-    } while(0);
-    
+    } while (0);
+
     if (meta)
         meta_free(meta);
     return rc;
@@ -428,7 +424,8 @@ static int tls_tunnel_s_auth_mgr_init(void) {
 
 int tls_tunnel_s_init(void) {
     schk(!g_ses_ctx, return -1);
-    schk(g_ses_ctx = (tls_tunnel_s_t*)mem_pool_alloc(sizeof(tls_tunnel_s_t)), return -1);
+    schk(g_ses_ctx = (tls_tunnel_s_t *)mem_pool_alloc(sizeof(tls_tunnel_s_t)),
+         return -1);
     if (config_get()->s5_mode > TLS_TUNNEL_C) {
         schk(tls_tunnel_s_auth_mgr_init() == 0, return -1);
     }
@@ -437,12 +434,11 @@ int tls_tunnel_s_init(void) {
 
 int tls_tunnel_s_exit(void) {
     if (g_ses_ctx) {
-        if (g_ses_ctx->ac) 
+        if (g_ses_ctx->ac)
             ezac_free(g_ses_ctx->ac);
-        
-        mem_pool_free((void*)g_ses_ctx);
+
+        mem_pool_free((void *)g_ses_ctx);
         g_ses_ctx = NULL;
     }
     return 0;
 }
-

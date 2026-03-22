@@ -2,14 +2,13 @@
 #define _QUEUE_H_INCLUDED_
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
 typedef struct l_queue_t queue_t;
 typedef struct l_queue_t {
-    queue_t  *prev;
-    queue_t  *next;
+    queue_t *prev;
+    queue_t *next;
 } l_queue_t;
 
 int queue_empty(queue_t *h);

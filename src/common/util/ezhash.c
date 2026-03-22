@@ -1,7 +1,7 @@
 #include "common.h"
 
 #define EZHS_FAV1A
-///#define EZHS_MURMUR3
+/// #define EZHS_MURMUR3
 
 static uint32_t fnv1a_32(void *data, int datan) {
     uint8_t *p = data;
@@ -17,7 +17,7 @@ static uint32_t fnv1a_32(void *data, int datan) {
 int ezhash_create(ezhash_t **hash, int space) {
     int i = 0;
     ezhash_t *hs = mem_pool_alloc(sizeof(ezhash_t));
-    if(!hs) {
+    if (!hs) {
         err("hs alloc err. [%d]\n", errno);
         return -1;
     }
@@ -28,13 +28,12 @@ int ezhash_create(ezhash_t **hash, int space) {
         mem_pool_free(hs);
         return -1;
     }
-    for(i = 0; i < hs->arrn; i++) {
+    for (i = 0; i < hs->arrn; i++) {
         queue_init(&hs->arr[i]);
     }
     *hash = hs;
     return 0;
 }
-
 
 int ezhash_free(ezhash_t *hash) {
     int i = 0;
@@ -47,14 +46,14 @@ int ezhash_free(ezhash_t *hash) {
 
                     ezhash_obj_t *obj = ptr_get_struct(p, ezhash_obj_t, queue);
                     if (obj) {
-                        if (obj->key) 
+                        if (obj->key)
                             mem_pool_free(obj->key);
                         if (obj->val)
                             mem_pool_free(obj->val);
                         queue_remove(&obj->queue);
                         mem_pool_free(obj);
                     }
-                    
+
                     p = n;
                 }
             }
@@ -71,47 +70,45 @@ int ezhash_del(ezhash_t *hash, void *key, int keyn) {
     int idx = hash_val % hash->arrn;
 #endif
 
-    if(!queue_empty(&hash->arr[idx])) {
-        queue_t *p= queue_head(&hash->arr[idx]);
+    if (!queue_empty(&hash->arr[idx])) {
+        queue_t *p = queue_head(&hash->arr[idx]);
         queue_t *n = NULL;
         while (p != queue_tail(&hash->arr[idx])) {
             n = queue_next(p);
-            
+
             ezhash_obj_t *obj = ptr_get_struct(p, ezhash_obj_t, queue);
-            if (obj && obj->keyn == keyn 
-                && !memcmp(obj->key, key, keyn)) {
-                if (obj->key) 
+            if (obj && obj->keyn == keyn && !memcmp(obj->key, key, keyn)) {
+                if (obj->key)
                     mem_pool_free(obj->key);
                 if (obj->val)
                     mem_pool_free(obj->val);
                 queue_remove(&obj->queue);
                 mem_pool_free(obj);
             }
-            
+
             p = n;
         }
     }
     return 0;
 }
 
-void * ezhash_find(ezhash_t *hash, void *key, int keyn) {
+void *ezhash_find(ezhash_t *hash, void *key, int keyn) {
 #if defined EZHS_FAV1A
     uint32_t hash_value = fnv1a_32(key, keyn);
     int idx = hash_value % hash->arrn;
 #endif
 
-    if(!queue_empty(&hash->arr[idx])) {
+    if (!queue_empty(&hash->arr[idx])) {
         queue_t *p = queue_head(&hash->arr[idx]);
         queue_t *n = NULL;
         while (p != queue_tail(&hash->arr[idx])) {
             n = queue_next(p);
-            
+
             ezhash_obj_t *obj = ptr_get_struct(p, ezhash_obj_t, queue);
-            if (obj && obj->keyn == keyn 
-                && !memcmp(obj->key, key, keyn)) {
+            if (obj && obj->keyn == keyn && !memcmp(obj->key, key, keyn)) {
                 return obj->val;
             }
-            
+
             p = n;
         }
     }
@@ -120,7 +117,7 @@ void * ezhash_find(ezhash_t *hash, void *key, int keyn) {
 
 int ezhash_add(ezhash_t *hash, void *key, int keyn, void *val, int valn) {
 
-    if(ezhash_find(hash, key, keyn)) {
+    if (ezhash_find(hash, key, keyn)) {
         err("ezhash already exist. ignore add request\n");
         return 0;
     }
@@ -130,22 +127,22 @@ int ezhash_add(ezhash_t *hash, void *key, int keyn, void *val, int valn) {
     int idx = hash_value % hash->arrn;
 #endif
 
-    ///alloc memory insert into queue 
-    ezhash_obj_t * hs = mem_pool_alloc(sizeof(ezhash_obj_t));
-    if(!hs) {
+    /// alloc memory insert into queue
+    ezhash_obj_t *hs = mem_pool_alloc(sizeof(ezhash_obj_t));
+    if (!hs) {
         err("alloc hs err. [%d]\n", errno);
         return -1;
     }
     hs->keyn = keyn;
     hs->valn = valn;
     hs->key = mem_pool_alloc(keyn);
-    if(!hs->key) {
+    if (!hs->key) {
         err("alloc hs key err. [%d]\n", errno);
         mem_pool_free(hs);
         return -1;
     }
     hs->val = mem_pool_alloc(valn);
-    if(!hs->val) {
+    if (!hs->val) {
         err("alloc hs val err. [%d]\n", errno);
         mem_pool_free(hs->key);
         mem_pool_free(hs);
@@ -157,6 +154,3 @@ int ezhash_add(ezhash_t *hash, void *key, int keyn, void *val, int valn) {
     queue_insert_tail(&hash->arr[idx], &hs->queue);
     return 0;
 }
-
-
-

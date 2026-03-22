@@ -26,7 +26,7 @@ void queue_insert_tail(queue_t *h, queue_t *q) {
 }
 
 void queue_remove(queue_t *q) {
-    if (q->prev) 
+    if (q->prev)
         q->prev->next = q->next;
 
     if (q->next)
@@ -36,23 +36,12 @@ void queue_remove(queue_t *q) {
     q->next = NULL;
 }
 
-int queue_empty(queue_t *h) {
-    return ((h == h->prev) ? 1 : 0);
-}
+int queue_empty(queue_t *h) { return ((h == h->prev) ? 1 : 0); }
 
-queue_t *queue_head(queue_t *h) {
-    return h->next;
-}
+queue_t *queue_head(queue_t *h) { return h->next; }
 
-queue_t *queue_next(queue_t *q) {
-    return q->next;
-}
+queue_t *queue_next(queue_t *q) { return q->next; }
 
-queue_t *queue_prev(queue_t *q) {
-    return q->prev;
-}
+queue_t *queue_prev(queue_t *q) { return q->prev; }
 
-queue_t *queue_tail(queue_t * h) {
-    return h;
-}
-
+queue_t *queue_tail(queue_t *h) { return h; }

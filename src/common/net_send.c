@@ -10,7 +10,7 @@ int recvs(con_t *c, unsigned char *buf, int bufn) {
         rc = recv(c->fd, buf, bufn, 0);
         if (rc <= 0) {
             if (rc == 0) {
-                ///err("peer closed\n");
+                /// err("peer closed\n");
                 return -1;
             } else {
                 if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
@@ -29,7 +29,7 @@ int recvs(con_t *c, unsigned char *buf, int bufn) {
 
 int sends(con_t *c, unsigned char *buf, int bufn) {
     int rc;
-    
+
     sassert(bufn > 0);
     sassert(buf != NULL);
     sassert(c != NULL);
@@ -50,13 +50,12 @@ int sends(con_t *c, unsigned char *buf, int bufn) {
     };
 }
 
-int send_chains(con_t *c, meta_t *head)
-{
+int send_chains(con_t *c, meta_t *head) {
     sassert(c != NULL);
     sassert(head != NULL);
-    
+
     for (;;) {
-        meta_t * n = head;
+        meta_t *n = head;
         while (n) {
             if (meta_getlen(n) > 0) {
                 break;
@@ -77,16 +76,16 @@ int send_chains(con_t *c, meta_t *head)
     }
 }
 
-int udp_recvs(con_t *c, unsigned char *buf, int bufn)
-{
+int udp_recvs(con_t *c, unsigned char *buf, int bufn) {
     socklen_t socklen = sizeof(struct sockaddr);
-    
+
     sassert(c != NULL);
     sassert(buf != NULL);
     sassert(bufn > 0);
 
     for (;;) {
-        int recvd = recvfrom(c->fd, buf, bufn, 0, (struct sockaddr*)&c->addr, &socklen);
+        int recvd = recvfrom(c->fd, buf, bufn, 0, (struct sockaddr *)&c->addr,
+                             &socklen);
         if (recvd <= 0) {
             if (recvd == 0) {
                 return -1;
@@ -104,8 +103,7 @@ int udp_recvs(con_t *c, unsigned char *buf, int bufn)
     };
 }
 
-int udp_sends(con_t *c, unsigned char *buf, int bufn)
-{
+int udp_sends(con_t *c, unsigned char *buf, int bufn) {
     socklen_t socklen = sizeof(struct sockaddr);
 
     sassert(c != NULL);
@@ -113,7 +111,8 @@ int udp_sends(con_t *c, unsigned char *buf, int bufn)
     sassert(bufn > 0);
 
     for (;;) {
-        int sendn = sendto(c->fd, buf, bufn, 0, (struct sockaddr*)&c->addr, socklen);
+        int sendn =
+            sendto(c->fd, buf, bufn, 0, (struct sockaddr *)&c->addr, socklen);
         if (sendn < 0) {
             if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
                 return -11;
@@ -126,4 +125,3 @@ int udp_sends(con_t *c, unsigned char *buf, int bufn)
         return sendn;
     };
 }
-

@@ -2,8 +2,7 @@
 #define _WEB_API_H_INCLUDED_
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
 int webapi_init(void);
@@ -11,6 +10,5 @@ int webapi_init(void);
 #ifdef __cplusplus
 }
 #endif
-    
-#endif
 
+#endif

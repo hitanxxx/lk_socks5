@@ -2,22 +2,19 @@
 #define _SHM_H_INCLUDED_
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
-
 
 typedef struct shm_t {
     uint32_t size;
     char *data;
 } sys_shm_t;
 
-int sys_shm_alloc(sys_shm_t * shm, int size);
-int sys_shm_free(sys_shm_t * shm);
+int sys_shm_alloc(sys_shm_t *shm, int size);
+int sys_shm_free(sys_shm_t *shm);
 
 #ifdef __cplusplus
 }
 #endif
 
-    
 #endif

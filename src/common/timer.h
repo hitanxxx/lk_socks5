@@ -2,17 +2,16 @@
 #define _TIMER_H_INCLUDED_
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
-typedef void (*timer_cb) (void *data);
+typedef void (*timer_cb)(void *data);
 typedef struct ev_timer_s {
-    heap_node_t    node;
-    char    f_timeset:1;
-    char    f_timeout:1;
-    char    reserve:2;
-    
+    heap_node_t node;
+    unsigned char f_timeset : 1;
+    unsigned char f_timeout : 1;
+    unsigned char reserve : 2;
+
     timer_cb cb;
     void *data;
 } ev_timer_t;
@@ -23,7 +22,6 @@ int tm_del(ev_timer_t *timer);
 int timer_expire(int *wait_ms);
 int timer_init(void);
 int timer_end(void);
-
 
 #define EZ_TMADD(x, y, z) tm_add(&((x)->ev->timer), (y), (x), (z))
 #define EZ_TMDEL(x) tm_del(&((x)->ev->timer))

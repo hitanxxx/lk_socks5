@@ -1,8 +1,7 @@
 #include "common.h"
 
-int mem_arr_create(mem_arr_t ** list, int size)
-{
-    mem_arr_t *  narr = NULL;
+int mem_arr_create(mem_arr_t **list, int size) {
+    mem_arr_t *narr = NULL;
     schk(narr = mem_pool_alloc(sizeof(mem_arr_t)), return -1);
     narr->head = NULL;
     narr->last = NULL;
@@ -12,14 +11,14 @@ int mem_arr_create(mem_arr_t ** list, int size)
     return 0;
 }
 
-void * mem_arr_push(mem_arr_t * list)
-{
-    mem_arr_part_t * narr = NULL;
-    schk(narr = mem_pool_alloc(sizeof(mem_arr_part_t) + list->elem_size), return NULL);
-    
-    if(0 == list->elem_num) {
+void *mem_arr_push(mem_arr_t *list) {
+    mem_arr_part_t *narr = NULL;
+    schk(narr = mem_pool_alloc(sizeof(mem_arr_part_t) + list->elem_size),
+         return NULL);
+
+    if (0 == list->elem_num) {
         list->last = narr;
-        list->head = narr;    
+        list->head = narr;
     } else {
         list->last->next = narr;
         list->last = narr;
@@ -28,12 +27,11 @@ void * mem_arr_push(mem_arr_t * list)
     return narr->data;
 }
 
-int mem_arr_free(mem_arr_t * list)
-{
-    mem_arr_part_t * cur, *next;
+int mem_arr_free(mem_arr_t *list) {
+    mem_arr_part_t *cur, *next;
 
     cur = list->head;
-    while(cur) {
+    while (cur) {
         next = cur->next;
         mem_pool_free(cur);
         cur = next;
@@ -42,16 +40,15 @@ int mem_arr_free(mem_arr_t * list)
     return 0;
 }
 
-void * mem_arr_get(mem_arr_t * list, int index)
-{
+void *mem_arr_get(mem_arr_t *list, int index) {
     int i = 1;
-    mem_arr_part_t * head = NULL;
+    mem_arr_part_t *head = NULL;
 
-    if((index < 1) || (index > list->elem_num)) {
+    if ((index < 1) || (index > list->elem_num)) {
         return NULL;
     }
     head = list->head;
-    while(i < index) {
+    while (i < index) {
         head = head->next;
         i++;
     }

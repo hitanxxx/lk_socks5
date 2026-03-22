@@ -7,7 +7,7 @@ int ezac_node_free(ezac_node_t *root) {
 
     stack[stackn++] = root;
     while (stackn > 0) {
-        ezac_node_t * p = stack[--stackn];
+        ezac_node_t *p = stack[--stackn];
         for (i = 0; i < EZAC_MAX; i++) {
             if (p->arr[i])
                 stack[stackn++] = p->arr[i];
@@ -38,9 +38,10 @@ int ezac_add(ezac_ctx_t *ctx, char *data, int datan) {
     ezac_node_t *n = &ctx->root;
     int i = 0;
 
-    for (i = 0; i < datan; i ++) {
+    for (i = 0; i < datan; i++) {
         int idx = data[i];
-        if (idx < 0 || idx > EZAC_MAX) idx = 0;
+        if (idx < 0 || idx > EZAC_MAX)
+            idx = 0;
         if (!n->arr[idx]) {
             schk(n->arr[idx] = sys_alloc(sizeof(ezac_node_t)), return -1);
         }
@@ -63,10 +64,10 @@ int ezac_compiler(ezac_ctx_t *ctx) {
     }
 
     while (stackn > 0) {
-        ezac_node_t * n = stack[--stackn];
+        ezac_node_t *n = stack[--stackn];
         for (i = 0; i < EZAC_MAX; i++) {
             if (n->arr[i]) {
-                ezac_node_t * x = n->pfail;
+                ezac_node_t *x = n->pfail;
                 char find = 0;
                 do {
                     if (x->arr[i]) {
@@ -74,8 +75,8 @@ int ezac_compiler(ezac_ctx_t *ctx) {
                         break;
                     }
                     x = x->pfail;
-                } while(x != &ctx->root);
-                n->arr[i]->pfail = (find ? x->arr[i]: x);
+                } while (x != &ctx->root);
+                n->arr[i]->pfail = (find ? x->arr[i] : x);
                 stack[stackn++] = n->arr[i];
             }
         }
@@ -92,7 +93,8 @@ int ezac_find(ezac_ctx_t *ctx, char *data, int datan) {
     int i = 0;
     for (i = 0; i < datan; i++) {
         int idx = data[i];
-        if (idx < 0 || idx > EZAC_MAX) idx = 0;
+        if (idx < 0 || idx > EZAC_MAX)
+            idx = 0;
         if (!ctx->cur->arr[idx])
             ctx->cur = ctx->cur->pfail;
 
@@ -107,4 +109,3 @@ int ezac_find(ezac_ctx_t *ctx, char *data, int datan) {
     }
     return -1;
 }
-

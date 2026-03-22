@@ -2,32 +2,29 @@
 #define _LISTEN_H_INCLUDED_
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
 typedef struct listen listen_t;
 struct listen {
-	con_t * c;
+    con_t *c;
 
     unsigned short port;
     int fd;
     ev_cb cb;
 
-    char fuse:1;
-    char fssl:1;
+    unsigned char fuse : 1;
+    unsigned char fssl : 1;
 };
 
 extern listen_t g_listens[8];
-
 
 int listen_start(void);
 int listen_init(void);
 int listen_end(void);
 
-
 #ifdef __cplusplus
 }
 #endif
-    
+
 #endif

@@ -1,6 +1,6 @@
 CROSS_PREFIX ?= 
 
-CC           = $(CROSS_PREFIX)gcc
+CC           = $(CROSS_PREFIX)clang
 CXX          = $(CROSS_PREFIX)g++
 AS           = $(CROSS_PREFIX)as
 AR           = $(CROSS_PREFIX)ar
@@ -48,6 +48,7 @@ CFLAGS += -Wall -ffunction-sections -fdata-sections
 CFLAGS += -O2
 CFLAGS += -fstrict-aliasing -march=native -mtune=native -pipe
 CFLAGS += $(DEFINE) $(INCLUDE)
+
 
 .c.o:
 	@echo "> $<"

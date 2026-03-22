@@ -49,7 +49,7 @@ int timer_expire(int *wait_ms) {
         } else {
             oldest->f_timeout = 1;
             tm_del(oldest);
-            if(oldest->cb)
+            if (oldest->cb)
                 oldest->cb(oldest->data);
         }
     }

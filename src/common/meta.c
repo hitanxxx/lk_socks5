@@ -49,14 +49,15 @@ int meta_pnum(meta_t *meta, unsigned char num) {
     return 0;
 }
 
-meta_t * meta_dump(meta_t *meta) {
-    if (!meta->next) return meta;
+meta_t *meta_dump(meta_t *meta) {
+    if (!meta->next)
+        return meta;
 
     meta_t *cur = NULL;
     meta_t *dump = NULL;
     int dumpn = meta_getlens(meta);
     schk(0 == meta_alloc(&dump, dumpn), return NULL);
-    
+
     cur = meta;
     while (cur) {
         memcpy(dump->last, cur->pos, meta_getlen(cur));
@@ -65,4 +66,3 @@ meta_t * meta_dump(meta_t *meta) {
     }
     return dump;
 }
-

@@ -1,17 +1,15 @@
 #include "common.h"
 
+#define HEAP_LCHILD(index) (index * 2)
+#define HEAP_RCHILD(index) ((index * 2) + 1)
+#define HEAP_PARENT(index) (index / 2)
 
-#define 	HEAP_LCHILD(index) (index*2)
-#define		HEAP_RCHILD(index) ((index*2)+1)
-#define 	HEAP_PARENT(index) (index/2)
+int heap_create(heap_t **heap, int size) {
+    heap_t *nheap;
 
-int heap_create(heap_t ** heap, int size)
-{
-    heap_t * nheap;
-    
-    /// heap index 0 is alwsys unused 
-    int alloc_size = sizeof(heap_t) + (sizeof(heap_node_t*) * (size+1));
-    schk(nheap = (heap_t*)sys_alloc(alloc_size), return -1);
+    /// heap index 0 is alwsys unused
+    int alloc_size = sizeof(heap_t) + (sizeof(heap_node_t *) * (size + 1));
+    schk(nheap = (heap_t *)sys_alloc(alloc_size), return -1);
     nheap->space = size;
     nheap->index = 0;
     nheap->array[0] = NULL;
@@ -19,27 +17,26 @@ int heap_create(heap_t ** heap, int size)
     return 0;
 }
 
-int heap_free(heap_t * heap)
-{
-    if(heap) {
+int heap_free(heap_t *heap) {
+    if (heap) {
         sys_free(heap);
-    } 
+    }
     return 0;
 }
 
-int heap_add(heap_t * heap, heap_node_t * node)
-{
-    int    i = 0;
-    /// out of space 
-    if(heap->index >= heap->space) return -1;
+int heap_add(heap_t *heap, heap_node_t *node) {
+    int i = 0;
+    /// out of space
+    if (heap->index >= heap->space)
+        return -1;
 
     heap->index++;
     i = heap->index;
 
-    while(HEAP_PARENT(i) && node->key < heap->array[HEAP_PARENT(i)]->key) {
+    while (HEAP_PARENT(i) && node->key < heap->array[HEAP_PARENT(i)]->key) {
         heap->array[i] = heap->array[HEAP_PARENT(i)];
-        heap->array[i]->index = i;     
-        
+        heap->array[i]->index = i;
+
         i = HEAP_PARENT(i);
     }
     heap->array[i] = node;
@@ -47,26 +44,32 @@ int heap_add(heap_t * heap, heap_node_t * node)
     return 0;
 }
 
-int heap_del(heap_t * heap, int del_index)
-{
+int heap_del(heap_t *heap, int del_index) {
     int i = 0;
     heap_node_t *tail_node;
     int child_min;
 
-    if(heap_empty(heap)) return -1;
-    if(del_index > heap->index) return -1;
-    
+    if (heap_empty(heap))
+        return -1;
+    if (del_index > heap->index || del_index == 0)
+        return -1;
+
     tail_node = heap->array[heap->index];
     heap->index--;
-    
+
     i = del_index;
-    while(HEAP_LCHILD(i) <= heap->index) { ///left child is necessary. right child is unnecessary
+    while (
+        HEAP_LCHILD(i) <=
+        heap->index) { /// left child is necessary. right child is unnecessary
         child_min = HEAP_LCHILD(i);
-        if(HEAP_RCHILD(i) <= heap->index) {
-            child_min = (heap->array[HEAP_LCHILD(i)]->key < heap->array[HEAP_RCHILD(i)]->key) ? HEAP_LCHILD(i) : HEAP_RCHILD(i);
+        if (HEAP_RCHILD(i) <= heap->index) {
+            child_min = (heap->array[HEAP_LCHILD(i)]->key <
+                         heap->array[HEAP_RCHILD(i)]->key)
+                            ? HEAP_LCHILD(i)
+                            : HEAP_RCHILD(i);
         }
-        
-        if(tail_node->key >= heap->array[child_min]->key) {
+
+        if (tail_node->key >= heap->array[child_min]->key) {
             heap->array[i] = heap->array[child_min];
             heap->array[i]->index = i;
             i = child_min;
@@ -79,23 +82,18 @@ int heap_del(heap_t * heap, int del_index)
     return 0;
 }
 
-int heap_empty(heap_t * heap)
-{
-    if(heap && (heap->space < 1 || heap->index < 1)) {
+int heap_empty(heap_t *heap) {
+    if (heap && (heap->space < 1 || heap->index < 1)) {
         return 1;
     }
     return 0;
 }
 
-heap_node_t * heap_min(heap_t * heap)
-{
-    if(heap->index < 1 || heap->space < 1) {
+heap_node_t *heap_min(heap_t *heap) {
+    if (heap->index < 1 || heap->space < 1) {
         return NULL;
     }
     return heap->array[1];
 }
 
-int heap_num(heap_t * heap)
-{
-    return heap->index;
-}
+int heap_num(heap_t *heap) { return heap->index; }

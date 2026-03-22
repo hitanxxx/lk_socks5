@@ -1,10 +1,10 @@
+#include "tls_tunnel_c.h"
 #include "common.h"
 #include "dns.h"
-#include "tls_tunnel_c.h"
 #include "tls_tunnel_s.h"
 
 static int tls_tunnel_c_recv(con_t *cdown) {
-    /// cache read data    
+    /// cache read data
     tls_tunnel_session_t *ses = cdown->data;
     meta_t *meta = cdown->meta;
     int readn = 0;
@@ -68,13 +68,14 @@ static int tls_tunnel_c_auth_build(con_t *cup) {
 
     net_socket_nodelay(cup->fd);
 
-    ///build auth req
+    /// build auth req
     meta_clr(meta);
     meta_pnum(meta, TLS_AUTH_MG1);
     meta_pnum(meta, TLS_AUTH_MG2);
     meta_pnum(meta, strlen(config_get()->s5_local_auth));
-    meta_pdata(meta, config_get()->s5_local_auth, strlen(config_get()->s5_local_auth));
-    
+    meta_pdata(meta, config_get()->s5_local_auth,
+               strlen(config_get()->s5_local_auth));
+
     cup->ev->read_cb = NULL;
     cup->ev->write_cb = tls_tunnel_c_auth_send;
     return cup->ev->write_cb(cup);
@@ -142,14 +143,13 @@ static int tls_tunnel_c_connect_chk(con_t *cup) {
     return cup->ev->write_cb(ses->cup);
 }
 
-
 int tls_tunnel_c_accept(con_t *cdown) {
     tls_tunnel_session_t *ses = NULL;
 
     EZ_TMDEL(cdown);
 
     if (!cdown->meta) {
-        if (0 != meta_alloc(&cdown->meta, TLS_TUNNEL_METAN)) {   
+        if (0 != meta_alloc(&cdown->meta, TLS_TUNNEL_METAN)) {
             err("TLS tunnel c. alloc down meta.\n");
             net_free(cdown);
             return -1;
@@ -164,10 +164,9 @@ int tls_tunnel_c_accept(con_t *cdown) {
     ses->cdown = cdown;
     cdown->data = ses;
     cdown->data_cb = tls_ses_release_cdown;
-    
+
     cdown->ev->read_cb = tls_tunnel_c_recv;
     cdown->ev->write_cb = NULL;
-
 
     if (0 != net_alloc(&ses->cup)) {
         net_free(cdown);
@@ -206,5 +205,3 @@ int tls_tunnel_c_accept(con_t *cdown) {
 int tls_tunnel_c_init(void) { return 0; }
 
 int tls_tunnel_c_exit(void) { return 0; }
-
-
