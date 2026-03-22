@@ -1,5 +1,5 @@
-#include "dns.h"
 #include "common.h"
+#include "dns.h"
 
 typedef struct dns_cache_s {
     queue_t queue;

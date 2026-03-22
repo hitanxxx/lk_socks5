@@ -1,5 +1,5 @@
-#include "socks5.h"
 #include "common.h"
+#include "socks5.h"
 #include "dns.h"
 #include "tls_tunnel_s.h"
 

@@ -1,6 +1,6 @@
 CROSS_PREFIX ?= 
 
-CC           = $(CROSS_PREFIX)clang
+CC           = $(CROSS_PREFIX)gcc
 CXX          = $(CROSS_PREFIX)g++
 AS           = $(CROSS_PREFIX)as
 AR           = $(CROSS_PREFIX)ar

@@ -1,6 +1,6 @@
-#include "tls_tunnel_s.h"
 #include "common.h"
 #include "dns.h"
+#include "tls_tunnel_s.h"
 #include "socks5.h"
 #include "tls_tunnel_c.h"
 
