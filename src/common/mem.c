@@ -1,6 +1,6 @@
 #include "common.h"
 
-// #define MEM_BY_SYSCALL
+///#define MEM_BY_SYSCALL
 
 #if defined(MEM_BY_SYSCALL)
 void *sys_alloc(int size) { return calloc(1, size); }

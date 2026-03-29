@@ -188,12 +188,15 @@ int net_accept(con_t *c) {
 
 void net_free_direct(void *data) {
     con_t *c = data;
+    
     if (c->fd > 0) {
+        if (c->ev) ev_opt(c, EV_NONE);
         close(c->fd);
         c->fd = 0;
     }
 
     if (c->ev) {
+        ///dbg("c ev idxr[%d] idxw[%d]\n", c->ev->idxr, c->ev->idxw);
         EZ_TMDEL(c);
         ev_free(c->ev);
         c->ev = NULL;
@@ -216,7 +219,6 @@ void net_free_direct(void *data) {
         mem_pool_free(c->ssl);
         c->ssl = NULL;
     }
-
     mem_pool_free(c);
     return;
 }
@@ -237,7 +239,8 @@ int net_free(con_t *c) {
     */
 
     if (c->ssl) {
-        if (c->ssl->f_err || c->ssl->f_closed) { /// ssl con err or ssl closed
+        /// ssl con already closed
+        if (c->ssl->f_closed) {
             net_free_direct(c);
             return 0;
         }
@@ -262,12 +265,15 @@ void net_exp(void *data) {
 
 int net_alloc(con_t **c) {
     con_t *nc = NULL;
+    ev_t *nev = NULL;
     schk(nc = mem_pool_alloc(sizeof(con_t)), return -1);
-    schk(0 == ev_alloc(&nc->ev), {
+    schk(0 == ev_alloc(&nev), {
         mem_pool_free(nc);
         return -1;
     });
-    nc->ev->c = nc;
+    nc->ev = nev;
+    nev->c = nc;
+    
     *c = nc;
     return 0;
 }

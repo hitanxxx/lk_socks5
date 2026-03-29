@@ -38,6 +38,7 @@ int proc_signal_send(pid_t pid, int32_t signal) {
 static int proc_signal_bcast(int sig) {
     int i = 0;
     for (i = 0; i < config_get()->sys_process_num; i++) {
+        if (g_proc_ctx->processes[i].exited) continue;
         if (-1 == proc_signal_send(g_proc_ctx->processes[i].pid, sig)) {
             err("broadcast signal failed\n");
             return -1;
@@ -117,9 +118,11 @@ void proc_master_run(void) {
         systime_update();
         err("master received signal [%d]\n", g_proc_ctx->signal);
 
-        if (g_proc_ctx->sig_quit ==
-            1) { /// master recvied a sigint, stop all child frist, then do exit
+        if (g_proc_ctx->sig_quit == 1) { 
+            /// master recvied a sigint, stop all child frist, then do exit
+
             proc_signal_bcast(SIGINT);
+            
             int alive = 0;
             for (i = 0; i < config_get()->sys_process_num; i++) {
                 if (!g_proc_ctx->processes[i].exited) {
@@ -133,20 +136,15 @@ void proc_master_run(void) {
         if (g_proc_ctx->sig_reap == 1) { /// someone child dead
             for (i = 0; i < config_get()->sys_process_num; i++) {
                 if (g_proc_ctx->processes[i].exited) {
-                    if (!g_proc_ctx
-                             ->sig_quit) { /// if master not recived sigint,
-                                           /// just to restart the child process
-                        if (-1 == proc_fork(&g_proc_ctx->processes[i])) {
-                            err("proc_fork index [%d] failed, [%d]\n", i,
-                                errno);
-                            continue;
-                        }
+                    if (-1 == proc_fork(&g_proc_ctx->processes[i])) {
+                        err("proc_fork index [%d] failed, [%d]\n", i, errno);
+                        continue;
+                    }
 
-                        if (g_proc_ctx->process_id != L_PROCESS_MASTER) {
-                            return;
-                        } else {
-                            g_proc_ctx->processes[i].exited = 0;
-                        }
+                    if (g_proc_ctx->process_id != L_PROCESS_MASTER) {
+                        return;
+                    } else {
+                        g_proc_ctx->processes[i].exited = 0;
                     }
                 }
             }
@@ -192,7 +190,9 @@ void proc_signal_cb(int signal) {
         if (signal == SIGINT) {
             g_proc_ctx->sig_quit = 1;
         } else if (signal == SIGCHLD) {
-            g_proc_ctx->sig_reap = 1;
+            if (!g_proc_ctx->sig_quit) {
+                g_proc_ctx->sig_reap = 1;
+            }
             proc_waitpid();
         } else if (signal == SIGHUP) {
             g_proc_ctx->sig_reload = 1;

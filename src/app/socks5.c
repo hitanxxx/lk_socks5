@@ -24,6 +24,7 @@ int s5_p2_rsp(con_t *cdown) {
         rc = cdown->send(cdown, meta->pos, meta_getlen(meta));
         if (rc < 0) {
             if (rc == -11) {
+                ev_opt(cdown, EV_W);
                 EZ_TMADD(cdown, tls_ses_exp, TLS_TUNNEL_TMOUT);
                 return -11;
             }
@@ -349,6 +350,7 @@ int s5_p1_rsp(con_t *cdown) {
         int sendn = cdown->send(cdown, meta->pos, meta_getlen(meta));
         if (sendn < 0) {
             if (sendn == -11) {
+                ev_opt(cdown, EV_W);
                 EZ_TMADD(cdown, tls_ses_exp, TLS_TUNNEL_TMOUT);
                 return -11;
             }
@@ -361,6 +363,7 @@ int s5_p1_rsp(con_t *cdown) {
     EZ_TMDEL(cdown);
     meta_clr(meta);
 
+    if (cdown->ev->opt != EV_R) ev_opt(cdown, EV_R);
     cdown->ev->read_cb = s5_p2_req;
     cdown->ev->write_cb = NULL;
     return cdown->ev->read_cb(cdown);

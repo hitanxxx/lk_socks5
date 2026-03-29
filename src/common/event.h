@@ -14,6 +14,14 @@ extern "C" {
 #define EV_W 0x004
 #endif
 
+#define EV_CLR(x, copt) \
+{ \
+    if ((x)->ev->opt & copt) { \
+        ev_opt((x), (x)->ev->opt & ~(copt)); \
+    } \
+} \
+
+
 typedef struct ev ev_t;
 struct ev {
     queue_t queue;
@@ -27,8 +35,9 @@ struct ev {
 
     ev_cb read_cb;
     ev_cb write_cb;
-    unsigned char fread : 1; /// mark readable, writable
+    unsigned char fread : 1;    /// mark readable, writable
     unsigned char fwrite : 1;
+    unsigned char facitve : 1; 
 };
 
 int ev_opt(con_t *c, int type);

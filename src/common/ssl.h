@@ -21,6 +21,7 @@ typedef struct {
     ev_cb cc_ev_cbr;
     ev_cb cc_ev_cbw;
 
+    unsigned char f_handshakeing : 1;
     unsigned char f_handshaked : 1;
     unsigned char f_err : 1;
     unsigned char f_closed : 1;

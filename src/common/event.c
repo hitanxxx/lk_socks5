@@ -42,18 +42,22 @@ static int ev_epoll_opt(con_t *c, int want_opt) {
     /// want type not same as record type
     if (c->ev->opt != want_opt) {
         if (want_opt == EV_NONE) {
-            schk(epoll_ctl(g_event_ctx->epfd, EPOLL_CTL_DEL, c->fd, NULL) != -1,
-                 return -1);
+	    if (-1 == epoll_ctl(g_event_ctx->epfd, EPOLL_CTL_DEL, c->fd, NULL)) {
+		err("epoll_ctl c [%p] fd [%d] err. [%d] [%s]\n", c, c->fd, errno, strerror(errno));
+		return -1;
+	    }
         } else {
             struct epoll_event evsys;
             memset(&evsys, 0, sizeof(struct epoll_event));
             evsys.data.ptr = (void *)c->ev;
             evsys.events = EPOLLET | want_opt;
-            schk(epoll_ctl(
-                     g_event_ctx->epfd,
-                     (c->ev->opt == EV_NONE ? EPOLL_CTL_ADD : EPOLL_CTL_MOD),
-                     c->fd, &evsys) != -1,
-                 return -1);
+	    if (-1 == epoll_ctl(
+            	g_event_ctx->epfd,
+                (c->ev->opt == EV_NONE ? EPOLL_CTL_ADD : EPOLL_CTL_MOD),
+                c->fd, &evsys)) {
+		err("epoll_ctl c [%p] fd [%d] err. [%d] [%s]\n", c, c->fd, errno, strerror(errno));
+		return -1;
+	    }
         }
         c->ev->opt = want_opt;
     }
@@ -80,17 +84,21 @@ int ev_epoll_loop(time_t msec) {
     for (i = 0; i < all; i++) {
         ev_t *ev = g_event_ctx->epev[i].data.ptr;
         ev->idxr = ev->idxw = 0;
+        ev->facitve = 1;
 
-        int opt = g_event_ctx->epev[i].events;
+        int opt = ev->opt;
+        
         if (opt & EV_R) {
+	    ev->idxr = g_event_ctx->evn++;
+            g_event_ctx->evs[ev->idxr] = ev;
+		
             ev->fread = 1;
-            ev->idxr = g_event_ctx->evn;
-            g_event_ctx->evs[g_event_ctx->evn++] = ev;
         }
         if (opt & EV_W) {
+            ev->idxw = g_event_ctx->evn++;
+	    g_event_ctx->evs[ev->idxw] = ev;
+			
             ev->fwrite = 1;
-            ev->idxw = g_event_ctx->evn;
-            g_event_ctx->evs[g_event_ctx->evn++] = ev;
         }
     }
     return 0;
@@ -189,17 +197,18 @@ int ev_select_loop(time_t msec) {
     while (q != queue_tail(&g_event_ctx->evqueue) && actn < actall) {
         ev = ptr_get_struct(q, ev_t, queue);
         ev->idxr = ev->idxw = 0;
+        ev->factive = 1;
 
         c = ev->c;
         if (FD_ISSET(c->fd, &rfds)) {
             ev->fread = 1;
-            ev->idxr = g_event_ctx->evn;
-            g_event_ctx->evs[g_event_ctx->evn++] = ev;
+            ev->idxr = g_event_ctx->evn++;
+            g_event_ctx->evs[ev->idxr] = ev;
         }
         if (FD_ISSET(c->fd, &wfds)) {
             ev->fwrite = 1;
-            ev->idxw = g_event_ctx->evn;
-            g_event_ctx->evs[g_event_ctx->evn++] = ev;
+            ev->idxw = g_event_ctx->evn++;
+            g_event_ctx->evs[ev->idxw] = ev;
         }
         q = queue_next(q);
     }
@@ -229,13 +238,11 @@ int ev_loop(time_t msec) {
 
             if (ev->fread) {
                 ev->fread = 0;
-                if (ev->read_cb)
-                    ev->read_cb(c);
+                if (ev->read_cb) ev->read_cb(c);
 
             } else if (ev->fwrite) {
                 ev->fwrite = 0;
-                if (ev->write_cb)
-                    ev->write_cb(c);
+                if (ev->write_cb) ev->write_cb(c);
             }
         }
     }
@@ -252,10 +259,11 @@ int ev_alloc(ev_t **ev) {
 
 int ev_free(ev_t *ev) {
     if (ev) {
-        if (ev->idxr)
-            g_event_ctx->evs[ev->idxr] = NULL;
-        if (ev->idxw)
-            g_event_ctx->evs[ev->idxw] = NULL;
+        
+        if (ev->facitve) {
+            if (ev->idxr >= 0) g_event_ctx->evs[ev->idxr] = NULL;
+            if (ev->idxw >= 0) g_event_ctx->evs[ev->idxw] = NULL;
+        }
 
         queue_remove(&ev->queue);
         mem_pool_free(ev);

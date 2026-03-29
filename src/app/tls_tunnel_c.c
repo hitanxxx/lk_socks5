@@ -20,10 +20,9 @@ static int tls_tunnel_c_recv(con_t *cdown) {
         /// cache read data
         readn = cdown->recv(cdown, meta->last, meta_getfree(meta));
         if (readn < 0) {
-            if (readn == -11)
+            if (readn == -11) {
                 return -11;
-
-            err("TLS tunnel cdown recv err\n");
+            }
             net_free(ses->cup);
             net_free(ses->cdown);
             return -1;
@@ -172,7 +171,7 @@ int tls_tunnel_c_accept(con_t *cdown) {
         net_free(cdown);
         return -1;
     }
-
+    
     ses->cup->data = ses;
     ses->cup->data_cb = tls_ses_release_cup;
     if (!ses->cup->meta) {
@@ -187,19 +186,24 @@ int tls_tunnel_c_accept(con_t *cdown) {
     ses->cup->ev->read_cb = NULL;
     ses->cup->ev->write_cb = tls_tunnel_c_connect_chk;
 
+    ///!!!can not set EV_W in here, because not open fd now
+    ///ev_opt(ses->cup, EV_W);
+
     tls_tunnel_s_addr(&ses->cup->addr);
     int rc = net_connect(ses->cup, &ses->cup->addr);
     if (rc < 0) {
         if (rc == -11) {
             EZ_TMADD(ses->cup, tls_ses_exp, TLS_TUNNEL_TMOUT);
-            return -11;
+            ///return -11;
+        } else {
+            err("TLS tunnel cup connect failed\n");
+            net_free(ses->cup);
+            net_free(cdown);
+            return -1;
         }
-        err("TLS tunnel cup connect failed\n");
-        net_free(ses->cup);
-        net_free(cdown);
-        return -1;
     }
-    return ses->cup->ev->write_cb(ses->cup);
+    
+    return cdown->ev->read_cb(cdown);
 }
 
 int tls_tunnel_c_init(void) { return 0; }

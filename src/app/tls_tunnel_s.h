@@ -8,7 +8,7 @@ extern "C" {
 #define TLS_TUNNEL_TMOUT 12 * 1000
 #define TLS_TUNNEL_METAN (4096 * 3)
 
-/// @brief MG1 + MG2 + 1BYTE DATA LEN + DATA
+/// @brief MG1(1byte) + MG2(1byte) + DATA LEN(1byte) + DATA
 #define TLS_AUTH_MG1 0xae
 #define TLS_AUTH_MG2 0x86
 
@@ -22,9 +22,12 @@ typedef struct {
 
     dnsc_t *dns;
 
-    char *auth_data;
-    int auth_datan;
-    char auth_recvd;
+    ///auth data
+    unsigned char    auth_data_all;
+    unsigned char    auth_data_recv;
+    unsigned char    auth_data[32];
+    
+    ///tunnel use protocol
     int atyp;
     void *adata;
 } tls_tunnel_session_t;

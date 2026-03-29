@@ -59,16 +59,24 @@ int ssl_shutdown(con_t *c) {
     ssl_con_t *sslc = c->ssl;
     int sslerr = 0;
     int t = 0;
+    int mode = 0;
+
+    if (SSL_in_init(sslc->con)) {
+        c->ssl->f_closed = 1;
+        return 0;
+    }
+
+    if (sslc->f_err || sslc->f_handshakeing) {
+        mode = SSL_RECEIVED_SHUTDOWN|SSL_SENT_SHUTDOWN;
+        SSL_set_quiet_shutdown(sslc->con, 1);
+    } else {
+        mode = SSL_get_shutdown(sslc->con);
+    }
+    SSL_set_shutdown(sslc->con, mode);
 
     ssl_clear_error();
     for (t = 0; t < 2; t++) {
-        /// if ssl in handshaking. then goto closed direct
-        /// to avoid <SSL_shutdown:shutdown while in init>
-        if (1 == SSL_in_init(sslc->con)) {
-            c->ssl->f_closed = 1;
-            return 0;
-        }
-
+    
         int rc = SSL_shutdown(sslc->con);
         if (rc == 1) {
             c->ssl->f_closed = 1;
@@ -90,11 +98,18 @@ int ssl_shutdown(con_t *c) {
             } else {
                 c->ev->write_cb = ssl_shutdown_cb;
                 ev_opt(c, EV_W);
-            }
+            } 
             return -11;
+        } else if (sslerr == SSL_ERROR_ZERO_RETURN) {
+            return -1;
+        } else if (sslerr == SSL_ERROR_SYSCALL) {
+            err("syscall err. [%d]\n", errno);
+            return -1;
         }
+        
     }
-    ssl_dump_error(sslerr);
+    ///don't care
+    ///ssl_dump_error(sslerr);
     return -1;
 }
 
@@ -139,10 +154,12 @@ static int ssl_handshake_cb(con_t *c) {
 
 int ssl_handshake(con_t *c) {
     ssl_con_t *sslc = c->ssl;
+    sslc->f_handshakeing = 1;
 
     ssl_clear_error();
     int rc = SSL_do_handshake(sslc->con);
     if (rc == 1) {
+        sslc->f_handshakeing = 0;
         sslc->f_handshaked = 1;
         return 0;
     }
@@ -157,6 +174,13 @@ int ssl_handshake(con_t *c) {
             ev_opt(c, EV_W);
         }
         return -11;
+    } else if (sslerr == SSL_ERROR_ZERO_RETURN) {
+        ///peer send close_notify
+        return -1;
+    } else if (sslerr == SSL_ERROR_SYSCALL) {
+	err("syscall err. [%d]\n", errno);
+	sslc->f_err = 1;
+    	return -1;
     }
     sslc->f_err = 1;
     ssl_dump_error(sslerr);
@@ -198,6 +222,13 @@ int ssl_read(con_t *c, unsigned char *buf, int bufn) {
         } else if (sslerr == SSL_ERROR_WANT_WRITE) {
             c->ev->write_cb = ssl_read_cb;
             ev_opt(c, EV_W);
+        } else if (sslerr == SSL_ERROR_ZERO_RETURN) {
+            ///peer send close_notify
+            return -1;
+        } else if (sslerr == SSL_ERROR_SYSCALL) {
+            err("syscall err. [%d]\n", errno);
+            sslc->f_err = 1;
+            return -1;
         }
         return -11;
     }
@@ -305,6 +336,10 @@ int ssl_load_ctx_certificate(SSL_CTX **ctx, int flag) {
         if (!g_ssl_ctx->ctx_client) {
             schk(g_ssl_ctx->ctx_client = SSL_CTX_new(TLS_client_method()),
                  return -1);
+            SSL_CTX_set_mode(g_ssl_ctx->ctx_client, SSL_MODE_ENABLE_PARTIAL_WRITE);
+            SSL_CTX_set_mode(g_ssl_ctx->ctx_client, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
+            SSL_CTX_set_options(g_ssl_ctx->ctx_client, SSL_OP_IGNORE_UNEXPECTED_EOF);
+            
             schk(1 == SSL_CTX_set_min_proto_version(g_ssl_ctx->ctx_client,
                                                     TLS1_2_VERSION),
                  return -1);
@@ -321,6 +356,9 @@ int ssl_load_ctx_certificate(SSL_CTX **ctx, int flag) {
             do {
                 schk(g_ssl_ctx->ctx_server = SSL_CTX_new(TLS_server_method()),
                      return -1);
+                SSL_CTX_set_mode(g_ssl_ctx->ctx_server, SSL_MODE_ENABLE_PARTIAL_WRITE);
+                SSL_CTX_set_mode(g_ssl_ctx->ctx_server, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
+                SSL_CTX_set_options(g_ssl_ctx->ctx_server, SSL_OP_IGNORE_UNEXPECTED_EOF);
 #if 1
                 schk(1 == SSL_CTX_set_min_proto_version(g_ssl_ctx->ctx_server,
                                                         TLS1_2_VERSION),
