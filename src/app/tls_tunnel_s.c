@@ -69,32 +69,31 @@ static int tls_tunnel_traffic_recv(con_t *c) {
     EZ_TMADD(cup, tls_ses_exp, TLS_TUNNEL_TMOUT);
 
     for (;;) {
-        ///try to recv 
         while (meta_getfree(cdown->meta) > 0) {
             recvn = cdown->recv(cdown, cdown->meta->last, meta_getfree(cdown->meta));
             if (recvn < 0) {
                 if (recvn == -1) {
                     ses->frecv_err_down = 1;
                 } else if (recvn == -11) {
-                    ///meta empty. kernel empty
                     if (meta_getlen(cdown->meta) < 1) {
+                        if (cup->ev->opt & EV_W) ev_opt(cup, cup->ev->opt & (~EV_W));
+                        if (!(cdown->ev->opt & EV_R)) ev_opt(cdown, cdown->ev->opt | EV_R);
                         return -11;
                     }
                 }
                 break;
-                ///meta not full. kernel empty. next time will call read cb if kernel have data
             }
             cdown->meta->last += recvn;
         }
-        ///meta full. don't know kernel empty or not 
         
         while (meta_getlen(cdown->meta) > 0) {
             int sendn = cup->send(cup, cdown->meta->pos, meta_getlen(cdown->meta));
             if (sendn < 0) {
                 if (sendn == -11) {
-                    ev_opt(cup, EV_W | cup->ev->opt);
+                    if (!(cup->ev->opt & EV_W)) ev_opt(cup, cup->ev->opt | EV_W);
+                    if (cdown->ev->opt & EV_R) ev_opt(cdown, cdown->ev->opt & (~EV_R));
                     return -11;
-                    ///meta remain data. but kernel full. next time will call write cb if kernel have space
+                    
                 } else if (sendn == -1) {
                     err("tls tunnel teminate. (up send)\n");
                     net_free(cup);
@@ -105,9 +104,7 @@ static int tls_tunnel_traffic_recv(con_t *c) {
             cdown->meta->pos += sendn;
         }
         
-        ///if send all over. try recv again. to know kernel empty or not 
         if (ses->frecv_err_down) {
-            ///if recv error. free session
             err("tls tunnel teminate. (cdown recv)\n");
             net_free(cup);
             net_free(cdown);
@@ -128,7 +125,6 @@ static int tls_tunnel_traffic_send(con_t *c) {
     EZ_TMADD(cup, tls_ses_exp, TLS_TUNNEL_TMOUT);
 
     for (;;) {
-        ///try to send 
         while (meta_getlen(cdown->meta) > 0) {
             sendn = cup->send(cup, cdown->meta->pos, meta_getlen(cdown->meta));
             if (sendn < 0) {
@@ -138,39 +134,40 @@ static int tls_tunnel_traffic_send(con_t *c) {
                     net_free(cdown);
                     return -1;
                 }
-                ///meta remain data. but kernel full. next time will call write cb if kernel have space
                 return -11;
             }
             cdown->meta->pos += sendn;
         }
-        ///meta empty.
+        
+        if (ses->frecv_err_down) {
+            err("tls tunnel teminate. (cdown recv)\n");
+            net_free(cup);
+            net_free(cdown);
+            return -1;
+        }
         meta_clr(cdown->meta);
 
-        ///try to recv again. don't know kernel is empty or not 
         while (meta_getfree(cdown->meta) > 0) {
             int recvn = cdown->recv(cdown, cdown->meta->last, meta_getfree(cdown->meta));
             if (recvn < 0) {
                 if (recvn == -1) {
                     ses->frecv_err_down = 1;
+                    if (meta_getlen(cdown->meta) < 1) {
+                        err("tls tunnel teminate. (cdown recv)\n");
+                        net_free(cup);
+                        net_free(cdown);
+                        return -1;
+                    }
                 } else if (recvn == -11) {
-		    ///do nothing
+                    if (meta_getlen(cdown->meta) < 1) {
+                        if (cup->ev->opt & EV_W) ev_opt(cup, cup->ev->opt & (~EV_W));
+                        if (!(cdown->ev->opt & EV_R)) ev_opt(cdown, cdown->ev->opt | EV_R);
+                        return -11;
+                    }
                 }
                 break;
             }
             cdown->meta->last += recvn;
-        }
-
-        ///meta empty. back to read cb(kernel must be empty. becasue have manual recv before this)
-        if (meta_getlen(cdown->meta) < 1) {
-            ///if recv error. free session
-            if (ses->frecv_err_down) {
-                err("tls tunnel teminate. (cdown recv)\n");
-                net_free(cup);
-                net_free(cdown);
-                return -1;
-            }
-            ev_opt(cup, cup->ev->opt & ~(EV_W));
-            break;
         }
     }
     return -11;
@@ -186,31 +183,30 @@ static int tls_tunnel_traffic_reverse_recv(con_t *c) {
     EZ_TMADD(cdown, tls_ses_exp, TLS_TUNNEL_TMOUT);
 
     for (;;) {
-        ///try to recv 
         while (meta_getfree(cup->meta) > 0) {
             recvn = cup->recv(cup, cup->meta->last, meta_getfree(cup->meta));
             if (recvn < 0) {
                 if (recvn == -1) {
                     ses->frecv_err_down = 1;
                 } else if (recvn == -11) {
-                    ///meta empty. kernel empty
-                    if (meta_getlen(cup->meta) < 1) 
+                    if (meta_getlen(cup->meta) < 1) {
+                        if (cdown->ev->opt & EV_W) ev_opt(cdown, cdown->ev->opt & (~EV_W));
+                        if (!(cup->ev->opt & EV_R)) ev_opt(cup, cup->ev->opt | EV_R);
                         return -11;
+                    }
                 }
                 break;
-                ///meta not full. kernel empty. next time will call read cb if kernel have data
             }
             cup->meta->last += recvn;
         }
-        ///meta full. don't know kernel empty or not 
         
         while (meta_getlen(cup->meta) > 0) {
             int sendn = cdown->send(cdown, cup->meta->pos, meta_getlen(cup->meta));
             if (sendn < 0) {
                 if (sendn == -11) {
-                    ev_opt(cdown, EV_W | cdown->ev->opt);
+                    if (!(cdown->ev->opt & EV_W)) ev_opt(cdown, cdown->ev->opt | EV_W);
+                    if (cup->ev->opt & EV_R) ev_opt(cup, cup->ev->opt & (~EV_R));
                     return -11;
-                    ///meta remain data. but kernel full. next time will call write cb if kernel have space
                 } else if (sendn == -1) {
                     err("tls tunnel teminate. (cdown send)\n");
                     net_free(cup);
@@ -221,9 +217,7 @@ static int tls_tunnel_traffic_reverse_recv(con_t *c) {
             cup->meta->pos += sendn;
         }
 
-        ///if send all over. try recv again. to know kernel empty or not 
         if (ses->frecv_err_down) {
-            ///if error. free session
             err("tls tunnel teminate. (cup recv)\n");
             net_free(cup);
             net_free(cdown);
@@ -244,49 +238,49 @@ static int tls_tunnel_traffic_reverse_send(con_t *c) {
     EZ_TMADD(cdown, tls_ses_exp, TLS_TUNNEL_TMOUT);
 
     for (;;) {
-        ///try to send 
         while (meta_getlen(cup->meta) > 0) {
             sendn = cdown->send(cdown, cup->meta->pos, meta_getlen(cup->meta));
             if (sendn < 0) {
                 if (sendn == -1) {
-                    err("tls tunnel teminate. (by cdown send)\n");
+                    err("tls tunnel teminate. (cdown send)\n");
                     net_free(cup);
                     net_free(cdown);
                     return -1;
                 }
-                ///meta remain data. but kernel full. next time will call write cb if kernel have space
                 return -11;
             }
             cup->meta->pos += sendn;
         }
-        ///meta empty
+        
+        if (ses->frecv_err_down) {
+            err("tls tunnel teminate. (cup recv)\n");
+            net_free(cup);
+            net_free(cdown);
+            return -1;
+        }
         meta_clr(cup->meta);
 
-        ///try to recv again. don't know kernel is empty or not 
         while (meta_getfree(cup->meta) > 0) {
             int recvn = cup->recv(cup, cup->meta->last, meta_getfree(cup->meta));
             if (recvn < 0) {
                 if (recvn == -1) {
                     ses->frecv_err_down = 1;
+                    if (meta_getlen(cup->meta) < 1) {
+                        err("tls tunnel teminate. (cup recv)\n");
+                        net_free(cup);
+                        net_free(cdown);
+                        return -1;
+                    }
                 } else if (recvn == -11) {
-		    ///do nothing
+                    if (meta_getlen(cup->meta) < 1) {
+                        if (cdown->ev->opt & EV_W) ev_opt(cdown, cdown->ev->opt & (~EV_W));
+                        if (!(cup->ev->opt & EV_R)) ev_opt(cup, cup->ev->opt | EV_R);
+                        return -11;
+                    }
                 }
-                break; /// break when -11 (EAGAIN) or -1
+                break;
             }
             cup->meta->last += recvn;
-        }
-
-        ///meta empty. back to read cb(kernel must be empty. becasue have manual recv before this)
-        if (meta_getlen(cup->meta) < 1) {
-            ///if recv error. free session
-            if (ses->frecv_err_down) {
-                err("tls tunnel teminate. (by cup recv)\n");
-                net_free(cup);
-                net_free(cdown);
-                return -1;
-            }
-            ev_opt(cdown, cdown->ev->opt & ~(EV_W));
-            break;
         }
     }
     return -11;
