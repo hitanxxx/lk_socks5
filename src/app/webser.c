@@ -134,8 +134,11 @@ static int webser_keepalive(con_t *c) {
 }
 
 void *webser_rsp_mime(webser_t *webser, char *mimetype) {
-    void *typ = ezhash_find(g_web_ctx->mime_hash, mimetype, strlen(mimetype));
-    return typ ? typ : "text/plain";
+    if (mimetype) {
+        return ezhash_find(g_web_ctx->mime_hash, mimetype, strlen(mimetype));
+    } else {
+        return "text/plain";
+    }
 }
 
 static int webser_rsp_payload_send_api(con_t *c) {
