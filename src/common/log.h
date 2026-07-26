@@ -10,7 +10,9 @@ extern "C" {
 #define LOG_ID_MAIN 0
 #define LOG_ID_ACCESS 1
 
-enum e_log_level { LOG_LEVEL_ERROR = 0x0, LOG_LEVEL_INFO, LOG_LEVEL_DEBUG };
+enum  { LOG_LEVEL_ERROR = 0x0,
+        LOG_LEVEL_INFO,
+        LOG_LEVEL_DEBUG } ;
 
 #define err(...)                                                               \
     log_print(LOG_ID_MAIN, LOG_LEVEL_ERROR, __func__, __LINE__, ##__VA_ARGS__)
@@ -22,7 +24,7 @@ enum e_log_level { LOG_LEVEL_ERROR = 0x0, LOG_LEVEL_INFO, LOG_LEVEL_DEBUG };
 typedef struct {
     uint32_t level;
     uint32_t id;
-    int line;
+    uint32_t line;
     const char *func;
     const char *args;
 

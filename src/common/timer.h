@@ -8,18 +8,19 @@ extern "C" {
 typedef void (*timer_cb)(void *data);
 typedef struct ev_timer_s {
     heap_node_t node;
-    unsigned char f_timeset : 1;
-    unsigned char f_timeout : 1;
-    unsigned char reserve : 2;
 
     timer_cb cb;
     void *data;
+    
+    uint8_t f_timeset : 1;
+    uint8_t f_timeout : 1;
+    uint8_t reserve : 2;
 } ev_timer_t;
 
 int tm_add(ev_timer_t *timer, timer_cb cb, void *data, int delay_ms);
 int tm_del(ev_timer_t *timer);
 
-int timer_expire(int *wait_ms);
+int timer_remaining(uint64_t *wait_ms);
 int timer_init(void);
 int timer_end(void);
 

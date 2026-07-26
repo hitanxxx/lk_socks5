@@ -5,21 +5,32 @@
 extern "C" {
 #endif
 
-#define MAXPROCESS 128
+#define MAXPROCESS 32
 
 typedef struct {
-    uint32_t sequence_num;
+    uint32_t seq;
     pid_t pid;
-
-    int32_t exited;
+    uint8_t exited;
 } process_t;
 
-void proc_master_run(void);
-void proc_worker_run(void);
+typedef struct {
+    
+    uint8_t     pmaster;
+    uint32_t    signal;
+    sig_atomic_t sig_quit;
+    sig_atomic_t sig_reap;
+    sig_atomic_t sig_reload;
 
-int proc_pid();
-int proc_pid_form_file(pid_t *pid);
-int proc_signal_send(pid_t pid, int signal);
+    process_t   *pcur;
+    process_t   parr[];
+} process_ctx_t;
+
+
+extern process_ctx_t *g_proc_ctx;
+
+void proc_master_task(void);
+void proc_worker_task(void);
+
 int process_end(void);
 int process_init(void);
 

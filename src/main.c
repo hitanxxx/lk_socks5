@@ -2,88 +2,84 @@
 #include "modules.h"
 #include "test_main.h"
 
-int proc_daemon(void) {
-    if (!config_get()->sys_daemon)
-        return 0;
-
-    int rc = fork();
-    schk(rc >= 0, return -1);
-
-    if (rc == 0) { /// child
-        schk(setsid() != -1, return -1);
-        umask(0);
-        int fd = open("/dev/null", O_RDWR);
-        schk(fd != -1, return -1);
-        schk(dup2(fd, STDIN_FILENO) != -1, return -1);
-        schk(dup2(fd, STDOUT_FILENO) != -1, return -1);
-#if 0
-        schk(dup2(fd, STDERR_FILENO) != -1, return -1);
-#endif
-        close(fd);
-    } else if (rc > 0) { /// parent
-        exit(EXIT_SUCCESS);
+void s5_daemon(void) {
+    if (config_get()->sys_daemon) {
+        int ret = fork();
+        if (ret < 0) {
+            err("daemon. fork err. [%d]\n", errno);
+            exit(EXIT_FAILURE);
+        } else if (ret > 0) {
+            exit(EXIT_SUCCESS);
+        } else if (ret == 0) {
+            if (setsid() < 0) {
+                err("daemon. setsid err. [%d]\n", errno);
+                exit(EXIT_FAILURE);
+            }
+            int fd = open("/dev/null", O_RDWR);
+            if (fd >= 0) {
+                dup2(fd, STDIN_FILENO);
+                dup2(fd, STDOUT_FILENO);
+                close(fd);
+            }
+        }
     }
-    return 0;
+    return;
 }
 
-/// @brief storge pid file into file
-/// @return
-int proc_pid_create(void) {
+void s5_save_pid(void) {
     char str[32] = {0};
-
-    int fd = open(S5_PATH_PID, O_CREAT | O_RDWR | O_TRUNC, 0644);
-    schk(fd != -1, return -1);
     sprintf(str, "%d", getpid());
-    int writen = write(fd, str, strlen(str));
-    close(fd);
-    schk(writen == strlen(str), return -1);
-    return 0;
+
+    if (0 != sys_file_write_data(S5_PATH_PID, str, strlen(str))) {
+        err("save pid. err [%d]\n", errno);
+    }
+    return;
 }
 
-/// @brief process cmd line params
-/// @param argc
-/// @param argv
-/// @return
-int option_parse(int argc, char *argv[]) {
-    pid_t pid;
-    char *opt_string = NULL;
-    int opt_type = -1;
-
-    if (argc < 2)
-        return 0; /// common startup
+void s5_command(int argc, char **argv) {
+    if (argc < 2) return;
     if (argc > 2) {
-        ahead_dbg("argc [%d] too much. only support 1 parameter\n", argc);
-        exit(EXIT_SUCCESS);
+        ahead_dbg("cmd number [%d] too much. only support 1 parameter\n", argc);
+        exit(EXIT_FAILURE);
+    }
+    ahead_dbg("[%s]\n", argv[1]);
+    
+    int sig = 0xff;
+    char *cmd = argv[1];
+    if ((strlen("-reload") == strlen(cmd)) && !strncmp("-reload", cmd, strlen("-reload"))) {
+        sig = SIGHUP;
+    } else if ((strlen("-stop") == strlen(cmd)) && !strncmp("-stop", cmd, strlen("-stop"))) {
+        sig = SIGINT;
+    } else {
+        ahead_dbg("cmd [%s] not support\n", cmd);
+        exit(EXIT_FAILURE);
     }
 
-    int i = 0;
-    for (i = 0; i < argc; i++) {
-        dbg("argv[%d] [%s]\n", i, argv[i]);
+    sys_data_t *pdata = sys_file_read_value(S5_PATH_PID);
+    if (pdata) {
+        pid_t pid = strtol(pdata->data, NULL, 10);
+        sys_free(pdata);
+        if (0 != kill(pid, sig)) {
+            ahead_dbg("cmd send sig [%d] to pid [%d] err. [%d]\n", sig, pid, errno);
+            exit(EXIT_FAILURE);
+        }
+    } else {
+        ahead_dbg("cmd get pid err. [%d]\n", errno);
+        exit(EXIT_FAILURE);
     }
-
-    do {
-        opt_string = argv[1];
-        if ((strlen("-reload") == strlen(opt_string)) &&
-            !strncmp("-reload", opt_string, strlen("-reload"))) {
-            opt_type = 1;
-        } else if ((strlen("-stop") == strlen(opt_string)) &&
-                   !strncmp("-stop", opt_string, strlen("-stop"))) {
-            opt_type = 2;
-        } else {
-            ahead_dbg("argv [%s] not support\n", opt_string);
-            break;
-        }
-        if (0 != proc_pid_form_file(&pid)) {
-            ahead_dbg("get pid of current running program err, [%d]\n", errno);
-            break;
-        }
-        if (0 != proc_signal_send(pid, opt_type)) {
-            ahead_dbg("send signal to current running program err\n");
-            break;
-        }
-    } while (0);
+    
     exit(EXIT_SUCCESS); /// process cmdline, always exit
-    return 0;
+    return;
+}
+
+static void s5_rename(int argc, char **argv) {
+    size_t space = 0;
+    for (int i = 0; i < argc; i++) {
+        space += strlen(argv[i]) + 1;
+    }
+    memset(argv[0], 0x0, space); /// wipe existing args
+    strncpy(argv[0], "s5", space - 1);
+    return;
 }
 
 #if defined(TEST)
@@ -98,32 +94,25 @@ int main(int argc, char **argv) {
     ahead_dbg(" /\\_/\\\n");
     ahead_dbg("( o.o )\n");
     ahead_dbg(" > ^ <\n");
+    ahead_dbg("OpenSSL ver [%s]\n", OPENSSL_VERSION_TEXT);
 
-    setpriority(PRIO_PROCESS, 0, -20); /// set higiest priority
+    s5_command(argc, argv);
+    s5_rename(argc, argv);
     systime_update();
-    schk(0 == option_parse(argc, argv), return -1);
-
-    /// rename process name
-    size_t space = 0;
-    int i = 0;
-    for (i = 0; i < argc; i++) {
-        size_t length = strlen(argv[i]);
-        space += length + 1;
-    }
-    memset(argv[0], '\0', space); /// wipe existing args
-    strncpy(argv[0], "s5", space - 1);
-    /// end of rename
-
+    
     schk(0 == config_init(), return -1);
-    schk(0 == proc_daemon(), return -1);
-    schk(0 == proc_pid_create(), return -1);
-    schk(0 == modules_core_init(), {
-        unlink(S5_PATH_PID);
-        return -1;
-    });
+    schk(0 == log_init(), return -1);
+    schk(0 == process_init(), return -1);
+    schk(0 == listen_init(), return -1);
 
-    config_get()->sys_process_num > 0 ? proc_master_run() : proc_worker_run();
-    modules_core_exit();
+    s5_daemon();
+    s5_save_pid();
+    
+    config_get()->sys_process_num > 0 ? proc_master_task() : proc_worker_task();
+
+    schk(0 == log_end(), return -1);
+    schk(0 == process_end(), return -1);
+    schk(0 == listen_end(), return -1);
     unlink(S5_PATH_PID);
     return 0;
 }

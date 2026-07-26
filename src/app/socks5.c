@@ -4,11 +4,11 @@
 #include "tls_tunnel_s.h"
 
 static int s5_try_read(con_t *cdown) {
-    tls_tunnel_session_t *ses = cdown->data;
+    tls_tunnel_session_t *session = cdown->data;
 
     if (0 != net_socket_check_status(cdown->fd)) {
         err("tls tunnel. socket chk err\n");
-        net_free(ses->cup);
+        net_free(session->cup);
         net_free(cdown);
         return -1;
     }
@@ -16,7 +16,7 @@ static int s5_try_read(con_t *cdown) {
 }
 
 int s5_p2_rsp(con_t *cdown) {
-    tls_tunnel_session_t *ses = cdown->data;
+    tls_tunnel_session_t *session = cdown->data;
     meta_t *meta = cdown->meta;
     int rc = 0;
 
@@ -25,11 +25,11 @@ int s5_p2_rsp(con_t *cdown) {
         if (rc < 0) {
             if (rc == -11) {
                 ev_opt(cdown, EV_W);
-                EZ_TMADD(cdown, tls_ses_exp, TLS_TUNNEL_TMOUT);
+                EZ_TMADD(cdown, tls_session_timeout_release, TLS_TUNNEL_TMOUT);
                 return -11;
             }
             err("TLS tunnel. s5p2 rsp send failed\n");
-            net_free(ses->cup);
+            net_free(session->cup);
             net_free(cdown);
             return -1;
         }
@@ -44,8 +44,8 @@ int s5_p2_rsp(con_t *cdown) {
 }
 
 int s5_cup_connect_chk(con_t *cup) {
-    tls_tunnel_session_t *ses = cup->data;
-    con_t *cdown = ses->cdown;
+    tls_tunnel_session_t *session = cup->data;
+    con_t *cdown = session->cdown;
     meta_t *meta = cdown->meta;
 
     EZ_TMDEL(cup);
@@ -85,7 +85,7 @@ int s5_cup_connect(con_t *cup) {
     rc = net_connect(ses->cup, &ses->cup->addr);
     if (rc < 0) {
         if (rc == -11) {
-            EZ_TMADD(cup, tls_ses_exp, TLS_TUNNEL_TMOUT);
+            EZ_TMADD(cup, tls_session_timeout_release, TLS_TUNNEL_TMOUT);
             return -11;
         }
         err("socks5 connect err\n");
@@ -97,9 +97,9 @@ int s5_cup_connect(con_t *cup) {
 }
 
 void s5_cup_dns_cb(int status, unsigned char *result, void *data) {
-    tls_tunnel_session_t *ses = data;
-    dnsc_t *dnsc = ses->dns;
-    s5_t *s5 = (s5_t *)ses->adata;
+    tls_tunnel_session_t *session = data;
+    dnsc_t *dnsc = session->dns;
+    s5_t *s5 = (s5_t *)session->adata;
     s5_ph2_req_t *s5p2 = &s5->s5p2;
     char ipstr[128] = {0};
 
@@ -112,25 +112,25 @@ void s5_cup_dns_cb(int status, unsigned char *result, void *data) {
         // after result used
         dns_free(dnsc);
 
-        ses->cup->addr.sin_family = AF_INET;
-        ses->cup->addr.sin_port = addr_port;
-        ses->cup->addr.sin_addr.s_addr = inet_addr(ipstr);
+        session->cup->addr.sin_family = AF_INET;
+        session->cup->addr.sin_port = addr_port;
+        session->cup->addr.sin_addr.s_addr = inet_addr(ipstr);
 
-        ses->cup->ev->read_cb = NULL;
-        ses->cup->ev->write_cb = s5_cup_connect;
-        ses->cup->ev->write_cb(ses->cup);
+        session->cup->ev->read_cb = NULL;
+        session->cup->ev->write_cb = s5_cup_connect;
+        session->cup->ev->write_cb(session->cup);
     } else {
         err("TLS tunnel. dns resolv failed\n");
         dns_free(dnsc);
-        net_free(ses->cup);
-        net_free(ses->cdown);
+        net_free(session->cup);
+        net_free(session->cdown);
     }
     return;
 }
 
 int s5_cup_addr(con_t *cdown) {
-    tls_tunnel_session_t *ses = cdown->data;
-    s5_t *s5 = (s5_t *)ses->adata;
+    tls_tunnel_session_t *session = cdown->data;
+    s5_t *s5 = (s5_t *)session->adata;
     s5_ph2_req_t *s5p2 = &s5->s5p2;
     char ipstr[128] = {0};
 
@@ -138,48 +138,43 @@ int s5_cup_addr(con_t *cdown) {
     cdown->ev->write_cb = NULL;
 
     if (s5p2->atyp == S5_RFC_IPV4 || s5p2->atyp == S5_RFC_DOMAIN) {
-        schk(net_alloc(&ses->cup) == 0, {
+        schk(net_alloc(&session->cup) == 0, {
             net_free(cdown);
             return -1;
         });
-        ses->cup->data = ses;
-        ses->cup->data_cb = tls_ses_release_cup;
+        session->cup->data = session;
+        session->cup->data_cb = tls_session_release_by_cup;
 
         if (s5p2->atyp == S5_RFC_IPV4) {
             uint16_t addr_port = 0;
             memcpy(&addr_port, s5p2->dst_port, sizeof(uint16_t));
             snprintf(ipstr, sizeof(ipstr), "%d.%d.%d.%d",
-                     (unsigned char)s5p2->dst_addr[0],
-                     (unsigned char)s5p2->dst_addr[1],
-                     (unsigned char)s5p2->dst_addr[2],
-                     (unsigned char)s5p2->dst_addr[3]);
+                s5p2->dst_addr[0], s5p2->dst_addr[1], 
+                s5p2->dst_addr[2], s5p2->dst_addr[3]);
 
-            ses->cup->addr.sin_family = AF_INET;
-            ses->cup->addr.sin_port = addr_port;
-            ses->cup->addr.sin_addr.s_addr = inet_addr(ipstr);
+            session->cup->addr.sin_family = AF_INET;
+            session->cup->addr.sin_port = addr_port;
+            session->cup->addr.sin_addr.s_addr = inet_addr(ipstr);
 
-            ses->cup->ev->read_cb = NULL;
-            ses->cup->ev->write_cb = s5_cup_connect;
-            return ses->cup->ev->write_cb(ses->cup);
+            session->cup->ev->read_cb = NULL;
+            session->cup->ev->write_cb = s5_cup_connect;
+            return session->cup->ev->write_cb(session->cup);
         }
         /// DOMAIN typ
         if (0 == dns_rec_find((char *)s5p2->dst_addr, ipstr)) {
             uint16_t addr_port = 0;
             memcpy(&addr_port, s5p2->dst_port, sizeof(uint16_t));
-            snprintf(ipstr, sizeof(ipstr), "%d.%d.%d.%d",
-                     (unsigned char)ipstr[0], (unsigned char)ipstr[1],
-                     (unsigned char)ipstr[2], (unsigned char)ipstr[3]);
+            snprintf(ipstr, sizeof(ipstr), "%d.%d.%d.%d", ipstr[0], ipstr[1], ipstr[2], ipstr[3]);
 
-            ses->cup->addr.sin_family = AF_INET;
-            ses->cup->addr.sin_port = addr_port;
-            ses->cup->addr.sin_addr.s_addr = inet_addr(ipstr);
+            session->cup->addr.sin_family = AF_INET;
+            session->cup->addr.sin_port = addr_port;
+            session->cup->addr.sin_addr.s_addr = inet_addr(ipstr);
 
-            ses->cup->ev->read_cb = NULL;
-            ses->cup->ev->write_cb = s5_cup_connect;
-            return ses->cup->ev->write_cb(ses->cup);
+            session->cup->ev->read_cb = NULL;
+            session->cup->ev->write_cb = s5_cup_connect;
+            return session->cup->ev->write_cb(session->cup);
         } else {
-            return dns_alloc(&ses->dns, (char *)s5p2->dst_addr, s5_cup_dns_cb,
-                             ses);
+            return dns_alloc(&session->dns, (char *)s5p2->dst_addr, s5_cup_dns_cb, session);
         }
     }
 
@@ -189,7 +184,7 @@ int s5_cup_addr(con_t *cdown) {
 }
 
 int s5_p2_req(con_t *cdown) {
-    unsigned char *p = NULL;
+    uint8_t *p = NULL;
 
     tls_tunnel_session_t *ses = cdown->data;
     s5_t *s5 = (s5_t *)ses->adata;
@@ -220,7 +215,7 @@ int s5_p2_req(con_t *cdown) {
             int recvn = cdown->recv(cdown, meta->last, meta_getfree(meta));
             if (recvn < 0) {
                 if (recvn == -11) {
-                    EZ_TMADD(cdown, tls_ses_exp, TLS_TUNNEL_TMOUT);
+                    EZ_TMADD(cdown, tls_session_timeout_release, TLS_TUNNEL_TMOUT);
                     return -11;
                 }
                 err("s5p2 recv failed\n");
@@ -351,7 +346,7 @@ int s5_p1_rsp(con_t *cdown) {
         if (sendn < 0) {
             if (sendn == -11) {
                 ev_opt(cdown, EV_W);
-                EZ_TMADD(cdown, tls_ses_exp, TLS_TUNNEL_TMOUT);
+                EZ_TMADD(cdown, tls_session_timeout_release, TLS_TUNNEL_TMOUT);
                 return -11;
             }
             err("s5p1 rsp send failed\n");
@@ -370,8 +365,8 @@ int s5_p1_rsp(con_t *cdown) {
 }
 
 int s5_p1_req(con_t *cdown) {
-    tls_tunnel_session_t *ses = cdown->data;
-    s5_t *s5 = (s5_t *)ses->adata;
+    tls_tunnel_session_t *session = cdown->data;
+    s5_t *s5 = (s5_t *)session->adata;
     s5_ph1_req_t *s5p1 = &s5->s5p1;
     unsigned char *p = NULL;
     meta_t *meta = cdown->meta;
@@ -387,7 +382,7 @@ int s5_p1_req(con_t *cdown) {
             int recvn = cdown->recv(cdown, meta->last, meta_getfree(meta));
             if (recvn < 0) {
                 if (recvn == -11) {
-                    EZ_TMADD(cdown, tls_ses_exp, TLS_TUNNEL_TMOUT);
+                    EZ_TMADD(cdown, tls_session_timeout_release, TLS_TUNNEL_TMOUT);
                     return -11;
                 }
                 err("s5p1 recv failed\n");

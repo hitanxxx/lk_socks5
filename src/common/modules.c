@@ -24,24 +24,6 @@
 // webser
 // dns
 
-/// @brief core modules means need by all process include master process and
-/// worke process
-/// @param
-/// @return
-int modules_core_init(void) {
-    schk(0 == log_init(), return -1);
-    schk(0 == process_init(), return -1);
-    schk(0 == listen_init(), return -1);
-    return 0;
-}
-
-int modules_core_exit(void) {
-    schk(0 == log_end(), return -1);
-    schk(0 == process_end(), return -1);
-    schk(0 == listen_end(), return -1);
-    return 0;
-}
-
 /// @brief modules process means only need in worker process
 /// @param
 /// @return

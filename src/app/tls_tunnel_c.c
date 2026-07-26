@@ -5,15 +5,15 @@
 
 static int tls_tunnel_c_recv(con_t *cdown) {
     /// cache read data
-    tls_tunnel_session_t *ses = cdown->data;
+    tls_tunnel_session_t *session = cdown->data;
     meta_t *meta = cdown->meta;
     int readn = 0;
 
     for (;;) {
         if (meta_getfree(meta) < 1) {
             err("TLS tunnel cdown recv ccdata too much\n");
-            net_free(ses->cup);
-            net_free(ses->cdown);
+            net_free(session->cup);
+            net_free(session->cdown);
             return -1;
         }
 
@@ -23,43 +23,45 @@ static int tls_tunnel_c_recv(con_t *cdown) {
             if (readn == -11) {
                 return -11;
             }
-            net_free(ses->cup);
-            net_free(ses->cdown);
+            net_free(session->cup);
+            net_free(session->cdown);
             return -1;
         }
         meta->last += readn;
     }
 }
 
-static inline void tls_tunnel_s_addr(struct sockaddr_in *addr) {
+static inline int tls_tunnel_s_addr(struct sockaddr_in *addr) {
     memset(addr, 0, sizeof(struct sockaddr_in));
     addr->sin_family = AF_INET;
     addr->sin_port = htons(config_get()->s5_local_serv_port);
     addr->sin_addr.s_addr = inet_addr(config_get()->s5_local_serv_ip);
+
+    return ((addr->sin_addr.s_addr == INADDR_NONE) ? -1 : 0);
 }
 
 static int tls_tunnel_c_auth_send(con_t *cup) {
-    tls_tunnel_session_t *ses = cup->data;
+    tls_tunnel_session_t *session = cup->data;
     meta_t *meta = cup->meta;
 
     int sendn = cup->send_chain(cup, meta);
     if (sendn < 0) {
         if (sendn == -11) {
-            EZ_TMADD(cup, tls_ses_exp, TLS_TUNNEL_TMOUT);
+            EZ_TMADD(cup, tls_session_timeout_release, TLS_TUNNEL_TMOUT);
             return -11;
         }
         err("TLS tunnel auth req send err\n");
         net_free(cup);
-        net_free(ses->cdown);
+        net_free(session->cdown);
         return -1;
     }
 
     EZ_TMDEL(cup);
     meta_clr(meta);
 
-    ses->cdown->ev->read_cb = tls_tunnel_traffic_proc;
-    ses->cdown->ev->write_cb = NULL;
-    return ses->cdown->ev->read_cb(ses->cdown);
+    session->cdown->ev->read_cb = tls_tunnel_traffic_proc;
+    session->cdown->ev->write_cb = NULL;
+    return session->cdown->ev->read_cb(session->cdown);
 }
 
 static int tls_tunnel_c_auth_build(con_t *cup) {
@@ -81,13 +83,13 @@ static int tls_tunnel_c_auth_build(con_t *cup) {
 }
 
 static int tls_tunnel_c_connect_ssl(con_t *cup) {
-    tls_tunnel_session_t *ses = cup->data;
+    tls_tunnel_session_t *session = cup->data;
 
     if (!cup->ssl) {
         if (0 != ssl_create_connection(cup, L_SSL_CLIENT)) {
             err("tls tunnel c. ssl create err\n");
             net_free(cup);
-            net_free(ses->cdown);
+            net_free(session->cdown);
             return -1;
         }
         cup->ssl->cc_ev_cbr = cup->ev->read_cb;
@@ -98,7 +100,7 @@ static int tls_tunnel_c_connect_ssl(con_t *cup) {
     if (cup->ssl->f_err) {
         err("tls tunnel c. ssl handshake error\n");
         net_free(cup);
-        net_free(ses->cdown);
+        net_free(session->cdown);
         return -1;
     }
 
@@ -107,12 +109,12 @@ static int tls_tunnel_c_connect_ssl(con_t *cup) {
         int rc = ssl_handshake(cup);
         if (rc < 0) {
             if (rc == -11) {
-                EZ_TMADD(cup, tls_ses_exp, TLS_TUNNEL_TMOUT);
+                EZ_TMADD(cup, tls_session_timeout_release, TLS_TUNNEL_TMOUT);
                 return -11;
             }
             err("TLS tunnel. handshake failed\n");
             net_free(cup);
-            net_free(ses->cdown);
+            net_free(session->cdown);
             return -1;
         }
     }
@@ -127,24 +129,22 @@ static int tls_tunnel_c_connect_ssl(con_t *cup) {
 }
 
 static int tls_tunnel_c_connect_chk(con_t *cup) {
-    tls_tunnel_session_t *ses = cup->data;
+    tls_tunnel_session_t *session = cup->data;
 
     EZ_TMDEL(cup);
 
     if (0 != net_socket_check_status(cup->fd)) {
         err("tls tunnel. socket chk err\n");
         net_free(cup);
-        net_free(ses->cdown);
+        net_free(session->cdown);
         return -1;
     }
 
     cup->ev->write_cb = tls_tunnel_c_connect_ssl;
-    return cup->ev->write_cb(ses->cup);
+    return cup->ev->write_cb(session->cup);
 }
 
 int tls_tunnel_c_accept(con_t *cdown) {
-    tls_tunnel_session_t *ses = NULL;
-
     EZ_TMDEL(cdown);
 
     if (!cdown->meta) {
@@ -155,49 +155,54 @@ int tls_tunnel_c_accept(con_t *cdown) {
         }
     }
 
-    if (0 != tls_ses_alloc(&ses)) {
+    tls_tunnel_session_t *session = NULL;
+    if (0 != tls_session_alloc(&session)) {
         net_free(cdown);
         return -1;
     }
-
-    ses->cdown = cdown;
-    cdown->data = ses;
-    cdown->data_cb = tls_ses_release_cdown;
+    session->cdown = cdown;
+    cdown->data = session;
+    cdown->data_cb = tls_session_release_by_cdown;
 
     cdown->ev->read_cb = tls_tunnel_c_recv;
     cdown->ev->write_cb = NULL;
 
-    if (0 != net_alloc(&ses->cup)) {
+    if (0 != net_alloc(&session->cup)) {
         net_free(cdown);
         return -1;
     }
     
-    ses->cup->data = ses;
-    ses->cup->data_cb = tls_ses_release_cup;
-    if (!ses->cup->meta) {
-        if (0 != meta_alloc(&ses->cup->meta, TLS_TUNNEL_METAN)) {
+    session->cup->data = session;
+    session->cup->data_cb = tls_session_release_by_cup;
+    if (!session->cup->meta) {
+        if (0 != meta_alloc(&session->cup->meta, TLS_TUNNEL_METAN)) {
             err("TLS tunnel c. alloc up meta.\n");
-            net_free(ses->cup);
+            net_free(session->cup);
             net_free(cdown);
             return -1;
         }
     }
 
-    ses->cup->ev->read_cb = NULL;
-    ses->cup->ev->write_cb = tls_tunnel_c_connect_chk;
+    session->cup->ev->read_cb = NULL;
+    session->cup->ev->write_cb = tls_tunnel_c_connect_chk;
 
     ///!!!can not set EV_W in here, because not open fd now
     ///ev_opt(ses->cup, EV_W);
 
-    tls_tunnel_s_addr(&ses->cup->addr);
-    int rc = net_connect(ses->cup, &ses->cup->addr);
+    if (0 != tls_tunnel_s_addr(&session->cup->addr)) {
+        err("Tls tunnel c. server addr illegal\n");
+        net_free(session->cup);
+        net_free(cdown);
+        return -1;
+    }
+    int rc = net_connect(session->cup, &session->cup->addr);
     if (rc < 0) {
         if (rc == -11) {
-            EZ_TMADD(ses->cup, tls_ses_exp, TLS_TUNNEL_TMOUT);
+            EZ_TMADD(session->cup, tls_session_timeout_release, TLS_TUNNEL_TMOUT);
             ///return -11;
         } else {
             err("TLS tunnel cup connect failed\n");
-            net_free(ses->cup);
+            net_free(session->cup);
             net_free(cdown);
             return -1;
         }

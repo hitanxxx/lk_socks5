@@ -11,35 +11,35 @@ extern "C" {
 #define S5_RFC_DOMAIN 0x3
 
 typedef struct {
-    unsigned char ver;
-    unsigned char methods_n;
-    unsigned char methods_cnt;
-    unsigned char methods[255];
+    uint8_t ver;
+    uint8_t methods_n;
+    uint8_t methods_cnt;
+    uint8_t methods[255];
 } s5_ph1_req_t;
 
 typedef struct {
-    unsigned char ver;
-    unsigned char method;
+    uint8_t ver;
+    uint8_t method;
 } __attribute__((packed)) s5_ph1_rsp_t;
 
 typedef struct {
-    unsigned char ver;
-    unsigned char cmd;
-    unsigned char rsv;
-    unsigned char atyp;
-    unsigned char dst_addr_n;
-    unsigned char dst_addr_cnt;
-    unsigned char dst_addr[DOMAIN_LENGTH];
-    unsigned char dst_port[2];
+    uint8_t ver;
+    uint8_t cmd;
+    uint8_t rsv;
+    uint8_t atyp;
+    uint8_t dst_addr_n;
+    uint8_t dst_addr_cnt;
+    uint8_t dst_addr[DOMAIN_LENGTH];
+    uint8_t dst_port[2];
 } s5_ph2_req_t;
 
 typedef struct {
-    unsigned char ver;
-    unsigned char rep;
-    unsigned char rsv;
-    unsigned char atyp;
-    unsigned int bnd_addr;
-    unsigned short bnd_port;
+    uint8_t ver;
+    uint8_t rep;
+    uint8_t rsv;
+    uint8_t atyp;
+    uint8_t bnd_addr;
+    uint8_t bnd_port;
 } __attribute__((packed)) s5_ph2_rsp_t;
 
 typedef struct {

@@ -13,29 +13,30 @@ extern "C" {
 #define TLS_AUTH_MG2 0x86
 
 typedef struct {
-    char typ;   /// work mode: (c:1)/(s:2)/(s screct:3)
-    char state; /// auth state
-    unsigned char frecv_err_down : 1;
-    unsigned char frecv_err_up : 1;
+    uint8_t typ;   /// work mode: (c:1)/(s:2)/(s screct:3)
+    ///auth data
+    uint8_t     auth_data_all;
+    uint8_t     auth_data_recv;
+    uint8_t     auth_data[32];
+    uint8_t     auth_state; /// auth state
+    
+    ///tunnel use protocol
+    int atyp;
+    void *adata;
+
     con_t *cdown;
     con_t *cup;
 
     dnsc_t *dns;
 
-    ///auth data
-    unsigned char    auth_data_all;
-    unsigned char    auth_data_recv;
-    unsigned char    auth_data[32];
-    
-    ///tunnel use protocol
-    int atyp;
-    void *adata;
+    uint8_t frecv_err_down : 1;
+    uint8_t frecv_err_up : 1;
 } tls_tunnel_session_t;
 
-int tls_ses_alloc(tls_tunnel_session_t **ses);
-void tls_ses_exp(void *data);
-void tls_ses_release_cdown(void *data);
-void tls_ses_release_cup(void *data);
+int tls_session_alloc(tls_tunnel_session_t **session);
+void tls_session_timeout_release(void *data);
+void tls_session_release_by_cdown(void *data);
+void tls_session_release_by_cup(void *data);
 
 int tls_tunnel_traffic_proc(con_t *c);
 int tls_tunnel_s_start(con_t *c);

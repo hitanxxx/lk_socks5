@@ -21,10 +21,10 @@ typedef struct {
     ev_cb cc_ev_cbr;
     ev_cb cc_ev_cbw;
 
-    unsigned char f_handshakeing : 1;
-    unsigned char f_handshaked : 1;
-    unsigned char f_err : 1;
-    unsigned char f_closed : 1;
+    uint8_t f_handshakeing : 1;
+    uint8_t f_handshaked : 1;
+    uint8_t f_err : 1;
+    uint8_t f_closed : 1;
 } ssl_con_t;
 
 int ssl_init(void);

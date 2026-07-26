@@ -5,8 +5,8 @@
 extern "C" {
 #endif
 
-int systime_update(void);
-long long systime_msec(void);
+void systime_update(void);
+uint64_t systime_msec(void);
 char *systime_gmt(void);
 char *systime_log(void);
 

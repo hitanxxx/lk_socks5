@@ -508,7 +508,7 @@ int webser_chk_s5_or_web(con_t *c) {
                 net_free(c);
                 return -1;
             } else if (recvd == -11) {
-                EZ_TMADD(c, net_exp, WEB_TMOUT);
+                EZ_TMADD(c, net_timeout_release, WEB_TMOUT);
                 return -11;
             }
         }
@@ -549,7 +549,7 @@ int webser_accept_cb_ssl(con_t *c) {
         int rc = ssl_handshake(c);
         if (rc < 0) {
             if (rc == -11) {
-                EZ_TMADD(c, net_exp, WEB_TMOUT);
+                EZ_TMADD(c, net_timeout_release, WEB_TMOUT);
                 return -11;
             }
             err("webser ssl handshake failed\n");

@@ -54,9 +54,35 @@ extern "C" {
 #include <openssl/evp.h>
 #include <openssl/ssl.h>
 
-/// for ahead tips
-#define ahead_dbg(format, ...)                                                 \
-    printf("[Ahead tips]-%s:%d " format, __func__, __LINE__, ##__VA_ARGS__)
+
+#define MASK_SET(mask, bit) ({                \
+    typeof(mask) __m = (mask);               \
+    typeof(bit)  __b = (bit);                \
+    __m |= __b;                              \
+    __m;                                     \
+})
+
+#define MASK_CLR(mask, bit) ({                \
+    typeof(mask) __m = (mask);               \
+    typeof(bit)  __b = (bit);                \
+    __m &= ~(__b);                           \
+    __m;                                     \
+})
+
+
+/// for ahead log
+#define ahead_dbg(format, ...) \
+    do {  \
+        fprintf(stderr, "[Ahead DBG]-%s:%d " format, __func__, __LINE__, ##__VA_ARGS__); \
+        fflush(stderr); \
+    } while (0);
+
+#define ahead_err(format, ...) \
+    do {  \
+        fprintf(stderr, "[Ahead ERR]-%s:%d " format, __func__, __LINE__, ##__VA_ARGS__); \
+        fflush(stderr); \
+    } while (0);
+
 
 /// open port limit
 #define L_OPEN_PORT_MAX 64
@@ -83,7 +109,7 @@ extern "C" {
 #define UNLIKELY(x) __builtin_expect(!!(x), 0)
 #define schk(x, actions)                                                       \
     if (UNLIKELY(!(x))) {                                                      \
-        err("schk assert failed. -> \"" #x "\". [%d]\n", errno);               \
+        err("schk err -> \"" #x "\".\n");                                      \
         actions;                                                               \
     }
 #define sassert(x) schk(x, abort())
@@ -156,8 +182,19 @@ typedef int (*ev_cb)(con_t *c);
 #define l_max(x, y) (((x) > (y)) ? (x) : (y))
 
 #define ptr_get_struct(ptr, struct_type, struct_member)                        \
-    ((struct_type *)(((unsigned char *)ptr) -                                  \
-                     offsetof(struct_type, struct_member)))
+    ((struct_type *)(((unsigned char *)ptr) -  offsetof(struct_type, struct_member)))
+
+typedef struct {
+    ssize_t datan;
+    char data[0];
+} sys_data_t;
+
+sys_data_t *sys_file_read_value(char *path);
+int sys_file_write_data(char *fname, char *data, int datan);
+int sys_file_exist(const char *fname);
+int sys_directory_exist(const char *fpath);
+
+
 
 #ifdef __cplusplus
 }

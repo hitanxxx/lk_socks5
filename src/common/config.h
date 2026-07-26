@@ -7,37 +7,38 @@ extern "C" {
 
 typedef struct gobal_conf {
     /// sys
-    int sys_daemon;
-    int sys_process_num;
-    int sys_log_level;
+    uint8_t sys_daemon;
+    uint8_t sys_process_num;
+    uint8_t sys_log_level;
 
-    char ssl_crt_path[FILEPATH_LENGTH + 1];
-    char ssl_key_path[FILEPATH_LENGTH + 1];
+    char ssl_crt_path[FILEPATH_LENGTH];
+    char ssl_key_path[FILEPATH_LENGTH];
 
     /// socks5
-    enum socks5_type s5_mode;
-    unsigned short s5_serv_port;
-    char s5_serv_auth_path[FILEPATH_LENGTH + 1];
-    char s5_serv_gw[32];
+    enum socks5_type    s5_mode;
+    uint16_t            s5_serv_port;
+    char                s5_serv_auth_path[FILEPATH_LENGTH];
+    char                s5_serv_gw[32];
 
-    unsigned short s5_local_port;
-    unsigned short s5_local_serv_port;
-    char s5_local_serv_ip[IPV4_LENGTH + 1];
-    char s5_local_auth[32 + 1];
+    uint16_t            s5_local_port;
+    uint16_t            s5_local_serv_port;
+    char                s5_local_serv_ip[IPV4_LENGTH];
+    char                s5_local_auth[32];
 
     /// http
-    int http_num;
-    int https_num;
-    unsigned short http_arr[L_OPEN_PORT_MAX];
-    unsigned short https_arr[L_OPEN_PORT_MAX];
-    char http_home[FILEPATH_LENGTH + 1];
-    char http_index[FILEPATH_LENGTH + 1];
+    uint8_t http_num;
+    uint16_t http_arr[L_OPEN_PORT_MAX];
+
+    uint8_t https_num;
+    uint16_t https_arr[L_OPEN_PORT_MAX];
+
+    char http_home[FILEPATH_LENGTH];
+    char http_index[FILEPATH_LENGTH];
 
 } config_t;
 
 config_t *config_get(void);
 int config_init(void);
-int config_end(void);
 
 #ifdef __cplusplus
 }

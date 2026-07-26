@@ -1,59 +1,23 @@
 #include "common.h"
 #include "modules.h"
 
-#define L_PROCESS_MASTER 0xff
-
-typedef struct process_ctx {
-    sys_shm_t shm;
-    int process_id;
-    process_t *processes;
-
-    int signal;
-    sig_atomic_t sig_quit;
-    sig_atomic_t sig_reap;
-    sig_atomic_t sig_reload;
-} process_ctx_t;
-
-static process_ctx_t *g_proc_ctx = NULL;
-
-int proc_pid(void) { return g_proc_ctx->processes[g_proc_ctx->process_id].pid; }
-
-int proc_pid_form_file(pid_t *pid) {
-    char str[32] = {0};
-    int fd = open(S5_PATH_PID, O_RDONLY);
-    schk(fd > 0, return -1);
-    schk(read(fd, str, sizeof(str)) > 0, {
-        close(fd);
-        return -1;
-    });
-    *pid = strtol(str, NULL, 10);
-    return 0;
-}
-
-int proc_signal_send(pid_t pid, int32_t signal) {
-    schk(0 == kill(pid, signal), return -1);
-    return 0;
-}
+process_ctx_t *g_proc_ctx = NULL;
 
 static int proc_signal_bcast(int sig) {
-    int i = 0;
-    for (i = 0; i < config_get()->sys_process_num; i++) {
-        if (g_proc_ctx->processes[i].exited) continue;
-        if (-1 == proc_signal_send(g_proc_ctx->processes[i].pid, sig)) {
-            err("broadcast signal failed\n");
-            return -1;
+    for (int i = 0; i < config_get()->sys_process_num; i++) {
+        if (!g_proc_ctx->parr[i].exited) {
+            schk(0 == kill(g_proc_ctx->parr[i].pid, sig), return -1);
         }
     }
     return 0;
 }
 
-void proc_worker_run(void) {
-    int32_t timer;
+void proc_worker_task(void) {
     sigset_t set;
     sigemptyset(&set); /// clear signal set
-    sigprocmask(SIG_SETMASK, &set,
-                NULL); /// worker process set the empty signal set to block. it
-                       /// is equal to not block any signal
+    sigprocmask(SIG_SETMASK, &set, NULL);
+    /// worker process set the empty signal set to block. it
+    /// is equal to not block any signal
 
     modules_process_init(); /// init process modules
     for (;;) {
@@ -61,8 +25,9 @@ void proc_worker_run(void) {
             g_proc_ctx->sig_quit = 0;
             break;
         }
-        timer_expire(&timer);
-        ev_loop(timer);
+        uint64_t ms = 0;
+        timer_remaining(&ms);
+        ev_loop(ms);
     }
     modules_pocess_exit();
 }
@@ -73,20 +38,21 @@ static int proc_fork(process_t *process) {
         err("fork child failed, [%d]\n", errno);
         return -1;
     } else if (pid == 0) { /// child
-        g_proc_ctx->process_id = process->sequence_num;
-        proc_worker_run();
+        g_proc_ctx->pmaster = 0;
+        g_proc_ctx->pcur = process;
+        g_proc_ctx->pcur->pid = getpid();
+        proc_worker_task();
     } else if (pid > 0) { /// parent
         process->pid = pid;
     }
     return 0;
 }
 
-void proc_master_run(void) {
-    int i;
+void proc_master_task(void) {
+    int i = 0;
     sigset_t set;
 
-    /// blocking this kind of signals
-    /// signal will be reprocess when blocking is remove
+    ///block signal 
     sigemptyset(&set);
     sigaddset(&set, SIGCHLD);
     sigaddset(&set, SIGINT);
@@ -97,35 +63,28 @@ void proc_master_run(void) {
         return;
     }
 
-    for (i = 0; i < config_get()->sys_process_num;
-         i++) { /// start worker process
-        if (-1 == proc_fork(&g_proc_ctx->processes[i])) {
-            err("process spawn number [%d] child failed, errno [%d]\n", i,
-                errno);
+    for (i = 0; i < config_get()->sys_process_num; i++) {
+        if (-1 == proc_fork(&g_proc_ctx->parr[i])) {
+            err("process spawn number [%d] child failed, errno [%d]\n", i, errno);
             return;
         }
-        if (g_proc_ctx->process_id != L_PROCESS_MASTER)
-            return;
+        if (!g_proc_ctx->pmaster) return;
     }
 
-    sigemptyset(&set); /// clear signal set
+    sigemptyset(&set);
     for (;;) {
-        /// sigsuspend is a automic option
-        /// 1. clear all block signal
-        /// 2. wait a signal recvied
-        /// and when it return. will recovery signal block to before it called
-        sigsuspend(&set);
+        sigsuspend(&set);  ///Unblock all signal && wait signal
+
         systime_update();
-        err("master received signal [%d]\n", g_proc_ctx->signal);
+        dbg("master received signal [%d]\n", g_proc_ctx->signal);
 
-        if (g_proc_ctx->sig_quit == 1) { 
-            /// master recvied a sigint, stop all child frist, then do exit
-
+        ///master quit -> stop all child process
+        if (g_proc_ctx->sig_quit == 1) {
             proc_signal_bcast(SIGINT);
             
             int alive = 0;
             for (i = 0; i < config_get()->sys_process_num; i++) {
-                if (!g_proc_ctx->processes[i].exited) {
+                if (!g_proc_ctx->parr[i].exited) {
                     alive++;
                 }
             }
@@ -133,18 +92,19 @@ void proc_master_run(void) {
                 break;
         }
 
-        if (g_proc_ctx->sig_reap == 1) { /// someone child dead
+        ///some child process dead
+        if (g_proc_ctx->sig_reap == 1) {
             for (i = 0; i < config_get()->sys_process_num; i++) {
-                if (g_proc_ctx->processes[i].exited) {
-                    if (-1 == proc_fork(&g_proc_ctx->processes[i])) {
+                if (g_proc_ctx->parr[i].exited) {
+                    if (-1 == proc_fork(&g_proc_ctx->parr[i])) {
                         err("proc_fork index [%d] failed, [%d]\n", i, errno);
                         continue;
                     }
 
-                    if (g_proc_ctx->process_id != L_PROCESS_MASTER) {
+                    if (!g_proc_ctx->pmaster) {
                         return;
                     } else {
-                        g_proc_ctx->processes[i].exited = 0;
+                        g_proc_ctx->parr[i].exited = 0;
                     }
                 }
             }
@@ -152,8 +112,10 @@ void proc_master_run(void) {
         }
 
         if (g_proc_ctx->sig_reload) {
-            /// master recived sigreload, just stop all child process.
-            /// child process will be auto restart
+            /*
+                This simply kills all child processes;
+                the child processes will automatically restart.
+            */
             proc_signal_bcast(SIGINT);
             g_proc_ctx->sig_reload = 0;
         }
@@ -173,8 +135,8 @@ void proc_waitpid(void) {
             return;
         }
         for (i = 0; i < config_get()->sys_process_num; i++) {
-            if (dead_child_pid == g_proc_ctx->processes[i].pid) {
-                g_proc_ctx->processes[i].exited = 1;
+            if (dead_child_pid == g_proc_ctx->parr[i].pid) {
+                g_proc_ctx->parr[i].exited = 1;
                 break;
             }
         }
@@ -183,10 +145,11 @@ void proc_waitpid(void) {
 }
 
 void proc_signal_cb(int signal) {
-    int err_cc = errno; /// cache errno
+    int err_cc = errno; ///cache errno
 
     g_proc_ctx->signal = signal;
-    if (g_proc_ctx->process_id == L_PROCESS_MASTER) { /// master
+    if (g_proc_ctx->pmaster) { 
+        /// master
         if (signal == SIGINT) {
             g_proc_ctx->sig_quit = 1;
         } else if (signal == SIGCHLD) {
@@ -197,7 +160,8 @@ void proc_signal_cb(int signal) {
         } else if (signal == SIGHUP) {
             g_proc_ctx->sig_reload = 1;
         }
-    } else { /// worker
+    } else { 
+        /// worker
         if (signal == SIGINT)
             g_proc_ctx->sig_quit = 1;
     }
@@ -219,29 +183,23 @@ int proc_signal_init(void) {
 }
 
 int process_init(void) {
-    int i = 0;
-    schk(!g_proc_ctx, return -1);
-    schk(0 == proc_signal_init(), return -1);
-    schk(g_proc_ctx = sys_alloc(sizeof(process_ctx_t)), return -1);
-
-    g_proc_ctx->process_id = L_PROCESS_MASTER;
-    g_proc_ctx->shm.size += (config_get()->sys_process_num * sizeof(process_t));
-    g_proc_ctx->shm.size += sizeof(int);
-    schk(0 == sys_shm_alloc(&g_proc_ctx->shm, g_proc_ctx->shm.size), return -1);
-    g_proc_ctx->processes = (process_t *)g_proc_ctx->shm.data;
-
-    for (i = 0; i < config_get()->sys_process_num; i++)
-        g_proc_ctx->processes[i].sequence_num = i;
+    if (!g_proc_ctx) {
+        g_proc_ctx = sys_alloc(sizeof(process_ctx_t) + (sizeof(process_t) * config_get()->sys_process_num));
+        schk(g_proc_ctx, return -1);
+        g_proc_ctx->pmaster = 1;
+        for (int i = 0; i < config_get()->sys_process_num; i++) {
+            g_proc_ctx->parr[i].seq = i;
+        }
+        
+        proc_signal_init();
+    }
     return 0;
 }
 
 int process_end(void) {
     if (g_proc_ctx) {
-        if (g_proc_ctx->shm.size > 0 && g_proc_ctx->shm.data) {
-            sys_shm_free(&g_proc_ctx->shm);
-            g_proc_ctx->shm.size = 0;
-        }
         sys_free(g_proc_ctx);
+        g_proc_ctx = NULL;
     }
     return 0;
 }

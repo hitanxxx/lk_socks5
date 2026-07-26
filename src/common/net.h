@@ -29,7 +29,9 @@ struct net_connection_t {
     net_cb_rw recv;
 
     ssl_con_t *ssl;
-    char fssl : 1;
+    
+    uint8_t fssl : 1;
+    uint8_t fclosing : 1;
 };
 
 int net_socket_nbio(int fd);
@@ -48,7 +50,7 @@ int net_connect(con_t *c, struct sockaddr_in *addr);
 int net_alloc(con_t **c);
 int net_free(con_t *c);
 void net_free_direct(void *data);
-void net_exp(void *data);
+void net_timeout_release(void *data);
 
 int net_init(void);
 int net_end(void);

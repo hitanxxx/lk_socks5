@@ -40,9 +40,7 @@ static int listen_set_opt(listen_t *l) {
         schk(net_socket_reuseport(l->fd) == 0, break);
         schk(net_socket_fastopen(l->fd) == 0, break);
         schk(net_socket_nodelay(l->fd) == 0, break);
-        schk(bind(l->fd, (struct sockaddr *)&addr, sizeof(struct sockaddr)) ==
-                 0,
-             break);
+        schk(bind(l->fd, (struct sockaddr *)&addr, sizeof(struct sockaddr)) == 0, break);
         schk(listen(l->fd, SOMAXCONN) == 0, break);
         return 0;
     } while (0);

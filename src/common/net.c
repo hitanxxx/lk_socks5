@@ -110,8 +110,7 @@ int net_connect(con_t *c, struct sockaddr_in *addr) {
     ev_opt(c, EV_W);
 
     for (;;) {
-        int rc = connect(fd, (struct sockaddr *)&c->addr,
-                         sizeof(struct sockaddr_in));
+        int rc = connect(fd, (struct sockaddr *)&c->addr, sizeof(struct sockaddr_in));
         if (rc != 0) {
             if (errno == EINTR) { /// irq by signal
                 continue;
@@ -181,7 +180,7 @@ int net_accept(con_t *c) {
         /// only check readable event for accept result
         ev_opt(cc, EV_R);
 
-        EZ_TMADD(cc, net_exp, NET_TMOUT);
+        EZ_TMADD(cc, net_timeout_release, NET_TMOUT);
     }
     return 0;
 }
@@ -224,19 +223,8 @@ void net_free_direct(void *data) {
 }
 
 int net_free(con_t *c) {
-    /*
-    if(is tls connection) {
-        if(tls connection have some error) {
-            close connection direct
-        } else {
-            if(tls connection already closed) {
-                close conenction direct
-            } else {
-                tear down tls connection
-            }
-        }
-    }
-    */
+    if (c->fclosing) return 0;
+    c->fclosing = 1;
 
     if (c->ssl) {
         /// ssl con already closed
@@ -258,24 +246,28 @@ int net_free(con_t *c) {
     return 0;
 }
 
-void net_exp(void *data) {
+void net_timeout_release(void *data) {
     con_t *c = data;
     net_free(c);
 }
 
 int net_alloc(con_t **c) {
-    con_t *nc = NULL;
-    ev_t *nev = NULL;
-    schk(nc = mem_pool_alloc(sizeof(con_t)), return -1);
-    schk(0 == ev_alloc(&nev), {
-        mem_pool_free(nc);
-        return -1;
-    });
-    nc->ev = nev;
-    nev->c = nc;
-    
-    *c = nc;
-    return 0;
+    con_t *alloc_con = mem_pool_alloc(sizeof(con_t));
+    if (alloc_con) {
+        ev_t *alloc_event = NULL;
+        if (0 == ev_alloc(&alloc_event)) {
+            alloc_con->ev = alloc_event;
+            alloc_event->c = alloc_con;
+            *c = alloc_con;
+            return 0;
+        } else {
+            err("net alloc event err\n");
+        }
+        mem_pool_free(alloc_con);
+    } else {
+        err("net alloc con err\n");
+    }
+    return -1;
 }
 
 int net_init(void) { return 0; }

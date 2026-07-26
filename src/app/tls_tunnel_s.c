@@ -17,67 +17,70 @@ static int tls_tunnel_traffic_send(con_t *c);
 static int tls_tunnel_traffic_reverse_recv(con_t *c);
 static int tls_tunnel_traffic_reverse_send(con_t *c);
 
-int tls_ses_alloc(tls_tunnel_session_t **ses) {
-    tls_tunnel_session_t *nses = NULL;
-    schk(nses = mem_pool_alloc(sizeof(tls_tunnel_session_t)), return -1);
-    *ses = nses;
-    return 0;
+int tls_session_alloc(tls_tunnel_session_t **session) {
+    tls_tunnel_session_t *alloc_session = mem_pool_alloc(sizeof(tls_tunnel_session_t));
+    if (alloc_session) {
+        *session = alloc_session;
+        return 0;
+    } 
+    err("tls tunnel session alloc err\n");
+    return -1;
 }
 
-void tls_ses_release_cdown(void *data) {
-    tls_tunnel_session_t *ses = data;
+void tls_session_release_by_cdown(void *data) {
+    tls_tunnel_session_t *session = data;
 
-    if (ses->adata) {
-        mem_pool_free(ses->adata);
-        ses->adata = NULL;
+    if (session->adata) {
+        mem_pool_free(session->adata);
+        session->adata = NULL;
     }
-    mem_pool_free(ses);
+    mem_pool_free(session);
 }
 
-void tls_ses_release_cup(void *data) {
+void tls_session_release_by_cup(void *data) {
     /// do nothing
     return;
 }
 
-void tls_ses_exp(void *data) {
+void tls_session_timeout_release(void *data) {
     con_t *c = data;
-    tls_tunnel_session_t *ses = c->data;
+    tls_tunnel_session_t *session = c->data;
 
-    if (ses->cup) {
-        if (ses->cup->fssl && ses->cup->ssl) {
-            ses->cup->ssl->f_err = 1;
+    if (session->cup) {
+        if (session->cup->fssl && session->cup->ssl) {
+            session->cup->ssl->f_err = 1;
         }
-        net_free(ses->cup);
+        net_free(session->cup);
     }
     
-    if (ses->cdown) {
-        if (ses->cdown->fssl && ses->cdown->ssl) {
-            ses->cdown->ssl->f_err = 1;
+    if (session->cdown) {
+        if (session->cdown->fssl && session->cdown->ssl) {
+            session->cdown->ssl->f_err = 1;
         }
-        net_free(ses->cdown);
+        net_free(session->cdown);
     }
     return;
 }
 
 static int tls_tunnel_traffic_recv(con_t *c) {
-    tls_tunnel_session_t *ses = c->data;
-    con_t *cdown = ses->cdown;
-    con_t *cup = ses->cup;
+    tls_tunnel_session_t *session = c->data;
+    con_t *cdown = session->cdown;
+    con_t *cup = session->cup;
     int recvn = 0;
 
-    EZ_TMADD(cdown, tls_ses_exp, TLS_TUNNEL_TMOUT);
-    EZ_TMADD(cup, tls_ses_exp, TLS_TUNNEL_TMOUT);
+    EZ_TMADD(cdown, tls_session_timeout_release, TLS_TUNNEL_TMOUT);
+    EZ_TMADD(cup, tls_session_timeout_release, TLS_TUNNEL_TMOUT);
 
     for (;;) {
         while (meta_getfree(cdown->meta) > 0) {
             recvn = cdown->recv(cdown, cdown->meta->last, meta_getfree(cdown->meta));
             if (recvn < 0) {
                 if (recvn == -1) {
-                    ses->frecv_err_down = 1;
+                    session->frecv_err_down = 1;
                 } else if (recvn == -11) {
                     if (meta_getlen(cdown->meta) < 1) {
-                        if (cup->ev->opt & EV_W) ev_opt(cup, cup->ev->opt & (~EV_W));
-                        if (!(cdown->ev->opt & EV_R)) ev_opt(cdown, cdown->ev->opt | EV_R);
+                        MASK_CLR(cup->ev->opt, EV_W);
+                        MASK_SET(cdown->ev->opt, EV_R);
                         return -11;
                     }
                 }
@@ -90,12 +93,12 @@ static int tls_tunnel_traffic_recv(con_t *c) {
             int sendn = cup->send(cup, cdown->meta->pos, meta_getlen(cdown->meta));
             if (sendn < 0) {
                 if (sendn == -11) {
-                    if (!(cup->ev->opt & EV_W)) ev_opt(cup, cup->ev->opt | EV_W);
-                    if (cdown->ev->opt & EV_R) ev_opt(cdown, cdown->ev->opt & (~EV_R));
+                    MASK_SET(cup->ev->opt, EV_W);
+                    MASK_CLR(cdown->ev->opt, EV_R);
                     return -11;
                     
                 } else if (sendn == -1) {
-                    err("tls tunnel teminate. (up send)\n");
+                    dbg("tls tunnel teminate. (up send)\n");
                     net_free(cup);
                     net_free(cdown);
                     return -1;
@@ -104,8 +107,8 @@ static int tls_tunnel_traffic_recv(con_t *c) {
             cdown->meta->pos += sendn;
         }
         
-        if (ses->frecv_err_down) {
-            err("tls tunnel teminate. (cdown recv)\n");
+        if (session->frecv_err_down) {
+            dbg("tls tunnel teminate. (cdown recv)\n");
             net_free(cup);
             net_free(cdown);
             return -1;
@@ -116,20 +119,20 @@ static int tls_tunnel_traffic_recv(con_t *c) {
 }
 
 static int tls_tunnel_traffic_send(con_t *c) {
-    tls_tunnel_session_t *ses = c->data;
-    con_t *cdown = ses->cdown;
-    con_t *cup = ses->cup;
+    tls_tunnel_session_t *session = c->data;
+    con_t *cdown = session->cdown;
+    con_t *cup = session->cup;
     int sendn = 0;
 
-    EZ_TMADD(cdown, tls_ses_exp, TLS_TUNNEL_TMOUT);
-    EZ_TMADD(cup, tls_ses_exp, TLS_TUNNEL_TMOUT);
+    EZ_TMADD(cdown, tls_session_timeout_release, TLS_TUNNEL_TMOUT);
+    EZ_TMADD(cup, tls_session_timeout_release, TLS_TUNNEL_TMOUT);
 
     for (;;) {
         while (meta_getlen(cdown->meta) > 0) {
             sendn = cup->send(cup, cdown->meta->pos, meta_getlen(cdown->meta));
             if (sendn < 0) {
                 if (sendn == -1) {
-                    err("tls tunnel teminate. (cup send)\n");
+                    dbg("tls tunnel teminate. (cup send)\n");
                     net_free(cup);
                     net_free(cdown);
                     return -1;
@@ -139,8 +142,8 @@ static int tls_tunnel_traffic_send(con_t *c) {
             cdown->meta->pos += sendn;
         }
         
-        if (ses->frecv_err_down) {
-            err("tls tunnel teminate. (cdown recv)\n");
+        if (session->frecv_err_down) {
+            dbg("tls tunnel teminate. (cdown recv)\n");
             net_free(cup);
             net_free(cdown);
             return -1;
@@ -151,17 +154,17 @@ static int tls_tunnel_traffic_send(con_t *c) {
             int recvn = cdown->recv(cdown, cdown->meta->last, meta_getfree(cdown->meta));
             if (recvn < 0) {
                 if (recvn == -1) {
-                    ses->frecv_err_down = 1;
+                    session->frecv_err_down = 1;
                     if (meta_getlen(cdown->meta) < 1) {
-                        err("tls tunnel teminate. (cdown recv)\n");
+                        dbg("tls tunnel teminate. (cdown recv)\n");
                         net_free(cup);
                         net_free(cdown);
                         return -1;
                     }
                 } else if (recvn == -11) {
                     if (meta_getlen(cdown->meta) < 1) {
-                        if (cup->ev->opt & EV_W) ev_opt(cup, cup->ev->opt & (~EV_W));
-                        if (!(cdown->ev->opt & EV_R)) ev_opt(cdown, cdown->ev->opt | EV_R);
+                        MASK_CLR(cup->ev->opt, EV_W);
+                        MASK_SET(cdown->ev->opt, EV_R);
                         return -11;
                     }
                 }
@@ -174,24 +177,24 @@ static int tls_tunnel_traffic_send(con_t *c) {
 }
 
 static int tls_tunnel_traffic_reverse_recv(con_t *c) {
-    tls_tunnel_session_t *ses = c->data;
-    con_t *cdown = ses->cdown;
-    con_t *cup = ses->cup;
+    tls_tunnel_session_t *session = c->data;
+    con_t *cdown = session->cdown;
+    con_t *cup = session->cup;
     int recvn = 0;
 
-    EZ_TMADD(cup, tls_ses_exp, TLS_TUNNEL_TMOUT);
-    EZ_TMADD(cdown, tls_ses_exp, TLS_TUNNEL_TMOUT);
+    EZ_TMADD(cup, tls_session_timeout_release, TLS_TUNNEL_TMOUT);
+    EZ_TMADD(cdown, tls_session_timeout_release, TLS_TUNNEL_TMOUT);
 
     for (;;) {
         while (meta_getfree(cup->meta) > 0) {
             recvn = cup->recv(cup, cup->meta->last, meta_getfree(cup->meta));
             if (recvn < 0) {
                 if (recvn == -1) {
-                    ses->frecv_err_down = 1;
+                    session->frecv_err_down = 1;
                 } else if (recvn == -11) {
                     if (meta_getlen(cup->meta) < 1) {
-                        if (cdown->ev->opt & EV_W) ev_opt(cdown, cdown->ev->opt & (~EV_W));
-                        if (!(cup->ev->opt & EV_R)) ev_opt(cup, cup->ev->opt | EV_R);
+                        MASK_CLR(cdown->ev->opt, EV_W);
+                        MASK_SET(cup->ev->opt, EV_R);
                         return -11;
                     }
                 }
@@ -204,11 +207,11 @@ static int tls_tunnel_traffic_reverse_recv(con_t *c) {
             int sendn = cdown->send(cdown, cup->meta->pos, meta_getlen(cup->meta));
             if (sendn < 0) {
                 if (sendn == -11) {
-                    if (!(cdown->ev->opt & EV_W)) ev_opt(cdown, cdown->ev->opt | EV_W);
-                    if (cup->ev->opt & EV_R) ev_opt(cup, cup->ev->opt & (~EV_R));
+                    MASK_SET(cdown->ev->opt, EV_W);
+                    MASK_CLR(cup->ev->opt, EV_R);
                     return -11;
                 } else if (sendn == -1) {
-                    err("tls tunnel teminate. (cdown send)\n");
+                    dbg("tls tunnel teminate. (cdown send)\n");
                     net_free(cup);
                     net_free(cdown);
                     return -1;
@@ -217,8 +220,8 @@ static int tls_tunnel_traffic_reverse_recv(con_t *c) {
             cup->meta->pos += sendn;
         }
 
-        if (ses->frecv_err_down) {
-            err("tls tunnel teminate. (cup recv)\n");
+        if (session->frecv_err_down) {
+            dbg("tls tunnel teminate. (cup recv)\n");
             net_free(cup);
             net_free(cdown);
             return -1;
@@ -229,20 +232,20 @@ static int tls_tunnel_traffic_reverse_recv(con_t *c) {
 }
 
 static int tls_tunnel_traffic_reverse_send(con_t *c) {
-    tls_tunnel_session_t *ses = c->data;
-    con_t *cdown = ses->cdown;
-    con_t *cup = ses->cup;
+    tls_tunnel_session_t *session = c->data;
+    con_t *cdown = session->cdown;
+    con_t *cup = session->cup;
     int sendn = 0;
 
-    EZ_TMADD(cup, tls_ses_exp, TLS_TUNNEL_TMOUT);
-    EZ_TMADD(cdown, tls_ses_exp, TLS_TUNNEL_TMOUT);
+    EZ_TMADD(cup, tls_session_timeout_release, TLS_TUNNEL_TMOUT);
+    EZ_TMADD(cdown, tls_session_timeout_release, TLS_TUNNEL_TMOUT);
 
     for (;;) {
         while (meta_getlen(cup->meta) > 0) {
             sendn = cdown->send(cdown, cup->meta->pos, meta_getlen(cup->meta));
             if (sendn < 0) {
                 if (sendn == -1) {
-                    err("tls tunnel teminate. (cdown send)\n");
+                    dbg("tls tunnel teminate. (cdown send)\n");
                     net_free(cup);
                     net_free(cdown);
                     return -1;
@@ -252,7 +255,7 @@ static int tls_tunnel_traffic_reverse_send(con_t *c) {
             cup->meta->pos += sendn;
         }
         
-        if (ses->frecv_err_down) {
+        if (session->frecv_err_down) {
             err("tls tunnel teminate. (cup recv)\n");
             net_free(cup);
             net_free(cdown);
@@ -264,17 +267,17 @@ static int tls_tunnel_traffic_reverse_send(con_t *c) {
             int recvn = cup->recv(cup, cup->meta->last, meta_getfree(cup->meta));
             if (recvn < 0) {
                 if (recvn == -1) {
-                    ses->frecv_err_down = 1;
+                    session->frecv_err_down = 1;
                     if (meta_getlen(cup->meta) < 1) {
-                        err("tls tunnel teminate. (cup recv)\n");
+                        dbg("tls tunnel teminate. (cup recv)\n");
                         net_free(cup);
                         net_free(cdown);
                         return -1;
                     }
                 } else if (recvn == -11) {
                     if (meta_getlen(cup->meta) < 1) {
-                        if (cdown->ev->opt & EV_W) ev_opt(cdown, cdown->ev->opt & (~EV_W));
-                        if (!(cup->ev->opt & EV_R)) ev_opt(cup, cup->ev->opt | EV_R);
+                        MASK_CLR(cdown->ev->opt, EV_W);
+                        MASK_SET(cup->ev->opt, EV_R);
                         return -11;
                     }
                 }
@@ -287,9 +290,9 @@ static int tls_tunnel_traffic_reverse_send(con_t *c) {
 }
 
 int tls_tunnel_traffic_proc(con_t *c) {
-    tls_tunnel_session_t *ses = c->data;
-    con_t *cdown = ses->cdown;
-    con_t *cup = ses->cup;
+    tls_tunnel_session_t *session = c->data;
+    con_t *cdown = session->cdown;
+    con_t *cup = session->cup;
 
     if (!cdown->meta) {
         if (0 != meta_alloc(&cdown->meta, TLS_TUNNEL_METAN)) {
@@ -328,7 +331,7 @@ int tls_tunnel_traffic_proc(con_t *c) {
 }
 
 static int tls_tunnel_s_auth_chk(con_t *cdown) {
-    tls_tunnel_session_t *ses = cdown->data;
+    tls_tunnel_session_t *session = cdown->data;
 
     enum { s_mg1 = 0, s_mg2, s_len, s_data };
 
@@ -337,7 +340,7 @@ static int tls_tunnel_s_auth_chk(con_t *cdown) {
             int recvd = cdown->recv(cdown, cdown->meta->last, meta_getfree(cdown->meta));
             if (recvd < 0) {
                 if (recvd == -11) {
-                    EZ_TMADD(cdown, tls_ses_exp, TLS_TUNNEL_TMOUT);
+                    EZ_TMADD(cdown, tls_session_timeout_release, TLS_TUNNEL_TMOUT);
                     return -11;
                 }
                 err("webreq recv err\n");
@@ -346,35 +349,35 @@ static int tls_tunnel_s_auth_chk(con_t *cdown) {
             cdown->meta->last += recvd;
         }
 
-        unsigned char *p = NULL;
+        uint8_t *p = NULL;
         for (; cdown->meta->pos < cdown->meta->last; cdown->meta->pos++) {
             p = cdown->meta->pos;
-            if (ses->state == s_mg1) {
+            if (session->auth_state == s_mg1) {
                 if (*p != TLS_AUTH_MG1) {
                     err("TLS auth chk. mg1 err\n");
                     net_free(cdown);
                     return -1;
                 }
-                ses->state = s_mg2;
-            } else if (ses->state == s_mg2) {
+                session->auth_state = s_mg2;
+            } else if (session->auth_state == s_mg2) {
                 if (*p != TLS_AUTH_MG2) {
                     err("TLS auth chk. mg2 err\n");
                     net_free(cdown);
                     return -1;
                 }
-                ses->state = s_len;
-            } else if (ses->state == s_len) {
-                ses->auth_data_all = *p;
-                if (ses->auth_data_all < 1 || ses->auth_data_all > 31) {
-                    err("TLS auth chk. slen [%d] illegal\n", ses->auth_data_all);
+                session->auth_state = s_len;
+            } else if (session->auth_state == s_len) {
+                session->auth_data_all = *p;
+                if (session->auth_data_all < 1 || session->auth_data_all > 31) {
+                    err("TLS auth chk. slen [%d] illegal\n", session->auth_data_all);
                     net_free(cdown);
                     return -1;
                 }
-                ses->state = s_data;
-            } else if (ses->state == s_data) {
-                ses->auth_data[ses->auth_data_recv++] = *p;
-                if (ses->auth_data_recv == ses->auth_data_all) {
-                    if (0 == ezac_find(g_ses_ctx->ac, (char*)ses->auth_data, ses->auth_data_all)) {
+                session->auth_state = s_data;
+            } else if (session->auth_state == s_data) {
+                session->auth_data[session->auth_data_recv++] = *p;
+                if (session->auth_data_recv == session->auth_data_all) {
+                    if (0 == ezac_find(g_ses_ctx->ac, (char*)session->auth_data, session->auth_data_all)) {
                         EZ_TMDEL(cdown);
 
                         meta_clr(cdown->meta);
@@ -392,14 +395,12 @@ static int tls_tunnel_s_auth_chk(con_t *cdown) {
         }
     }
 
-    err("TLS auth chk not fin. state [%d]\n", ses->state);
+    err("TLS auth chk not fin. auth_state [%d]\n", session->auth_state);
     net_free(cdown);
     return -1;
 }
 
 int tls_tunnel_s_start(con_t *cdown) {
-    tls_tunnel_session_t *ses = NULL;
-
     EZ_TMDEL(cdown);
 
     if (!cdown->meta) {
@@ -409,19 +410,19 @@ int tls_tunnel_s_start(con_t *cdown) {
         });
     }
 
-    schk(0 == tls_ses_alloc(&ses), {
+    tls_tunnel_session_t *session = NULL;
+    schk(0 == tls_session_alloc(&session), {
         net_free(cdown);
         return -1;
     });
-    ses->cdown = cdown;
+    session->cdown = cdown;
+    cdown->data = session;
+    cdown->data_cb = tls_session_release_by_cdown;
 
-    cdown->data = ses;
-    cdown->data_cb = tls_ses_release_cdown;
-
-    ses->atyp = 0; /// s5
-    if (ses->atyp == 0) {
-        ses->adata = mem_pool_alloc(sizeof(s5_t));
-        if (!ses->adata) {
+    session->atyp = 0; /// s5
+    if (session->atyp == 0) {
+        session->adata = mem_pool_alloc(sizeof(s5_t));
+        if (!session->adata) {
             err("tls tunnel. alloc s5 err\n");
             net_free(cdown);
             return -1;
@@ -458,7 +459,7 @@ int tls_tunnel_s_accept(con_t *cdown) {
         int rc = ssl_handshake(cdown);
         if (rc < 0) {
             if (rc == -11) {
-                EZ_TMADD(cdown, net_exp, TLS_TUNNEL_TMOUT);
+                EZ_TMADD(cdown, net_timeout_release, TLS_TUNNEL_TMOUT);
                 return -11;
             }
             err("TLS tunnel. handshek err\n");
@@ -476,8 +477,8 @@ int tls_tunnel_s_accept(con_t *cdown) {
     return cdown->ev->read_cb(cdown);
 }
 
-static int tls_tunnel_s_auth_mgr_fparse(meta_t *meta) {
-    cJSON *root = cJSON_Parse((char *)meta->pos);
+static int tls_tunnel_s_auth_mgr_fparse(char *data) {
+    cJSON *root = cJSON_Parse(data);
     if (root) { /// traversal the array
         int i = 0;
         for (i = 0; i < cJSON_GetArraySize(root); i++) {
@@ -492,42 +493,25 @@ static int tls_tunnel_s_auth_mgr_fparse(meta_t *meta) {
     return 0;
 }
 
-static int tls_tunnel_s_auth_mgr_fread(meta_t *meta) {
-    ssize_t size = 0;
-    int fd = open((char *)config_get()->s5_serv_auth_path, O_RDONLY);
-    schk(fd > 0, return -1);
-    size = read(fd, meta->pos, meta_getfree(meta));
-    close(fd);
-    schk(size != -1, return -1);
-    meta->last += size;
+static int tls_tunnel_s_auth_mgr_init(void) {
+    schk(g_ses_ctx->ac = ezac_init(), return -1);
+    sys_data_t *fdata = sys_file_read_value(config_get()->s5_serv_auth_path);
+    if (fdata) {
+        tls_tunnel_s_auth_mgr_fparse(fdata->data);
+        ezac_compiler(g_ses_ctx->ac);
+        sys_free(fdata);
+    }
     return 0;
 }
 
-static int tls_tunnel_s_auth_mgr_init(void) {
-    meta_t *meta = NULL;
-    int rc = -1;
-    do {
-        schk(g_ses_ctx->ac = ezac_init(), break);
-        schk(meta_alloc(&meta, TLS_TUNNEL_AUTH_FILE_MAX) == 0, break);
-        schk(tls_tunnel_s_auth_mgr_fread(meta) == 0, break);
-        schk(tls_tunnel_s_auth_mgr_fparse(meta) == 0, break);
-        ezac_compiler(g_ses_ctx->ac);
-        rc = 0;
-    } while (0);
-
-    if (meta)
-        meta_free(meta);
-    return rc;
-}
-
 int tls_tunnel_s_init(void) {
-    schk(!g_ses_ctx, return -1);
-    schk(g_ses_ctx = (tls_tunnel_s_t *)mem_pool_alloc(sizeof(tls_tunnel_s_t)),
-         return -1);
-    if (config_get()->s5_mode > TLS_TUNNEL_C) {
-        schk(tls_tunnel_s_auth_mgr_init() == 0, return -1);
+    g_ses_ctx = (tls_tunnel_s_t *)mem_pool_alloc(sizeof(tls_tunnel_s_t));
+    if (g_ses_ctx) {
+        if (config_get()->s5_mode == TLS_TUNNEL_S ||
+            config_get()->s5_mode == TLS_TUNNEL_S_SCRECT) {
+            schk(tls_tunnel_s_auth_mgr_init() == 0, return -1);
+        }
     }
-    
     return 0;
 }
 

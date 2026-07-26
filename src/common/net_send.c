@@ -18,7 +18,11 @@ int recvs(con_t *c, unsigned char *buf, int bufn) {
                 } else if (errno == EINTR) {
                     continue;
                 } else {
-                    err("rec failed. [%d] [%s]\n", errno, strerror(errno));
+                    if (errno == ECONNRESET) {
+                        dbg("recv err. connect reset by peer\n");
+                    } else {
+                        err("recv failed. [%d] [%s]\n", errno, strerror(errno));
+                    }
                     return -1;
                 }
             }

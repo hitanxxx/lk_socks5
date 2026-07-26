@@ -14,5 +14,7 @@ int sys_shm_alloc(sys_shm_t *shm, int size) {
 
 int sys_shm_free(sys_shm_t *shm) {
     munmap((void *)shm->data, shm->size);
+    shm->size = 0;
+    shm->data = NULL;
     return 0;
 }
