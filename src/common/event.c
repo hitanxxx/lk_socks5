@@ -214,13 +214,14 @@ int ev_loop(uint64_t ms) {
     for (int i = 0; i < g_event_ctx->ev_mapn; i++) {
         if (g_event_ctx->ev_map[i]) {
             ev_t *ev = g_event_ctx->ev_map[i];
+            con_t *c = ev->c;
 
             if (ev->fread) {
                 ev->fread = 0;
-                if (ev->read_cb) ev->read_cb(ev->c);
+                if (ev->read_cb) ev->read_cb(c);
             } else if (ev->fwrite) {
                 ev->fwrite = 0;
-                if (ev->write_cb) ev->write_cb(ev->c);
+                if (ev->write_cb) ev->write_cb(c);
             }
         }
     }

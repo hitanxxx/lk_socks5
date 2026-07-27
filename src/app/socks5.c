@@ -76,13 +76,13 @@ int s5_cup_connect_chk(con_t *cup) {
 }
 
 int s5_cup_connect(con_t *cup) {
-    tls_tunnel_session_t *ses = cup->data;
+    tls_tunnel_session_t *session = cup->data;
     int rc = 0;
 
     cup->ev->read_cb = NULL;
     cup->ev->write_cb = s5_cup_connect_chk;
 
-    rc = net_connect(ses->cup, &ses->cup->addr);
+    rc = net_connect(session->cup, &session->cup->addr);
     if (rc < 0) {
         if (rc == -11) {
             EZ_TMADD(cup, tls_session_timeout_release, TLS_TUNNEL_TMOUT);
@@ -90,7 +90,7 @@ int s5_cup_connect(con_t *cup) {
         }
         err("socks5 connect err\n");
         net_free(cup);
-        net_free(ses->cdown);
+        net_free(session->cdown);
         return -1;
     }
     return cup->ev->write_cb(cup);
@@ -101,20 +101,15 @@ void s5_cup_dns_cb(int status, unsigned char *result, void *data) {
     dnsc_t *dnsc = session->dns;
     s5_t *s5 = (s5_t *)session->adata;
     s5_ph2_req_t *s5p2 = &s5->s5p2;
-    char ipstr[128] = {0};
 
     if (status == 0) {
-        uint16_t addr_port = 0;
-        memcpy(&addr_port, s5p2->dst_port, sizeof(uint16_t));
-        snprintf(ipstr, sizeof(ipstr), "%d.%d.%d.%d", result[0], result[1],
-                 result[2], result[3]);
 
         // after result used
         dns_free(dnsc);
 
         session->cup->addr.sin_family = AF_INET;
-        session->cup->addr.sin_port = addr_port;
-        session->cup->addr.sin_addr.s_addr = inet_addr(ipstr);
+        memcpy(&session->cup->addr.sin_port, s5p2->dst_port, 2);
+        memcpy(&session->cup->addr.sin_addr.s_addr, result, 4);
 
         session->cup->ev->read_cb = NULL;
         session->cup->ev->write_cb = s5_cup_connect;
@@ -145,30 +140,24 @@ int s5_cup_addr(con_t *cdown) {
         session->cup->data = session;
         session->cup->data_cb = tls_session_release_by_cup;
 
+        ///IPV4 TYP
         if (s5p2->atyp == S5_RFC_IPV4) {
-            uint16_t addr_port = 0;
-            memcpy(&addr_port, s5p2->dst_port, sizeof(uint16_t));
-            snprintf(ipstr, sizeof(ipstr), "%d.%d.%d.%d",
-                s5p2->dst_addr[0], s5p2->dst_addr[1], 
-                s5p2->dst_addr[2], s5p2->dst_addr[3]);
-
             session->cup->addr.sin_family = AF_INET;
-            session->cup->addr.sin_port = addr_port;
-            session->cup->addr.sin_addr.s_addr = inet_addr(ipstr);
+            memcpy(&session->cup->addr.sin_port, s5p2->dst_port, 2);
+            memcpy(&session->cup->addr.sin_addr.s_addr, s5p2->dst_addr, 4);
 
             session->cup->ev->read_cb = NULL;
             session->cup->ev->write_cb = s5_cup_connect;
             return session->cup->ev->write_cb(session->cup);
-        }
-        /// DOMAIN typ
-        if (0 == dns_rec_find((char *)s5p2->dst_addr, ipstr)) {
-            uint16_t addr_port = 0;
-            memcpy(&addr_port, s5p2->dst_port, sizeof(uint16_t));
-            snprintf(ipstr, sizeof(ipstr), "%d.%d.%d.%d", ipstr[0], ipstr[1], ipstr[2], ipstr[3]);
+        } 
 
+        /// DOMAIN TYP.
+        /// 1.dns cache find out
+        /// 2.dns cache not found. goto resolve
+        if (0 == dns_rec_find((char *)s5p2->dst_addr, ipstr)) {
             session->cup->addr.sin_family = AF_INET;
-            session->cup->addr.sin_port = addr_port;
-            session->cup->addr.sin_addr.s_addr = inet_addr(ipstr);
+            memcpy(&session->cup->addr.sin_port, s5p2->dst_port, 2);
+            memcpy(&session->cup->addr.sin_addr.s_addr, ipstr, 4);
 
             session->cup->ev->read_cb = NULL;
             session->cup->ev->write_cb = s5_cup_connect;

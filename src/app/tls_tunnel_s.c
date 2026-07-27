@@ -79,8 +79,8 @@ static int tls_tunnel_traffic_recv(con_t *c) {
                     session->frecv_err_down = 1;
                 } else if (recvn == -11) {
                     if (meta_getlen(cdown->meta) < 1) {
-                        MASK_CLR(cup->ev->opt, EV_W);
-                        MASK_SET(cdown->ev->opt, EV_R);
+                        ev_opt(cup, MASK_CLR(cup->ev->opt, EV_W));
+                        ev_opt(cdown, MASK_SET(cdown->ev->opt, EV_R));
                         return -11;
                     }
                 }
@@ -93,8 +93,8 @@ static int tls_tunnel_traffic_recv(con_t *c) {
             int sendn = cup->send(cup, cdown->meta->pos, meta_getlen(cdown->meta));
             if (sendn < 0) {
                 if (sendn == -11) {
-                    MASK_SET(cup->ev->opt, EV_W);
-                    MASK_CLR(cdown->ev->opt, EV_R);
+                    ev_opt(cup, MASK_SET(cup->ev->opt, EV_W));
+                    ev_opt(cdown, MASK_CLR(cdown->ev->opt, EV_R));
                     return -11;
                     
                 } else if (sendn == -1) {
@@ -163,8 +163,8 @@ static int tls_tunnel_traffic_send(con_t *c) {
                     }
                 } else if (recvn == -11) {
                     if (meta_getlen(cdown->meta) < 1) {
-                        MASK_CLR(cup->ev->opt, EV_W);
-                        MASK_SET(cdown->ev->opt, EV_R);
+                        ev_opt(cup, MASK_CLR(cup->ev->opt, EV_W));
+                        ev_opt(cdown, MASK_SET(cdown->ev->opt, EV_R));
                         return -11;
                     }
                 }
@@ -193,8 +193,8 @@ static int tls_tunnel_traffic_reverse_recv(con_t *c) {
                     session->frecv_err_down = 1;
                 } else if (recvn == -11) {
                     if (meta_getlen(cup->meta) < 1) {
-                        MASK_CLR(cdown->ev->opt, EV_W);
-                        MASK_SET(cup->ev->opt, EV_R);
+                        ev_opt(cdown, MASK_CLR(cdown->ev->opt, EV_W));
+                        ev_opt(cup, MASK_SET(cup->ev->opt, EV_R));
                         return -11;
                     }
                 }
@@ -207,8 +207,8 @@ static int tls_tunnel_traffic_reverse_recv(con_t *c) {
             int sendn = cdown->send(cdown, cup->meta->pos, meta_getlen(cup->meta));
             if (sendn < 0) {
                 if (sendn == -11) {
-                    MASK_SET(cdown->ev->opt, EV_W);
-                    MASK_CLR(cup->ev->opt, EV_R);
+                    ev_opt(cdown, MASK_SET(cdown->ev->opt, EV_W));
+                    ev_opt(cup, MASK_CLR(cup->ev->opt, EV_R));
                     return -11;
                 } else if (sendn == -1) {
                     dbg("tls tunnel teminate. (cdown send)\n");
@@ -276,8 +276,8 @@ static int tls_tunnel_traffic_reverse_send(con_t *c) {
                     }
                 } else if (recvn == -11) {
                     if (meta_getlen(cup->meta) < 1) {
-                        MASK_CLR(cdown->ev->opt, EV_W);
-                        MASK_SET(cup->ev->opt, EV_R);
+                        ev_opt(cdown, MASK_CLR(cdown->ev->opt, EV_W));
+                        ev_opt(cup, MASK_SET(cup->ev->opt, EV_R));
                         return -11;
                     }
                 }

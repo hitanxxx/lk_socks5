@@ -38,8 +38,8 @@ typedef struct {
     uint8_t rep;
     uint8_t rsv;
     uint8_t atyp;
-    uint8_t bnd_addr;
-    uint8_t bnd_port;
+    uint32_t bnd_addr;
+    uint16_t bnd_port;
 } __attribute__((packed)) s5_ph2_rsp_t;
 
 typedef struct {
