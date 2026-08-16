@@ -1,5 +1,11 @@
 #include "common.h"
-#include "modules.h"
+
+#include "dns.h"
+#include "http_req.h"
+#include "tls_tunnel_c.h"
+#include "tls_tunnel_s.h"
+#include "webser.h"
+
 
 process_ctx_t *g_proc_ctx = NULL;
 
@@ -19,17 +25,28 @@ void proc_worker_task(void) {
     /// worker process set the empty signal set to block. it
     /// is equal to not block any signal
 
-    modules_process_init(); /// init process modules
+    mem_pool_init();
+    net_init();
+    
+    tls_tunnel_s_init();
+    tls_tunnel_c_init();
+    webser_init();
+    dns_init(); 
+    
     for (;;) {
         if (g_proc_ctx->sig_quit) {
             g_proc_ctx->sig_quit = 0;
             break;
         }
-        uint64_t ms = 0;
-        timer_remaining(&ms);
-        ev_loop(ms);
+        net_ev_loop();
     }
-    modules_pocess_exit();
+    tls_tunnel_s_exit();
+    tls_tunnel_c_exit();
+    webser_end();
+    dns_end();
+    
+    net_exit();
+    mem_pool_deinit();
 }
 
 static int proc_fork(process_t *process) {

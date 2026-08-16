@@ -10,10 +10,6 @@ OBJCOPY      = $(CROSS_PREFIX)objcopy
 STRIP        = $(CROSS_PREFIX)strip
 SIZE         = $(CROSS_PREFIX)size
 
-### DEF
-ifeq ($(TEST), y)
-DEFINE += -DTEST
-endif
 
 
 ### INC DIR
@@ -23,9 +19,7 @@ INCLUDE  += -I./common
 INCLUDE  += -I./dns
 INCLUDE  += -I./http
 INCLUDE  += -I./app
-INCLUDE  += -I./bin
-INCLUDE  += -I./test
-
+INCLUDE  += -I./net
 
 ### SRC DIR
 SRCDIR  += .
@@ -34,8 +28,9 @@ SRCDIR  += ./common
 SRCDIR  += ./dns
 SRCDIR  += ./http
 SRCDIR  += ./app
-SRCDIR  += ./bin
-SRCDIR  += ./test
+SRCDIR  += ./net
+
+
 
 CSRCS += $(foreach d, $(SRCDIR), $(wildcard $d/*.c))
 CSRCS += $(foreach d, $(SRCDIR), $(wildcard $d/*.cpp))
@@ -44,8 +39,8 @@ COBJS += $(patsubst %.c,%.o,$(patsubst %.cpp,%.o,$(CSRCS)))
 ### COMPLE FALGS
 LDFLAGS += -lcrypto -lssl -lpthread -lm -ldl
 
-CFLAGS += -Wall -ffunction-sections -fdata-sections
-CFLAGS += -O3
+CFLAGS += -Wall -ffunction-sections -fdata-sections -Wl,--gc-sections
+CFLAGS += -O2
 CFLAGS += -fstrict-aliasing -march=native -mtune=native -pipe
 CFLAGS += $(DEFINE) $(INCLUDE)
 

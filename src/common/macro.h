@@ -8,7 +8,8 @@ extern "C" {
 #if __linux__
 #define EVENT_EPOLL
 #endif
-
+    
+#define _GNU_SOURCE
 #include <assert.h>
 #include <ctype.h>
 #include <fcntl.h>
@@ -55,31 +56,40 @@ extern "C" {
 #include <openssl/ssl.h>
 
 
-#define MASK_SET(mask, bit) ({                \
-    typeof(mask) __m = (mask);               \
-    typeof(bit)  __b = (bit);                \
-    __m |= __b;                              \
-    __m;                                     \
-})
+#ifndef MIN
+# define MIN(a,b) ((a) < (b) ? (a) : (b))
+#endif
+#ifndef MAX
+# define MAX(a,b) ((a) > (b) ? (a) : (b))
+#endif
 
-#define MASK_CLR(mask, bit) ({                \
-    typeof(mask) __m = (mask);               \
-    typeof(bit)  __b = (bit);                \
-    __m &= ~(__b);                           \
-    __m;                                     \
-})
+
+#define string(str)                                                            \
+    { sizeof(str) - 1, (unsigned char *)str }
+#define string_null                                                            \
+    { 0, NULL }
+#define string_clr(x)                                                          \
+    {                                                                          \
+        (x)->len = 0;                                                          \
+        (x)->data = NULL;                                                      \
+    }
+
+typedef struct {
+    int len;
+    unsigned char *data;
+} string_t;
 
 
 /// for ahead log
 #define ahead_dbg(format, ...) \
     do {  \
-        fprintf(stderr, "[Ahead DBG]-%s:%d " format, __func__, __LINE__, ##__VA_ARGS__); \
+        fprintf(stderr, "[Ahead DBG]- " format,  ##__VA_ARGS__); \
         fflush(stderr); \
     } while (0);
 
 #define ahead_err(format, ...) \
     do {  \
-        fprintf(stderr, "[Ahead ERR]-%s:%d " format, __func__, __LINE__, ##__VA_ARGS__); \
+        fprintf(stderr, "[Ahead ERR]- " format, ##__VA_ARGS__); \
         fflush(stderr); \
     } while (0);
 
@@ -161,9 +171,7 @@ enum socks5_type {
 enum limit_value {
     IPV4_LENGTH = 16,
     FILEPATH_LENGTH = 256,
-    USERNAME_LENGTH = 16,
-    PASSWD_LENGTH = 16,
-    DOMAIN_LENGTH = 255
+    DOMAIN_LENGTH = 256
 };
 
 // statu types
@@ -172,7 +180,8 @@ enum status_value { OK = 0, ERROR = -1, AGAIN = -11, DONE = 1 };
 // types
 typedef volatile uint32_t atomic_t;
 typedef struct net_connection_t con_t;
-typedef int (*ev_cb)(con_t *c);
+
+
 
 // macros
 #define l_abs(x) (((x) >= 0) ? (x) : (-(x)))

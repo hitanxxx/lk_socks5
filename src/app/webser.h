@@ -10,7 +10,7 @@ extern "C" {
 
 typedef struct {
     char key[32];
-    ev_cb handler;
+    net_ev_cb handler;
     enum http_process_status method;
     unsigned char body_need;
     unsigned char auth_need;
@@ -41,8 +41,7 @@ int webser_end(void);
 
 int webser_accept_cb(con_t *c);
 int webser_accept_cb_ssl(con_t *c);
-int webser_api_reg(char *key, ev_cb cb, enum http_process_status method_type,
-                   char body_need);
+int webser_api_reg(char *key, net_ev_cb cb, enum http_process_status method_type, char body_need);
 
 #ifdef __cplusplus
 }

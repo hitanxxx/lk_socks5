@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-typedef struct gobal_conf {
+typedef struct {
     /// sys
     uint8_t sys_daemon;
     uint8_t sys_process_num;

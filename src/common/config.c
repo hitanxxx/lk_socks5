@@ -5,7 +5,6 @@ static config_t g_config = {0};
 inline config_t *config_get() { return &g_config; }
 
 static void config_info(void) {
-    ahead_dbg("----------------------\n");
     ahead_dbg("| daemon enable:     [%s]\n", g_config.sys_daemon ? "enabled" : "disabled");
     ahead_dbg("| process number:    [%d]\n",  g_config.sys_process_num);
     ahead_dbg("| log level:         [%s]\n", g_config.sys_log_level >= 0x2 ? "debug" : (g_config.sys_log_level >= 0x1 ? "info" : "error"));
@@ -17,18 +16,18 @@ static void config_info(void) {
         ahead_dbg("| authorization key: [%s]\n", g_config.s5_local_auth);
     } else {
         if (g_config.s5_mode == TLS_TUNNEL_S_SCRECT) {
-            ahead_dbg("| serv local listne ports:\n");
+            char str[256] = {0};
+            uint32_t strn = 0;
             for (int i = 0; i < g_config.https_num; i++) {
-                ahead_dbg("%d ", g_config.https_arr[i]);
+                strn += snprintf(str + strn, sizeof(str) - strn - 1, "%d ", g_config.https_arr[i]);
             }
-            ahead_dbg("\n");
+            ahead_dbg("| serv local listen ports: [%s]\n", str);
         } else {
             ahead_dbg("| serv local listen port:  [%d]\n", g_config.s5_serv_port);
         }
         ahead_dbg("| serv gateway (for dns resolve): [%s]\n", g_config.s5_serv_gw);
         ahead_dbg("| serv authorization db: [%s]\n", g_config.s5_serv_auth_path);
     }
-    ahead_dbg("----------------------\n");
     return;
 }
 

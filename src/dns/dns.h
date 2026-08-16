@@ -6,67 +6,65 @@ extern "C" {
 #endif
 
 #define DNS_TMOUT 5000
-#define DNS_METAN 1500
-#define DNS_TTL_MAX (3600 * 1000 * 3)
+#define DNS_METAN 1024  /// genernal limit 1472
+#define DNS_TTL_MAX (3600 * 1000 * 3) /// 12 hours
 
 #pragma pack(push, 1)
 /// dns format in here
 /// dns_header_t + qname + dns_question_t + (answer domain) + dns_rdata_t +
 /// answer_addr
 typedef struct dns_header {
-    unsigned short id;
-    unsigned short flag;
-    unsigned short question_count;
-    unsigned short answer_count;
-    unsigned short auth_count;
-    unsigned short add_count;
+    uint16_t id;
+    uint16_t flag;
+    uint16_t question_count;
+    uint16_t answer_count;
+    uint16_t auth_count;
+    uint16_t add_count;
 } dns_header_t;
 
 typedef struct dns_question {
     /// qname
-    unsigned short qtype;
-    unsigned short qclass;
+    uint16_t qtype;
+    uint16_t qclass;
 } dns_question_t;
 
 typedef struct dns_rdata {
-    unsigned short type;
-    unsigned short rclass;
+    uint16_t type;
+    uint16_t rclass;
     uint32_t ttl;
-    unsigned short data_len;
+    uint16_t data_len;
 } dns_rdata_t;
 
 typedef struct dns_record {
-    unsigned char *name;
+    uint8_t *name;
     dns_rdata_t *rdata;
-    unsigned char *answer_addr;
+    uint8_t *answer_addr;
 } dns_record_t;
 #pragma pack(pop)
 
-typedef void (*dns_async_cb)(int status, unsigned char *res, void *data);
-typedef struct dnsc {
-    // in && out
-    unsigned char
-        query[DOMAIN_LENGTH + 1]; /// stoege dns query host and convert qnam e
-    con_t *c;
-
-    dns_async_cb cb;
-    void *user_data;
-
-    unsigned char result[16];
+typedef void (*dns_async_cb)(int status, uint8_t *res, void *data);
+typedef struct  {
+    uint16_t    req_id;
+    ev_timer_t  *req_timer;
+    char     query[DOMAIN_LENGTH]; /// stoege dns query host and convert qname
 
     // private
-    uint32_t qname_len;  /// question qnamelen, qname data storge in query
+    uint32_t     qname_len;  /// question qnamelen, qname data storge in query
     dns_record_t answer; /// dns answer
+
+    uint8_t result[16];
+    dns_async_cb cb;
+    void    *user_data;
 } dnsc_t;
 
-void dns_free(dnsc_t *dnsc);
-int dns_alloc(dnsc_t **dns, char *domain, dns_async_cb cb, void *userdata);
-int dns_request_host2qname(unsigned char *host, unsigned char *qname);
+
+int dns_record_find(char *query, uint8_t *out_addr);
+
+void dns_resolve_free(void *data);
+void *dns_resolve(char *domain, dns_async_cb cb, void *userdata);
 
 int dns_init(void);
 int dns_end(void);
-
-int dns_rec_find(char *query, char *out_addr);
 
 #ifdef __cplusplus
 }

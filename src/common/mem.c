@@ -85,7 +85,7 @@ int mem_pool_init(void) {
         int obj_n = MP_OBJ_MAX;
         if (i == 0) {
             obj_space = 512;
-            obj_n *= 4; /// small obj * 2
+            obj_n *= 4; /// small obj * 4
         } else if (i == 1) {
             obj_space = 1024;
         } else if (i == 2) {

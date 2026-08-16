@@ -7,7 +7,7 @@ extern "C" {
 
 typedef struct {
     int index;
-    int64_t key;
+    uint64_t key;
 } heap_node_t;
 
 // bheap

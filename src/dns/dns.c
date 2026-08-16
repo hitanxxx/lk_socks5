@@ -1,93 +1,32 @@
 #include "common.h"
 #include "dns.h"
 
-typedef struct dns_cache_s {
-    queue_t queue;
-    long long expire_msec;
-    char query[DOMAIN_LENGTH + 1];
-    char addr[4]; /// only ipv4 addr
-} dns_cache_t;
+typedef struct  {
+    ev_timer_t *timer;
+    char query[DOMAIN_LENGTH];
+    uint8_t addr[4];        /// only ipv4 addr
+} dns_cache_record_t;
 
 typedef struct dns_ctx_s {
-    ezhash_t *dns_hash;
-    ev_timer_t dns_timer;
+    ezhash_t *hash_record;
+    ezhash_t *hash_resolve;
+    con_t *c;
+    uint16_t dns_id;
 } dns_ctx_t;
+
 static dns_ctx_t *dns_ctx = NULL;
 
-static int dns_async_result(dnsc_t *dns, int result_status,
-                            unsigned char *result) {
-    if (dns->cb)
-        dns->cb(result_status, result, dns->user_data);
-
-    return result_status == 0 ? 0 : -1;
-}
-
-static void dns_cexp(void *data) {
-    con_t *c = data;
-    dnsc_t *dns = c->data;
-    dns_async_result(dns, -1, NULL);
-}
-
-static int dns_rec_add(char *query, char *addr, int msec) {
-    dns_cache_t rdns = {0};
-
-    strncpy(rdns.query, query, sizeof(rdns.query) - 1);
-    rdns.addr[0] = addr[0];
-    rdns.addr[1] = addr[1];
-    rdns.addr[2] = addr[2];
-    rdns.addr[3] = addr[3];
-    if (msec > DNS_TTL_MAX)
-        msec = DNS_TTL_MAX;
-    rdns.expire_msec = systime_msec() + msec;
-
-    ezhash_add(dns_ctx->dns_hash, query, strlen(query), &rdns,
-               sizeof(dns_cache_t));
-    /// dbg("dns cache add entry: [%s]. ttl [%d] msec\n", query, msec);
-    return 0;
-}
-
-int dns_rec_find(char *query, char *out_addr) {
-    dns_cache_t *dnsc = ezhash_find(dns_ctx->dns_hash, query, strlen(query));
-    if (dnsc) {
-        if (out_addr)
-            memcpy(out_addr, dnsc->addr, 4);
-        return 0;
+static void dns_async_result(dnsc_t *dns, int result, uint8_t *ipv4) {
+    if (0 != ezhash_del(dns_ctx->hash_resolve, &dns->req_id, sizeof(dns->req_id))) {
+        err("dns resolve result. hash query del err\n");
     }
-    return -1;
+    if (dns->req_timer) ev_timer_free(dns->req_timer);
+    if (dns->cb) dns->cb(result, ipv4, dns->user_data);
+    mem_pool_free(dns);
+    return;
 }
 
-void dns_rec_chk(void *data) {
-    ezhash_t *hash = data;
-    int i = 0;
-    long long now = systime_msec();
-    if (hash) {
-        for (i = 0; i < hash->arrn; i++) {
-            if (!queue_empty(&hash->arr[i])) {
-                queue_t *p = queue_head(&hash->arr[i]);
-                while (p != queue_tail(&hash->arr[i])) {
-                    queue_t *n = queue_next(p);
-
-                    ezhash_obj_t *obj = ptr_get_struct(p, ezhash_obj_t, queue);
-                    dns_cache_t *dnsc = obj->val;
-                    if (dnsc->expire_msec < now) {
-                        if (obj->key)
-                            mem_pool_free(obj->key);
-                        if (obj->val)
-                            mem_pool_free(obj->val);
-                        queue_remove(&obj->queue);
-                        mem_pool_free(obj);
-                    }
-
-                    p = n;
-                }
-            }
-        }
-    }
-
-    tm_add(&dns_ctx->dns_timer, dns_rec_chk, dns_ctx->dns_hash, 30 * 1000);
-}
-
-inline static char *dns_get_serv(void) {
+static inline char *dns_get_serv(void) {
     /// try to get gateway
     if (strlen(config_get()->s5_serv_gw) > 0) {
         return config_get()->s5_serv_gw;
@@ -96,11 +35,43 @@ inline static char *dns_get_serv(void) {
     }
 }
 
-int dns_response_analyze(con_t *c) {
-    unsigned char *p = NULL;
+static void dns_record_timeout(ev_timer_t *timer) {
+    dns_cache_record_t *record = ev_timer_userdata(timer);
+    if (0 != ezhash_del(dns_ctx->hash_record, record->query, strlen(record->query))) {
+        err("dns record timeout. hash record del err\n");
+    }
+    if (record->timer) ev_timer_free(record->timer);
+    mem_pool_free(record);
+}
+
+static int dns_record_add(char *query, uint8_t *addr, uint64_t ms) {
+    dns_cache_record_t *record = mem_pool_alloc(sizeof(dns_cache_record_t));
+
+    memcpy(record->query, query, MIN(sizeof(record->query)-1, strlen(query)));
+    memcpy(record->addr, addr, 4);
+    if (ms > DNS_TTL_MAX) ms = DNS_TTL_MAX;
+    
+    ezhash_add(dns_ctx->hash_record, query, strlen(query), &record, sizeof(dns_cache_record_t *));
+    record->timer = ev_timer_alloc(dns_record_timeout, record, ms);
+    return 0;
+}
+
+int dns_record_find(char *query, uint8_t *out_addr) {
+    dns_cache_record_t **hash_val = ezhash_find(dns_ctx->hash_record, query, strlen(query));
+    if (hash_val) {
+        dns_cache_record_t *record = *hash_val;
+        if (record) {
+            if (out_addr) memcpy(out_addr, record->addr, 4);
+            return 0;
+        }
+    }
+    return -1;
+}
+
+int dns_response_analyze(dnsc_t *dnsc) {
+    uint8_t *p = NULL;
     int state_len = 0, cur = 0;
-    dnsc_t *dnsc = c->data;
-    meta_t *meta = c->meta;
+    meta_t *meta = dns_ctx->c->meta;
 
     enum {
         ANSWER_DOMAIN,
@@ -110,8 +81,7 @@ int dns_response_analyze(con_t *c) {
         ANSWER_ADDR_START,
         ANSWER_ADDR
     } state = ANSWER_DOMAIN;
-    p = meta->pos + sizeof(dns_header_t) + dnsc->qname_len +
-        sizeof(dns_question_t);
+    p = meta->pos + sizeof(dns_header_t) + dnsc->qname_len + sizeof(dns_question_t);
     /*
         parse dns answer
     */
@@ -167,14 +137,8 @@ int dns_response_analyze(con_t *c) {
 
                 /// if this answer is a A TYPE answer (IPV4), return ok
                 if (rtyp == 0x0001) {
-                    if (0 == dns_rec_find((char *)dnsc->query, NULL)) {
-                        /// do nothing, record already in cache
-                    } else {
-                        if (rttl > 0 && rdatan > 0) {
-                            dns_rec_add((char *)dnsc->query,
-                                        (char *)dnsc->answer.answer_addr,
-                                        1000 * rttl);
-                        }
+                    if (rttl > 0 && rdatan > 0) {
+                        dns_record_add((char *)dnsc->query, dnsc->answer.answer_addr, 1000 * rttl);
                     }
                     memcpy(dnsc->result, dnsc->answer.answer_addr, 4);
                     dns_async_result(dnsc, 0, dnsc->result);
@@ -191,81 +155,70 @@ int dns_response_analyze(con_t *c) {
             }
         }
     }
-    err("dns rsp find result error.\n");
+    err("dns resolve rsp empty.\n");
     dns_async_result(dnsc, -1, NULL);
     return -1;
 }
 
 int dns_response_recv(con_t *c) {
-    dnsc_t *dnsc = c->data;
     meta_t *meta = c->meta;
-    dns_header_t *header = NULL;
-
-    /// at least the response need contains the request
-    size_t want_len =
-        sizeof(dns_header_t) + dnsc->qname_len + sizeof(dns_question_t);
-
-    while (meta_getlen(meta) < want_len) {
-        int size = udp_recvs(c, meta->last, meta_getfree(meta));
-        if (size <= 0) {
-            if (size == -11) {
-                // add timer for recv
-                EZ_TMADD(c, dns_cexp, DNS_TMOUT);
-                return -11;
-            }
-            err("dns recv response failed, errno [%d]\n", errno);
-            dns_async_result(dnsc, -1, NULL);
-            return -1;
-        }
-        meta->last += size;
-    }
-    EZ_TMDEL(c);
-
-    /// do basic filter in here, check req question count and answer count
-    header = (dns_header_t *)meta->pos;
-    if (ntohs(header->question_count) < 1) {
-        err("dns response question count [%d], illegal\n",
-            header->question_count);
-        dns_async_result(dnsc, -1, NULL);
-        return -1;
-    }
-    if (ntohs(header->answer_count) < 1) {
-        err("dns response answer count [%d], illegal\n", header->answer_count);
-        dns_async_result(dnsc, -1, NULL);
-        return -1;
-    }
-
-    // make dns connection event invalidate
-    return dns_response_analyze(c);
-}
-
-int dns_request_send(con_t *c) {
-    dnsc_t *dnsc = c->data;
-    meta_t *meta = c->meta;
-
-    while (meta_getlen(meta) > 0) {
-        int sendn = udp_sends(c, meta->pos, meta_getlen(meta));
-        if (sendn <= 0) {
-            if (sendn == -11) {
-                // add timer for send
-                EZ_TMADD(c, dns_cexp, DNS_TMOUT);
-                return -11;
-            }
-            err("dns send request failed, errno [%d]\n", errno);
-            dns_async_result(dnsc, -1, NULL);
-            return -1;
-        }
-        meta->pos += sendn;
-    }
-
     meta_clr(meta);
 
-    c->ev->write_cb = NULL;
-    c->ev->read_cb = dns_response_recv;
-    return c->ev->read_cb(c);
+    for (;;) {
+        int ret = c->recv(c, meta->last, meta_getfree(meta));
+        if (ret <= 0) {
+            if (ret == 0) {
+                 continue;
+            } else if (ret < 0) {
+                if (ret == -11) {
+                    return -11;
+                }
+            }
+        }
+        
+        meta->last += ret;
+        /// do basic filter in here, check req question count and answer count
+        dns_header_t *header = (dns_header_t *)meta->pos;
+        header->id = (uint16_t)htons(header->id);
+        
+        dnsc_t **hash_val = ezhash_find(dns_ctx->hash_resolve, &header->id, sizeof(header->id));
+        if (hash_val) {
+            dnsc_t *dns = *hash_val;
+            if (ntohs(header->question_count) < 1) {
+                err("dns resolve rsp. question count [%d], illegal\n", header->question_count);
+                dns_async_result(dns, -1, NULL);
+                return -1;
+            }
+            if (ntohs(header->answer_count) < 1) {
+                err("dns resolve rsp. answer count [%d], illegal\n", header->answer_count);
+                dns_async_result(dns, -1, NULL);
+                return -1;
+            }
+            return dns_response_analyze(dns);
+        }
+
+        meta_clr(meta);
+    }
+    
+    return 0;
 }
 
-int dns_request_host2qname(unsigned char *host, unsigned char *qname) {
+static int  dns_request_send(dnsc_t *dnsc) {
+    meta_t *meta = dns_ctx->c->meta;
+
+    if (meta_getlen(meta) > 0) {
+        int ret = dns_ctx->c->send(dns_ctx->c, meta->pos, meta_getlen(meta));
+        if (ret <= 0) {
+            if (ret == -11) {
+                return -11;
+            }
+            return -1;
+        }
+    }
+    return 0;
+}
+
+static int dns_request_build_qname(char *host, uint8_t *qname) {
     int i = 0;
     char stack[256] = {0};
     int stackn = 0;
@@ -296,20 +249,16 @@ int dns_request_host2qname(unsigned char *host, unsigned char *qname) {
     return qnamen;
 }
 
-static int dns_request_packet(con_t *c) {
+static int dns_request_build(dnsc_t *dnsc) {
     /*
         header + question
     */
-
-    dnsc_t *dnsc = c->data;
-    dns_header_t *header = NULL;
-    unsigned char *qname = NULL;
-    dns_question_t *qinfo = NULL;
-    meta_t *meta = c->meta;
-
+    meta_t *meta = dns_ctx->c->meta;
+    meta_clr(meta);
+    
     /// fill in dns packet header
-    header = (dns_header_t *)meta->last;
-    header->id = (unsigned short)htons(0xbeef);
+    dns_header_t *header = (dns_header_t *)meta->last;
+    header->id = (uint16_t)htons(dnsc->req_id);
     header->flag = htons(0x100);
     header->question_count = htons(1);
     header->answer_count = 0;
@@ -318,78 +267,79 @@ static int dns_request_packet(con_t *c) {
     meta->last += sizeof(dns_header_t);
 
     /// convert www.google.com -> 3www6google3com0
-    qname = meta->last;
-    dnsc->qname_len = dns_request_host2qname(dnsc->query, qname);
+    uint8_t *qname = meta->last;
+    dnsc->qname_len = dns_request_build_qname(dnsc->query, qname);
     meta->last += dnsc->qname_len;
 
-    qinfo = (dns_question_t *)meta->last;
+    dns_question_t *qinfo = (dns_question_t *)meta->last;
     qinfo->qtype = htons(0x0001); /// question type is IPV4
     qinfo->qclass = htons(0x0001);
     meta->last += sizeof(dns_question_t);
-
-    ev_opt(c, EV_R | EV_W);
-    c->ev->read_cb = NULL;
-    c->ev->write_cb = dns_request_send;
-    return c->ev->write_cb(c);
+    return 0;
 }
 
-int dns_alloc(dnsc_t **outdns, char *domain, dns_async_cb cb, void *userdata) {
+void dns_resolve_free(void *data) {
+    dnsc_t *dns = (dnsc_t*)data;
+    ezhash_del(dns_ctx->hash_resolve, &dns->req_id, sizeof(dns->req_id));
+    if (dns->req_timer) ev_timer_free(dns->req_timer);
+    mem_pool_free(dns);
+    return;
+}
+
+static void dns_resolve_timeout(ev_timer_t *timer) {
+    dnsc_t *dns = ev_timer_userdata(timer);
+    err("dns resolve timout\n");
+    dns_async_result(dns, -1, NULL);
+}
+
+void *dns_resolve(char *domain, dns_async_cb cb, void *userdata) {
     dnsc_t *dns = mem_pool_alloc(sizeof(dnsc_t));
-    schk(dns, return -1);
+    schk(dns, return NULL);
 
-    dns->user_data = userdata;
     dns->cb = cb;
-    memcpy(dns->query, domain,
-           strlen(domain) > sizeof(dns->query) ? sizeof(dns->query)
-                                               : strlen(domain));
+    dns->user_data = userdata;
+    memcpy(dns->query, domain, MIN(sizeof(dns->query)-1, strlen(domain)));
+    dns->req_id = (uint16_t)htons((dns_ctx->dns_id    += 1) % (0xfffe));
+    
+    dns_request_build(dns);
+    dns_request_send(dns);
 
-    struct sockaddr_in addr;
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(53); /// dns typicaly port: 53
-    addr.sin_addr.s_addr = inet_addr(dns_get_serv());
-
-    do {
-        schk(0 == net_alloc(&dns->c), break);
-        schk(0 == meta_alloc(&dns->c->meta, DNS_METAN), break);
-        dns->c->data = dns;
-        dns->c->data_cb = NULL;
-
-        dns->c->fd = socket(AF_INET, SOCK_DGRAM, 0);
-        schk(dns->c->fd > 0, break);
-        schk(0 == net_socket_reuseaddr(dns->c->fd), break);
-        schk(0 == net_socket_nbio(dns->c->fd), break);
-
-        *outdns = dns;
-
-        memcpy(&dns->c->addr, &addr, sizeof(dns->c->addr));
-        dns->c->ev->read_cb = NULL;
-        dns->c->ev->write_cb = dns_request_packet;
-        return dns->c->ev->write_cb(dns->c);
-    } while (0);
-
-    cb(-1, NULL, userdata);
-    return -1;
-}
-
-void dns_free(dnsc_t *dnsc) {
-    if (dnsc->c)
-        net_free(dnsc->c);
-    mem_pool_free(dnsc);
+    if (0 != ezhash_add(dns_ctx->hash_resolve,
+        &dns->req_id, sizeof(dns->req_id), &dns, sizeof(dns))) {
+        err("dns resolve. hash query add err\n");
+        mem_pool_free(dns);
+        return NULL;
+    }
+    dns->req_timer = ev_timer_alloc(dns_resolve_timeout, dns, DNS_TMOUT);
+    return dns;
 }
 
 int dns_init(void) {
-    schk(!dns_ctx, return -1);
-    schk(dns_ctx = mem_pool_alloc(sizeof(dns_ctx_t)), return -1);
+    if (!dns_ctx) {
+        dns_ctx = mem_pool_alloc(sizeof(dns_ctx_t));
+        schk(dns_ctx, return -1);
+        schk(0 == ezhash_create(&dns_ctx->hash_record, 1024), return -1);
+        schk(0 == ezhash_create(&dns_ctx->hash_resolve, 1024), return -1);
 
-    schk(0 == ezhash_create(&dns_ctx->dns_hash, 279), return -1);
-    tm_add(&dns_ctx->dns_timer, dns_rec_chk, dns_ctx->dns_hash, 30 * 1000);
+        schk(0 == net_alloc(&dns_ctx->c), return -1);
+        dns_ctx->c->addr.sin_family = AF_INET;
+        dns_ctx->c->addr.sin_port = htons(53); /// dns typicaly port: 53
+        dns_ctx->c->addr.sin_addr.s_addr = inet_addr(dns_get_serv());
+        schk(0 == meta_alloc(&dns_ctx->c->meta, DNS_METAN), return -1);
+        schk(0 == net_connect(dns_ctx->c, NULL, 0), return -1);
+
+        dns_ctx->c->read_cb = dns_response_recv;
+        dns_ctx->c->write_cb = NULL;
+        net_ev_set(dns_ctx->c, EV_R);
+    }
     return 0;
 }
 
 int dns_end(void) {
     if (dns_ctx) {
-        ezhash_free(dns_ctx->dns_hash);
-        dns_ctx->dns_hash = NULL;
+        if (dns_ctx->c)  net_free(dns_ctx->c);
+        if (dns_ctx->hash_record) ezhash_free(dns_ctx->hash_record);
+        if (dns_ctx->hash_resolve) ezhash_free(dns_ctx->hash_resolve);
         mem_pool_free(dns_ctx);
         dns_ctx = NULL;
     }

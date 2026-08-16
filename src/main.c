@@ -1,6 +1,4 @@
 #include "common.h"
-#include "modules.h"
-#include "test_main.h"
 
 void s5_daemon(void) {
     if (config_get()->sys_daemon) {
@@ -82,19 +80,13 @@ static void s5_rename(int argc, char **argv) {
     return;
 }
 
-#if defined(TEST)
 int main(int argc, char **argv) {
-    systime_update();
-    test_start();
-    exit(EXIT_SUCCESS);
-}
-#else
-int main(int argc, char **argv) {
-    ahead_dbg("Welcome to <S5>, buildts <%s %s>\n", __DATE__, __TIME__);
-    ahead_dbg(" /\\_/\\\n");
-    ahead_dbg("( o.o )\n");
-    ahead_dbg(" > ^ <\n");
-    ahead_dbg("OpenSSL ver [%s]\n", OPENSSL_VERSION_TEXT);
+    ahead_dbg(" ______   ______ \n");
+    ahead_dbg("/ ____/  / ____/ \n");
+    ahead_dbg("\\__  \\  /___ \\   \n");
+    ahead_dbg(" ___/ / ___/  /  \n");
+    ahead_dbg("/____/ /_____/   \n");
+    ahead_dbg("S5 buildts <%s %s. %s>\n", __DATE__, __TIME__, OPENSSL_VERSION_TEXT);
 
     s5_command(argc, argv);
     s5_rename(argc, argv);
@@ -103,7 +95,6 @@ int main(int argc, char **argv) {
     schk(0 == config_init(), return -1);
     schk(0 == log_init(), return -1);
     schk(0 == process_init(), return -1);
-    schk(0 == listen_init(), return -1);
 
     s5_daemon();
     s5_save_pid();
@@ -112,8 +103,7 @@ int main(int argc, char **argv) {
 
     schk(0 == log_end(), return -1);
     schk(0 == process_end(), return -1);
-    schk(0 == listen_end(), return -1);
     unlink(S5_PATH_PID);
     return 0;
 }
-#endif
+
