@@ -231,7 +231,6 @@ int net_connect(con_t *c, struct sockaddr_in *addr, uint8_t ftcp) {
                 return -11;
             }
             err("connect failed, [%d]\n", errno);
-            close(fd);
             return -1;
         }
         return 0;
