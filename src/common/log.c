@@ -9,7 +9,7 @@ static log_mgr_t *log_ctx = NULL;
 static char *levels[] = {"[ERR]", "[DBG]", "[INF]"};
 
 static int log_format_prefix(log_content_t *ctx) {
-    int ret = snprintf(ctx->pos, (ctx->last - ctx->pos) - 1, "%s %s (%d) <%s:%d> ",
+    int ret = snprintf(ctx->pos, (ctx->last - ctx->pos) - 1, "%s %s (%d) %s#%d: ",
                         levels[ctx->level],
                         systime_log(),
                         (g_proc_ctx ?  (g_proc_ctx->pcur ? g_proc_ctx->pcur->pid : getpid()) : getpid()),

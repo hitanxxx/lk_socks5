@@ -16,7 +16,7 @@ static int s5_cdown_recv(con_t *cdown) {
                     net_timer_add(cdown, tls_session_timeout, TLS_TMOUT);
                     return -11;
                 }
-                err("s5 cdown wait cup connect. dummy recv err.\n");
+                err("s5. cdown wait cup connect. recv err.\n");
                 net_free(session->cup);
                 net_free(cdown);
                 return -1;
@@ -38,7 +38,7 @@ int s5_p2_rsp(con_t *cdown) {
                 net_timer_add(cdown, tls_session_timeout, TLS_TMOUT);
                 return -11;
             }
-            err("TLS tunnel. s5p2 rsp send failed\n");
+            err("s5. p2 rsp send err\n");
             net_free(session->cup);
             net_free(cdown);
             return -1;
@@ -61,7 +61,7 @@ int s5_cup_connect_chk(con_t *cup) {
     net_timer_del(cup);
 
     if (0 != net_connect_chk(cup)) {
-        err("tls tunnel. socket chk err\n");
+        err("s5. cup connect chk err\n");
         net_free(cup);
         net_free(cdown);
         return -1;
@@ -97,7 +97,7 @@ int s5_cup_connect(con_t *cup) {
             net_timer_add(cup, tls_session_timeout, TLS_TMOUT);
             return -11;
         }
-        err("socks5 connect err\n");
+        err("s5. cup connect err\n");
         net_free(cup);
         net_free(session->cdown);
         return -1;
@@ -121,7 +121,7 @@ void s5_cup_dns_cb(int status, uint8_t *result, void *data) {
         memcpy(&session->cup->addr.sin_addr.s_addr, result, 4);
         session->cup->write_cb(session->cup);
     } else {
-        err("TLS tunnel. dns resolv failed\n");
+        err("s5. dns cb resolv err\n");
         net_free(session->cup);
         net_free(session->cdown);
     }
@@ -166,7 +166,7 @@ int s5_cup_addr(con_t *cdown) {
 
     session->dns = dns_resolve((char*)s5p2->dst_addr, s5_cup_dns_cb, session);
     if (!session->dns) {
-        err("s5 cup addr dns resolve err\n");
+        err("s5. dns resolve err\n");
         net_free(session->cup);
         net_free(session->cdown);
         return -1;
@@ -209,7 +209,7 @@ int s5_p2_req(con_t *cdown) {
                     net_timer_add(cdown, tls_session_timeout, TLS_TMOUT);
                     return -11;
                 }
-                err("s5p2 recv failed\n");
+                err("s5. p2 recv err\n");
                 net_free(cdown);
                 return -1;
             }
@@ -264,7 +264,7 @@ int s5_p2_req(con_t *cdown) {
                     s5p2->dst_addr_cnt = 0;
                     continue;
                 }
-                err("s5p2 atyp [%d] not support\n", s5p2->atyp);
+                err("s5. p2 atyp [%d] not support\n", s5p2->atyp);
                 net_free(cdown);
                 return -1;
             }
@@ -338,7 +338,7 @@ int s5_p1_rsp(con_t *cdown) {
                 net_timer_add(cdown, tls_session_timeout, TLS_TMOUT);
                 return -11;
             }
-            err("s5p1 rsp send failed\n");
+            err("s5. p1 rsp send err\n");
             net_free(cdown);
             return -1;
         }
@@ -374,7 +374,7 @@ int s5_p1_req(con_t *cdown) {
                     net_timer_add(cdown, tls_session_timeout, TLS_TMOUT);
                     return -11;
                 }
-                err("s5p1 recv failed\n");
+                err("s5. p1 recv err\n");
                 net_free(cdown);
                 return -1;
             }

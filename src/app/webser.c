@@ -95,14 +95,14 @@ static int webser_try_read(con_t *c) {
         if ((errno == EAGAIN) || (errno == EWOULDBLOCK)) {
             return -11;
         }
-        err("peek recv err. <%d:%s>\n", errno, strerror(errno));
+        err("web, peek recv err. [%d] [%s]\n", errno, strerror(errno));
         net_free(c);
         return -1;
     }
     if (n == 1) {
         return 0;
     }
-    err("peek recv peer closed\n");
+    err("web. peek recv peer closed\n");
     net_free(c);
     return -1;
 }
@@ -153,7 +153,7 @@ static int webser_rsp_payload_send_api(con_t *c) {
                 net_timer_add(c, web_exp, WEB_TMOUT);
                 return -11;
             }
-            err("webser send resp body failed\n");
+            err("web. rsp string send err\n");
             net_free(c);
             return -1;
         }
@@ -180,7 +180,7 @@ static int webser_rsp_payload_send_ff(con_t *c) {
                     net_timer_add(c, web_exp, WEB_TMOUT);
                     return -11;
                 }
-                err("webser file content send error\n");
+                err("web. rsp file send err\n");
                 net_free(c);
                 return -1;
             }
@@ -195,8 +195,7 @@ static int webser_rsp_payload_send_ff(con_t *c) {
         if (meta_getfree(meta) > 0) {
             int readn = read(webc->ffd, meta->last, meta_getfree(meta));
             if (readn <= 0) {
-                err("webserv rff err. [%d] [%d] [%d]\n", errno, webc->fsend,
-                    webc->fsize);
+                err("web. rsp file read err. [%d] <%d:%d>\n", errno, webc->fsend, webc->fsize);
                 net_free(c);
                 return -1;
             }
@@ -227,7 +226,7 @@ static int webser_rsp_payload_send(con_t *c) {
         c->write_cb = webser_rsp_payload_send_api;
         return c->write_cb(c);
     }
-    err("webser type not support. [%d]\n", webc->type);
+    err("web. req type no support. [%d]\n", webc->type);
     net_free(c);
     return -1;
 }
@@ -242,7 +241,7 @@ static int webser_rsp_hdr_send(con_t *c) {
             net_timer_add(c, web_exp, WEB_TMOUT);
             return -11;
         }
-        err("webser resp head send failed\n");
+        err("web. rsp header send err\n");
         net_free(c);
         return -1;
     }
@@ -372,14 +371,14 @@ static int webser_req_file(con_t *c) {
 
     webc->fsize = webc->fsend = 0;
     if (0 != stat(p, &st)) {
-        err("webser stat reqfile [%s] err, [%d]\n", p, errno);
+        err("web. reqfile [%s] stat err, [%d]\n", p, errno);
         http_code = 400;
     } else {
         if (st.st_mode & S_IFMT) {
             if (st.st_mode & S_IRUSR) {
                 webc->ffd = open(p, O_RDONLY);
                 if (-1 == webc->ffd) {
-                    err("webser open reqfile [%s] err, [%d]\n", p, errno);
+                    err("web. reqfile [%s] open err, [%d]\n", p, errno);
                     http_code = 500;
                 }
                 http_code = 200;
@@ -441,7 +440,7 @@ static int webser_req_proc(con_t *c) {
             net_timer_add(c, web_exp, WEB_TMOUT);
             return -11;
         }
-        err("webser process request header failed\n");
+        err("web. process req err\n");
         net_free(c);
         return -1;
     }
@@ -497,7 +496,7 @@ int webser_chk_s5_or_web(con_t *c) {
         int recvd = c->recv(c, c->meta->last, meta_getfree(c->meta));
         if (recvd < 0) {
             if (recvd == -1) {
-                err("webser chk recvd err. [%d]\n", errno);
+                err("web. recv s5/web route info err\n");
                 net_free(c);
                 return -1;
             } else if (recvd == -11) {
@@ -529,7 +528,7 @@ int webser_accept_cb_ssl(con_t *c) {
     }
 
     if (net_ssl_check_err(c)) {
-        err("webser ssl handshake error\n");
+        err("web. ssl handshake err\n");
         net_free(c);
         return -1;
     }
@@ -541,7 +540,7 @@ int webser_accept_cb_ssl(con_t *c) {
                 net_timer_add(c, net_free_timeout, WEB_TMOUT);
                 return -11;
             }
-            err("webser [%p] ssl handshake failed\n", c);
+            err("web. ssl handshake err\n", c);
             net_free(c);
             return -1;
         }

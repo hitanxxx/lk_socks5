@@ -341,7 +341,7 @@ static int tls_tunnel_s_auth_chk(con_t *cdown) {
                     net_timer_add(cdown, tls_session_timeout, TLS_TMOUT);
                     return -11;
                 }
-                err("webreq recv err\n");
+                err("tls tunnel. auth recv err\n");
                 return -1;
             }
             cdown->meta->last += recvd;
@@ -352,14 +352,14 @@ static int tls_tunnel_s_auth_chk(con_t *cdown) {
             p = cdown->meta->pos;
             if (session->auth_state == s_mg1) {
                 if (*p != TLS_AUTH_MG1) {
-                    err("TLS auth chk. mg1 err\n");
+                    err("tls tunnel. auth chk mg1 err\n");
                     net_free(cdown);
                     return -1;
                 }
                 session->auth_state = s_mg2;
             } else if (session->auth_state == s_mg2) {
                 if (*p != TLS_AUTH_MG2) {
-                    err("TLS auth chk. mg2 err\n");
+                    err("tls tunnel. auth chk mg2 err\n");
                     net_free(cdown);
                     return -1;
                 }
@@ -367,7 +367,7 @@ static int tls_tunnel_s_auth_chk(con_t *cdown) {
             } else if (session->auth_state == s_len) {
                 session->auth_data_all = *p;
                 if (session->auth_data_all < 1 || session->auth_data_all > 31) {
-                    err("TLS auth chk. slen [%d] illegal\n", session->auth_data_all);
+                    err("tls tunnel. auth chk slen [%d] err\n", session->auth_data_all);
                     net_free(cdown);
                     return -1;
                 }
@@ -384,7 +384,7 @@ static int tls_tunnel_s_auth_chk(con_t *cdown) {
                         cdown->write_cb = NULL;
                         return cdown->read_cb(cdown);
                     } else {
-                        err("TLS auth chk. auth not found\n");
+                        err("tls tunnel. auth not found\n");
                         net_free(cdown);
                         return -1;
                     }
@@ -393,7 +393,7 @@ static int tls_tunnel_s_auth_chk(con_t *cdown) {
         }
     }
 
-    err("TLS auth chk not fin. auth_state [%d]\n", session->auth_state);
+    err("tls tunnel. auth chk not fin. auth_state [%d]\n", session->auth_state);
     net_free(cdown);
     return -1;
 }
@@ -445,7 +445,7 @@ int tls_tunnel_s_accept(con_t *cdown) {
     }
 
     if (net_ssl_check_err(cdown)) {
-        err("tls tunnel. cdown handshake error\n");
+        err("tls tunnel. ssl handshake err\n");
         net_free(cdown);
         return -1;
     }
@@ -457,7 +457,7 @@ int tls_tunnel_s_accept(con_t *cdown) {
                 net_timer_add(cdown, net_free_timeout, TLS_TMOUT);
                 return -11;
             }
-            err("TLS tunnel. handshek err\n");
+            err("tls tunnel. ssl handshek err\n");
             net_free(cdown);
             return -1;
         }
@@ -471,12 +471,10 @@ int tls_tunnel_s_accept(con_t *cdown) {
 static int tls_tunnel_s_auth_mgr_fparse(char *data) {
     cJSON *root = cJSON_Parse(data);
     if (root) { /// traversal the array
-        int i = 0;
-        for (i = 0; i < cJSON_GetArraySize(root); i++) {
+        for (int i = 0; i < cJSON_GetArraySize(root); i++) {
             cJSON *arrobj = cJSON_GetArrayItem(root, i);
-            if (0 != ezac_add(g_ses_ctx->ac, cJSON_GetStringValue(arrobj),
-                              strlen(cJSON_GetStringValue(arrobj)))) {
-                err("s5 srv auth add ac err\n", cJSON_GetStringValue(arrobj));
+            if (0 != ezac_add(g_ses_ctx->ac, cJSON_GetStringValue(arrobj), strlen(cJSON_GetStringValue(arrobj)))) {
+                err("tls tunnel. srv auth add into ac err\n", cJSON_GetStringValue(arrobj));
             }
         }
         cJSON_Delete(root);

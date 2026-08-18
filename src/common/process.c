@@ -52,7 +52,7 @@ void proc_worker_task(void) {
 static int proc_fork(process_t *process) {
     pid_t pid = fork();
     if (pid < 0) {
-        err("fork child failed, [%d]\n", errno);
+        err("fork syscall err, [%d]\n", errno);
         return -1;
     } else if (pid == 0) { /// child
         g_proc_ctx->pmaster = 0;
@@ -76,13 +76,13 @@ void proc_master_task(void) {
     sigaddset(&set, SIGUSR1);
     sigaddset(&set, SIGUSR2);
     if (sigprocmask(SIG_BLOCK, &set, NULL) == -1) {
-        err("master blcok signal set failed, [%d]\n", errno);
+        err("master blcok signal set err, [%d]\n", errno);
         return;
     }
 
     for (i = 0; i < config_get()->sys_process_num; i++) {
         if (-1 == proc_fork(&g_proc_ctx->parr[i])) {
-            err("process spawn number [%d] child failed, errno [%d]\n", i, errno);
+            err("master spawn child idx [%d] err. [%d]\n", i, errno);
             return;
         }
         if (!g_proc_ctx->pmaster) return;
@@ -93,7 +93,7 @@ void proc_master_task(void) {
         sigsuspend(&set);  ///Unblock all signal && wait signal
 
         systime_update();
-        dbg("master received signal [%d]\n", g_proc_ctx->signal);
+        err("master received signal [%d]\n", g_proc_ctx->signal);
 
         ///master quit -> stop all child process
         if (g_proc_ctx->sig_quit == 1) {
@@ -114,7 +114,7 @@ void proc_master_task(void) {
             for (i = 0; i < config_get()->sys_process_num; i++) {
                 if (g_proc_ctx->parr[i].exited) {
                     if (-1 == proc_fork(&g_proc_ctx->parr[i])) {
-                        err("proc_fork index [%d] failed, [%d]\n", i, errno);
+                        err("master spawn child idx [%d] err. [%d]\n", i, errno);
                         continue;
                     }
 

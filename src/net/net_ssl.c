@@ -86,7 +86,7 @@ static int net_ssl_read(con_t *c, uint8_t *buf, uint32_t bufn) {
             return -1;
         } else if (sslerr == SSL_ERROR_SYSCALL) {
             if (errno != 0) {
-                err("syscall err. [%d]\n", errno);
+                err("ssl syscall err. [%d]\n", errno);
             }
             sslc->f_err = 1;
             return -1;
@@ -136,7 +136,7 @@ static int net_ssl_write(con_t *c, uint8_t *data, uint32_t datan) {
         return -11;
     }
     if (sslerr == SSL_ERROR_ZERO_RETURN) {
-        err("sslc already closed\n");
+        err("ssl already closed\n");
     }
     
     sslc->f_err = 1;
@@ -162,7 +162,7 @@ static int net_ssl_write_chain(con_t *c, meta_t *meta) {
             if (-11 == sendn) {
                 return -11;
             }
-            err("ssl write failed\n");
+            err("ssl write err\n");
             return -1;
         }
         cl->pos += sendn;
@@ -292,7 +292,7 @@ int net_ssl_handshake(con_t *c) {
     ///SSL_ERROR_SYSCALL
     ///other error 
     if (sslerr == SSL_ERROR_SYSCALL) {
-        if (errno != 0) err("syscall err. [%d]\n", errno);
+        if (errno != 0) err("ssl syscall err. [%d]\n", errno);
     }
     
     sslc->f_closed = 1;

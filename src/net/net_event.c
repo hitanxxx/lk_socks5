@@ -65,7 +65,7 @@ static int ev_epoll_opt(ev_t *event, int fd, uint32_t new_mask) {
     if (event->mask != new_mask) {
         if (new_mask == EV_NONE) {
             if (-1 == epoll_ctl(g_event_ctx->epfd, EPOLL_CTL_DEL, fd, NULL)) {
-                err("epoll_ctl err. [%d] [%s]\n", errno, strerror(errno));
+                err("ev. epoll_ctl err. [%d] [%s]\n", errno, strerror(errno));
                 return -1;
             }
         } else {
@@ -76,7 +76,7 @@ static int ev_epoll_opt(ev_t *event, int fd, uint32_t new_mask) {
             if (new_mask & EV_R)  evsys.events |= EPOLLIN;
             if (new_mask & EV_W)  evsys.events |= EPOLLOUT;
             if (-1 == epoll_ctl(g_event_ctx->epfd, (event->mask == EV_NONE ? EPOLL_CTL_ADD : EPOLL_CTL_MOD), fd, &evsys)) {
-                err("epoll_ctl err. [%d] [%s]\n",  errno, strerror(errno));
+                err("ev. epoll_ctl err. [%d] [%s]\n",  errno, strerror(errno));
                 return -1;
             }
         }
@@ -94,10 +94,10 @@ static int ev_epoll_loop(uint64_t ms) {
             return (ms == -1) ? -1 : -11;
         }
         if (errno == EINTR) {
-            err("evt epoll_wait irq by [syscall]\n");
+            err("ev. epoll_wait irq by [syscall]\n");
             return 0;
         }
-        err("evt epoll_wait irq by [err], [%d] [%s]", errno, strerror(errno));
+        err("ev. epoll_wait irq by [err], [%d] [%s]", errno, strerror(errno));
         return -1;
     }
 
@@ -191,10 +191,10 @@ static int ev_select_loop(uint64_t ms) {
             return -11;
         }
         if (errno == EINTR) {
-            err("evt select irq by [syscall]\n");
+            err("ev. select irq by [syscall]\n");
             return 0;
         }
-        err("evt select irq by [err], [%d] [%s]\n", errno, strerror(errno));
+        err("ev. select irq by [err], [%d] [%s]\n", errno, strerror(errno));
         return -1;
     }
     int processed = 0;

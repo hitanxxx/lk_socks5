@@ -74,7 +74,7 @@ static int net_io_recv(con_t *c, uint8_t *buf, uint32_t bufn) {
                         ///do not print error message. handle them silently
                         return -1;
                     } 
-                    err("recv failed. [%d] [%s]\n", errno, strerror(errno));
+                    err("net recv err. [%d] [%s]\n", errno, strerror(errno));
                     return -1;
                 }
             }
@@ -98,7 +98,7 @@ static int net_io_send(con_t *c, uint8_t *buf, uint32_t bufn) {
             } else if (errno == EINTR) {
                 continue;
             } else {
-                err("send failed. [%d] [%s]\n", errno, strerror(errno));
+                err("net send err. [%d] [%s]\n", errno, strerror(errno));
                 return -1;
             }
         }
@@ -171,7 +171,7 @@ int net_connect_chk(con_t *c) {
     socklen_t errn = sizeof(int);
     schk(0 == getsockopt(c->fd, SOL_SOCKET, SO_ERROR, (void *)&errcode, &errn), return -1);
     if (errcode != 0) {
-        err("net socket detect error. [%d] [%s]\n", errcode, strerror(errcode));
+        err("net socket getsockopt(SO_ERROR) err. [%d] [%s]\n", errcode, strerror(errcode));
         return -1;
     }
     return 0;
@@ -230,7 +230,7 @@ int net_connect(con_t *c, struct sockaddr_in *addr, uint8_t ftcp) {
                        (errno == EINPROGRESS)) {
                 return -11;
             }
-            err("connect failed, [%d]\n", errno);
+            err("net connect syscall err. [%d]\n", errno);
             return -1;
         }
         return 0;
@@ -250,7 +250,7 @@ static int net_accept(con_t *c) {
                 errno == EPROTO || errno == ECONNABORTED) {
                 return -11;
             }
-            err("accept failed, [%d]\n", errno);
+            err("net accept syscall err. [%d]\n", errno);
             return -1;
         }
 
@@ -332,7 +332,6 @@ static void net_free_internal(void *data) {
     }
 
     if (c->ev) {
-        ///dbg("c ev idxr[%d] idxw[%d]\n", c->ev->idxr, c->ev->idxw);
         ev_free(c->ev);
         c->ev = NULL;
     }
@@ -444,7 +443,7 @@ int net_timer_add(con_t *c, net_timer_cb cb, uint64_t delay_ms) {
     if (!c->timer) {
         c->timer = mem_pool_alloc(sizeof(ev_timer_t));
         if (!c->timer) {
-            err("net timer mem_alloc err. [%d]\n", errno);
+            err("net timer alloc err\n");
             return -1;
         }
     }

@@ -288,7 +288,7 @@ void dns_resolve_free(void *data) {
 
 static void dns_resolve_timeout(ev_timer_t *timer) {
     dnsc_t *dns = ev_timer_userdata(timer);
-    err("dns resolve timout\n");
+    err("dns resolve. timeout\n");
     dns_async_result(dns, -1, NULL);
 }
 
