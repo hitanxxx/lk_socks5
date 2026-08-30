@@ -25,6 +25,7 @@ extern "C" {
 #if __linux__
 #include <malloc.h>
 #include <semaphore.h>
+#include <execinfo.h>
 #elif __APPLE__
 #include <dispatch/dispatch.h>
 #include <sys/malloc.h>

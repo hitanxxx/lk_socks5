@@ -216,7 +216,6 @@ int net_connect(con_t *c, struct sockaddr_in *addr, uint8_t ftcp) {
     if (c->write_cb) mask |= EV_W;
     if (!mask) {
         err("net connect. but read and write cb all empty\n");
-        close(fd);
         return -1;
     }
     net_ev_set(c, mask);

@@ -10,9 +10,9 @@ struct net_ssl_t{
     SSL *con;
     void *data;
     
-    int cc_ev_typ;
-    net_ev_cb cc_ev_cbr;
-    net_ev_cb cc_ev_cbw;
+    uint32_t cached_mask;
+    net_ev_cb cached_readcb;
+    net_ev_cb cached_writecb;
 
     uint8_t f_handshakeing : 1;     ///handshakeing 
     uint8_t f_handshaked : 1;       ///handshake fin

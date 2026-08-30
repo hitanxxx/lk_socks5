@@ -55,25 +55,21 @@ static int net_ssl_read(con_t *c, uint8_t *buf, uint32_t bufn) {
     ssl_clear_error();
     int rc = SSL_read(sslc->con, buf, bufn);
     if (rc > 0) {
-        if (sslc->cc_ev_typ) {
-            net_ev_set(c, sslc->cc_ev_typ);
-            sslc->cc_ev_typ = 0;
-        }
-        if (sslc->cc_ev_cbw) {
-            c->write_cb = sslc->cc_ev_cbw;
-            sslc->cc_ev_cbw = NULL;
+        if (sslc->cached_mask) {
+            net_ev_set(c, c->ssl->cached_mask);
+            c->read_cb = c->ssl->cached_readcb;
+            c->write_cb = c->ssl->cached_writecb;
+            sslc->cached_mask = 0;
         }
         return rc;
     }
 
     int sslerr = SSL_get_error(sslc->con, rc);
     if (sslerr == SSL_ERROR_WANT_READ || sslerr == SSL_ERROR_WANT_WRITE) {
-        if (!sslc->cc_ev_typ) sslc->cc_ev_typ = c->ev->mask;
-        if (!sslc->cc_ev_cbr) {
-            if (c->read_cb) sslc->cc_ev_cbr = c->read_cb;
-        }
-        if (!sslc->cc_ev_cbw) {
-            if (c->write_cb) sslc->cc_ev_cbw = c->write_cb;
+        if (!sslc->cached_mask) {
+            sslc->cached_mask = c->ev->mask;
+            sslc->cached_readcb = c->read_cb;
+            sslc->cached_writecb = c->write_cb;
         }
 
         if (sslerr == SSL_ERROR_WANT_READ) {
@@ -106,25 +102,21 @@ static int net_ssl_write(con_t *c, uint8_t *data, uint32_t datan) {
     ssl_clear_error();
     int rc = SSL_write(sslc->con, data, datan);
     if (rc > 0) {
-        if (sslc->cc_ev_typ) {
-            net_ev_set(c, c->ssl->cc_ev_typ);
-            sslc->cc_ev_typ = 0;
-        }
-        if (sslc->cc_ev_cbr) {
-            c->read_cb = sslc->cc_ev_cbr;
-            sslc->cc_ev_cbr = NULL;
+        if (sslc->cached_mask) {
+            net_ev_set(c, c->ssl->cached_mask);
+            c->read_cb = c->ssl->cached_readcb;
+            c->write_cb = c->ssl->cached_writecb;
+            sslc->cached_mask = 0;
         }
         return rc;
     }
 
     int sslerr = SSL_get_error(sslc->con, rc);
     if (sslerr == SSL_ERROR_WANT_READ || sslerr == SSL_ERROR_WANT_WRITE) {
-        if (!sslc->cc_ev_typ) c->ssl->cc_ev_typ = c->ev->mask;
-        if (!sslc->cc_ev_cbr){
-            if (c->read_cb) c->ssl->cc_ev_cbr = c->read_cb;
-        }
-        if (!sslc->cc_ev_cbw){
-            if (c->write_cb) c->ssl->cc_ev_cbw = c->write_cb;
+        if (!sslc->cached_mask) {
+            sslc->cached_mask = c->ev->mask;
+            sslc->cached_readcb = c->read_cb;
+            sslc->cached_writecb = c->write_cb;
         }
 
         if (sslerr == SSL_ERROR_WANT_READ) {
@@ -245,13 +237,12 @@ static int net_ssl_handshake_cb(con_t *c) {
 
     net_timer_del(c);
 
-    if (c->ssl->cc_ev_typ) {
-        net_ev_set(c, c->ssl->cc_ev_typ);
-        c->ssl->cc_ev_typ = 0;
+    if (c->ssl->cached_mask) {
+        net_ev_set(c, c->ssl->cached_mask);
+        c->read_cb = c->ssl->cached_readcb;
+        c->write_cb = c->ssl->cached_writecb;
+        c->ssl->cached_mask = 0;
     }
-    c->read_cb = c->ssl->cc_ev_cbr;
-    c->write_cb = c->ssl->cc_ev_cbw;
-    c->ssl->cc_ev_cbr = c->ssl->cc_ev_cbw = NULL;
     
     ///connect handshake or accept handshake 
     if (c->write_cb) {
@@ -267,6 +258,13 @@ int net_ssl_handshake(con_t *c) {
     ssl_clear_error();
     int rc = SSL_do_handshake(sslc->con);
     if (rc == 1) {
+        if (sslc->cached_mask) {
+            net_ev_set(c, c->ssl->cached_mask);
+            c->read_cb = c->ssl->cached_readcb;
+            c->write_cb = c->ssl->cached_writecb;
+            sslc->cached_mask = 0;
+        }
+
         sslc->f_handshakeing = 0;
         sslc->f_handshaked = 1;
 
@@ -278,6 +276,12 @@ int net_ssl_handshake(con_t *c) {
 
     int sslerr = SSL_get_error(sslc->con, rc);
     if ((sslerr == SSL_ERROR_WANT_READ) || (sslerr == SSL_ERROR_WANT_WRITE)) {
+        if (!sslc->cached_mask) {
+            sslc->cached_mask = c->ev->mask;
+            sslc->cached_readcb = c->read_cb;
+            sslc->cached_writecb = c->write_cb;
+        }
+
         if (sslerr == SSL_ERROR_WANT_READ) {
             c->read_cb = net_ssl_handshake_cb;
             net_ev_set(c, EV_R);
@@ -311,6 +315,7 @@ static int net_ssl_create_ctx(SSL_CTX **ctx, int flag) {
     if (flag == L_SSL_CLIENT) {
         if (!g_ssl_ctx->ctx_client) {
             schk(g_ssl_ctx->ctx_client = SSL_CTX_new(TLS_client_method()), return -1);
+            SSL_CTX_set_mode(g_ssl_ctx->ctx_client, SSL_MODE_AUTO_RETRY);
             SSL_CTX_set_mode(g_ssl_ctx->ctx_client, SSL_MODE_ENABLE_PARTIAL_WRITE);
             SSL_CTX_set_mode(g_ssl_ctx->ctx_client, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
             SSL_CTX_set_options(g_ssl_ctx->ctx_client, SSL_OP_IGNORE_UNEXPECTED_EOF);
@@ -328,6 +333,7 @@ static int net_ssl_create_ctx(SSL_CTX **ctx, int flag) {
             int ret = -1;
             do {
                 schk(g_ssl_ctx->ctx_server = SSL_CTX_new(TLS_server_method()), return -1);
+                SSL_CTX_set_mode(g_ssl_ctx->ctx_server, SSL_MODE_AUTO_RETRY);
                 SSL_CTX_set_mode(g_ssl_ctx->ctx_server, SSL_MODE_ENABLE_PARTIAL_WRITE);
                 SSL_CTX_set_mode(g_ssl_ctx->ctx_server, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
                 SSL_CTX_set_options(g_ssl_ctx->ctx_server, SSL_OP_IGNORE_UNEXPECTED_EOF);
@@ -398,10 +404,6 @@ int net_ssl_create(con_t *c, int flag) {
         
         c->ssl = sslc;
         sslc->data = c;
-
-        sslc->cc_ev_cbr = c->read_cb;
-        sslc->cc_ev_cbw = c->write_cb;
-        sslc->cc_ev_typ = c->ev->mask;
         return 0;
     } while (0);
 

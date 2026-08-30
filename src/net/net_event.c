@@ -65,8 +65,12 @@ static int ev_epoll_opt(ev_t *event, int fd, uint32_t new_mask) {
     if (event->mask != new_mask) {
         if (new_mask == EV_NONE) {
             if (-1 == epoll_ctl(g_event_ctx->epfd, EPOLL_CTL_DEL, fd, NULL)) {
-                err("ev. epoll_ctl err. [%d] [%s]\n", errno, strerror(errno));
-                return -1;
+                if (errno == ENOENT) {
+                   event->mask = EV_NONE;
+                } else {
+                    err("ev. epoll_ctl err. [%d] [%s]\n", errno, strerror(errno));
+                    return -1;
+                }
             }
         } else {
             struct epoll_event evsys;
@@ -76,8 +80,12 @@ static int ev_epoll_opt(ev_t *event, int fd, uint32_t new_mask) {
             if (new_mask & EV_R)  evsys.events |= EPOLLIN;
             if (new_mask & EV_W)  evsys.events |= EPOLLOUT;
             if (-1 == epoll_ctl(g_event_ctx->epfd, (event->mask == EV_NONE ? EPOLL_CTL_ADD : EPOLL_CTL_MOD), fd, &evsys)) {
-                err("ev. epoll_ctl err. [%d] [%s]\n",  errno, strerror(errno));
-                return -1;
+                if (errno == EEXIST) {
+                    event->mask = new_mask;
+                } else {
+                    err("ev. epoll_ctl err. [%d] [%s]\n",  errno, strerror(errno));
+                    return -1;
+                }
             }
         }
         event->mask = new_mask;
