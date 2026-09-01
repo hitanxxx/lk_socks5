@@ -69,8 +69,8 @@ int net_connect_chk(con_t *c);
 int net_connect(con_t *c, struct sockaddr_in *addr, uint8_t ftcp);
 int net_listen(net_ev_cb cb, struct sockaddr_in *addr, uint8_t fssl);
 
-
 void net_free_timeout(ev_timer_t *timer);
+void net_free_thorough(con_t *c);
 int net_free(con_t *c);
 int net_alloc(con_t **c);
 

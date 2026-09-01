@@ -77,17 +77,19 @@ static int net_ssl_read(con_t *c, uint8_t *buf, uint32_t bufn) {
         } else if (sslerr == SSL_ERROR_WANT_WRITE) {
             c->write_cb = net_ssl_read_cb;
             net_ev_set(c, EV_W);
-        } else if (sslerr == SSL_ERROR_ZERO_RETURN) {   ///peer send close_notify
-            sslc->f_closed = 1;
-            return -1;
-        } else if (sslerr == SSL_ERROR_SYSCALL) {
-            if (errno != 0) {
-                err("ssl syscall err. [%d]\n", errno);
-            }
-            sslc->f_err = 1;
-            return -1;
         }
         return -11;
+    }
+    
+    if (sslerr == SSL_ERROR_ZERO_RETURN) {   ///peer send close_notify
+        sslc->f_closed = 1;
+        return -1;
+    } else if (sslerr == SSL_ERROR_SYSCALL) {
+        if (errno != 0) {
+            err("ssl syscall err. [%d]\n", errno);
+        }
+        sslc->f_err = 1;
+        return -1;
     }
     sslc->f_err = 1;
     ssl_dump_error(sslerr);
@@ -167,7 +169,7 @@ static int net_ssl_shutdown_cb(con_t *c) {
         return -11;
     }
     
-    net_free(c);
+    net_free_thorough(c);
     return 0;
 }
 

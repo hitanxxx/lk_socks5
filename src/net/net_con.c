@@ -315,9 +315,7 @@ int net_listen(net_ev_cb cb, struct sockaddr_in *addr, uint8_t fssl) {
     return 0;
 }
 
-static void net_free_internal(void *data) {
-    con_t *c = data;
-
+void net_free_thorough(con_t *c) {
     if (c->timer) {
         ev_timer_del(c->timer);
         mem_pool_free(c->timer);
@@ -355,7 +353,7 @@ static void net_free_internal(void *data) {
 
 static void net_free_timeout_ssl_shutdown(ev_timer_t *timer) {
     con_t *c = ev_timer_userdata(timer);
-    net_free_internal(c);
+    net_free_thorough(c);
 }
 
 void net_free_timeout(ev_timer_t *timer) {
@@ -369,7 +367,7 @@ int net_free(con_t *c) {
 
     if (c->ssl) {
         if (c->ssl->f_closed) {
-            net_free_internal(c);
+            net_free_thorough(c);
             return 0;
         }
 
@@ -379,10 +377,10 @@ int net_free(con_t *c) {
             return -11;
         }
         
-        net_free_internal(c);
+        net_free_thorough(c);
         return 0;
     }
-    net_free_internal(c);
+    net_free_thorough(c);
     return 0;
 }
 
@@ -398,7 +396,7 @@ int net_alloc(con_t **c) {
         return 0;
     } while (0);
 
-    net_free_internal(new_con);
+    net_free_thorough(new_con);
     return -1;
 }
 
