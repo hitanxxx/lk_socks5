@@ -9,19 +9,22 @@ static int s5_cdown_recv(con_t *cdown) {
 
     meta_clr(meta);
     for (;;) {
-        if (meta_getfree(meta) > 0) {
-            int recvn = cdown->recv(cdown, meta->last, meta_getfree(meta));
-            if (recvn < 0) {
-                if (recvn == -11) {
-                    net_timer_add(cdown, tls_session_timeout, TLS_TMOUT);
-                    return -11;
-                }
-                err("s5. cdown wait cup connect. recv err.\n");
-                net_free(session->cup);
-                net_free(cdown);
-                return -1;
-            }
+        if (meta_getfree(meta)  == 0) {
+            return -11;
         }
+        
+        int recvn = cdown->recv(cdown, meta->last, meta_getfree(meta));
+        if (recvn < 0) {
+            if (recvn == -11) {
+                net_timer_add(cdown, tls_session_timeout, TLS_TMOUT);
+                return -11;
+            }
+            err("s5. cdown wait cup connect. recv err.\n");
+            net_free(session->cup);
+            net_free(cdown);
+            return -1;
+        }
+        meta->last += recvn;
     }
     return 0;
 }
