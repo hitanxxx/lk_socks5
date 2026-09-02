@@ -111,17 +111,20 @@ static int ev_epoll_loop(uint64_t ms) {
 
     for (int i = 0; i < all; i++) {
         ev_t *ev = g_event_ctx->epev[i].data.ptr;
-        ev->idxr = ev->idxw = 0;
+        uint32_t revents = g_event_ctx->epev[i].events;
         
-        if (ev->mask & EV_R) {
+        ev->idxr = ev->idxw = 0;
+        ev->fread = ev->fwrite  = 0;
+        
+        if (revents & (EPOLLIN | EPOLLRDHUP | EPOLLHUP | EPOLLERR)) {
+            ev->fread = 1;
             ev->idxr = g_event_ctx->ev_mapn++;
             if (ev->idxr < EV_MAP_MAX) g_event_ctx->ev_map[ev->idxr] = ev;
-            ev->fread = 1;
         }
-        if (ev->mask & EV_W) {
+        if (revents & (EPOLLOUT | EPOLLHUP | EPOLLERR)) {
+            ev->fwrite = 1;
             ev->idxw = g_event_ctx->ev_mapn++;
             if (ev->idxw < EV_MAP_MAX) g_event_ctx->ev_map[ev->idxw] = ev;
-            ev->fwrite = 1;
         }
     }
     return 0;
