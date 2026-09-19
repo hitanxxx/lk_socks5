@@ -4,11 +4,11 @@
 #define HEAP_RCHILD(index) ((index * 2) + 1)
 #define HEAP_PARENT(index) (index / 2)
 
-int heap_create(heap_t **heap, int size) {
+int heap_create(heap_t **heap, uint32_t size) {
     heap_t *nheap;
 
     /// heap index 0 is alwsys unused
-    int alloc_size = sizeof(heap_t) + (sizeof(heap_node_t *) * (size + 1));
+    int alloc_size = sizeof(heap_t) + (sizeof(heap_node_t *) * size);
     schk(nheap = (heap_t *)sys_alloc(alloc_size), return -1);
     nheap->space = size;
     nheap->index = 0;
@@ -25,7 +25,7 @@ int heap_free(heap_t *heap) {
 }
 
 int heap_add(heap_t *heap, heap_node_t *node) {
-    int i = 0;
+    uint32_t i = 0;
     /// out of space
     if (heap->index >= heap->space)
         return -1;
@@ -44,10 +44,10 @@ int heap_add(heap_t *heap, heap_node_t *node) {
     return 0;
 }
 
-int heap_del(heap_t *heap, int del_index) {
-    int i = 0;
+int heap_del(heap_t *heap, uint32_t del_index) {
+    uint32_t i = 0;
+    uint32_t child_min;
     heap_node_t *tail_node;
-    int child_min;
 
     if (heap_empty(heap))
         return -1;

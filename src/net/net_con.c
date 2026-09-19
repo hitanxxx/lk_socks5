@@ -7,9 +7,9 @@ static int net_io_recv_udp(con_t *c, uint8_t *buf, uint32_t bufn) {
     socklen_t socklen = sizeof(struct sockaddr);
     struct sockaddr_in addr = {0};
 
-    sassert(c != NULL);
-    sassert(buf != NULL);
-    sassert(bufn > 0);
+    schk(c != NULL, return -1);
+    schk(buf != NULL, return -1);
+    schk(bufn > 0, return -1);
 
     for (;;) {
         int recvd = recvfrom(c->fd, buf, bufn, 0, (struct sockaddr *)&addr, &socklen);
@@ -33,9 +33,9 @@ static int net_io_recv_udp(con_t *c, uint8_t *buf, uint32_t bufn) {
 static int net_io_send_udp(con_t *c, uint8_t *buf, uint32_t bufn) {
     socklen_t socklen = sizeof(struct sockaddr);
 
-    sassert(c != NULL);
-    sassert(buf != NULL);
-    sassert(bufn > 0);
+    schk(c != NULL, return -1);
+    schk(buf != NULL, return -1);
+    schk(bufn > 0, return -1);
 
     for (;;) {
         int sendn = sendto(c->fd, buf, bufn, 0, (struct sockaddr *)&c->addr, socklen);
@@ -54,9 +54,9 @@ static int net_io_send_udp(con_t *c, uint8_t *buf, uint32_t bufn) {
 
 static int net_io_recv(con_t *c, uint8_t *buf, uint32_t bufn) {
     int rc;
-    sassert(bufn > 0);
-    sassert(buf != NULL);
-    sassert(c != NULL);
+    schk(buf != NULL, return -1);
+    schk(c != NULL, return -1);
+    schk(bufn > 0, return -1);
 
     for (;;) {
         rc = recv(c->fd, buf, bufn, 0);
@@ -86,9 +86,9 @@ static int net_io_recv(con_t *c, uint8_t *buf, uint32_t bufn) {
 static int net_io_send(con_t *c, uint8_t *buf, uint32_t bufn) {
     int rc;
 
-    sassert(bufn > 0);
-    sassert(buf != NULL);
-    sassert(c != NULL);
+    schk(c != NULL, return -1);
+    schk(buf != NULL, return -1);
+    schk(bufn > 0, return -1);
 
     for (;;) {
         rc = send(c->fd, buf, bufn, 0);
@@ -107,8 +107,8 @@ static int net_io_send(con_t *c, uint8_t *buf, uint32_t bufn) {
 }
 
 static int net_io_send_chain(con_t *c, meta_t *head) {
-    sassert(c != NULL);
-    sassert(head != NULL);
+    schk(c != NULL, return -1);
+    schk(head != NULL, return -1);
 
     for (;;) {
         meta_t *n = head;
@@ -299,7 +299,7 @@ int net_listen(net_ev_cb cb, struct sockaddr_in *addr, uint8_t fssl) {
         schk(net_socket_fastopen(c->fd) == 0, break);
         schk(net_socket_nodelay(c->fd) == 0, break);
 
-        schk(0 == bind(c->fd, (struct sockaddr *)addr, sizeof(struct sockaddr)), break);
+        schk(0 == bind(c->fd, (struct sockaddr *)addr, sizeof(struct sockaddr_in)), break);
         schk(0 == listen(c->fd, SOMAXCONN), break);
 
         c->read_cb = net_accept;
@@ -322,10 +322,10 @@ void net_free_thorough(con_t *c) {
         c->timer = NULL;
     }
     
-    if (c->fd > 0) {
+    if (c->fd != -1) {
         if (c->ev) net_ev_set(c, EV_NONE);
         close(c->fd);
-        c->fd = 0;
+        c->fd = -1;
     }
 
     if (c->ev) {
@@ -388,7 +388,7 @@ int net_free(con_t *c) {
 int net_alloc(con_t **c) {
     con_t *new_con = mem_pool_alloc(sizeof(con_t));
     schk(new_con, return -1);
-
+    new_con->fd = -1;
     do {
         schk(0 == ev_alloc(&new_con->ev), break);
         new_con->ev->data = new_con;
@@ -459,6 +459,18 @@ ev_timer_t *ev_timer_alloc(net_timer_cb cb, void *data, uint64_t delay_ms) {
     ev_timer_t *timer = mem_pool_alloc(sizeof(ev_timer_t));
     schk(timer, return NULL);
 
+    schk(0 == ev_timer_add(timer, cb, data, delay_ms), {
+        mem_pool_free(timer);
+        return NULL;
+    })
+    return timer;
+}
+
+ev_timer_t *ev_timer_alloc_once(net_timer_cb cb, void *data, uint64_t delay_ms) {
+    ev_timer_t *timer = mem_pool_alloc(sizeof(ev_timer_t));
+    schk(timer, return NULL);
+
+    timer->f_once = 1;
     schk(0 == ev_timer_add(timer, cb, data, delay_ms), {
         mem_pool_free(timer);
         return NULL;

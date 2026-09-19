@@ -118,11 +118,13 @@ typedef struct {
 /// improve compile performance
 #define LIKELY(x) __builtin_expect(!!(x), 1)
 #define UNLIKELY(x) __builtin_expect(!!(x), 0)
-#define schk(x, actions)                                                       \
-    if (UNLIKELY(!(x))) {                                                      \
-        err("schk err -> \"" #x "\".\n");                                      \
-        actions;                                                               \
-    }
+#define schk(x, actions) \
+do {                                           \
+    if (UNLIKELY(!(x))) {                      \
+        err("schk err -> \"" #x "\".\n");      \
+        {actions;}                             \
+    }                                          \
+} while (0);                                      
 #define sassert(x) schk(x, abort())
 
 #define S5_OVER_TLS

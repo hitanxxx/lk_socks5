@@ -46,9 +46,14 @@ typedef struct {
     int s5_state;
     s5_ph1_req_t s5p1;
     s5_ph2_req_t s5p2;
+    meta_t *meta;
 } s5_t;
 
 int s5_p1_req(con_t *c);
+int s5_alloc(void **s5);
+int s5_free(void *s5);
+
+
 
 #ifdef __cpluscplus
 }

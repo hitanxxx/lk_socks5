@@ -113,18 +113,22 @@ static int ev_epoll_loop(uint64_t ms) {
         ev_t *ev = g_event_ctx->epev[i].data.ptr;
         uint32_t revents = g_event_ctx->epev[i].events;
         
-        ev->idxr = ev->idxw = 0;
+        ev->idxr = ev->idxw = -1;
         ev->fread = ev->fwrite  = 0;
         
         if (revents & (EPOLLIN | EPOLLRDHUP | EPOLLHUP | EPOLLERR)) {
             ev->fread = 1;
-            ev->idxr = g_event_ctx->ev_mapn++;
-            if (ev->idxr < EV_MAP_MAX) g_event_ctx->ev_map[ev->idxr] = ev;
+            if (g_event_ctx->ev_mapn < (EV_MAP_MAX - 1)) {
+                ev->idxr = g_event_ctx->ev_mapn++;
+                g_event_ctx->ev_map[ev->idxr] = ev;
+            }
         }
         if (revents & (EPOLLOUT | EPOLLHUP | EPOLLERR)) {
             ev->fwrite = 1;
-            ev->idxw = g_event_ctx->ev_mapn++;
-            if (ev->idxw < EV_MAP_MAX) g_event_ctx->ev_map[ev->idxw] = ev;
+            if (g_event_ctx->ev_mapn < (EV_MAP_MAX - 1)) {
+                ev->idxw = g_event_ctx->ev_mapn++;
+                g_event_ctx->ev_map[ev->idxw] = ev;
+            }
         }
     }
     return 0;
@@ -257,7 +261,7 @@ int ev_opt(ev_t *event, int fd, uint32_t new_mask) {
 }
 
 int ev_loop(void) {
-    if (g_event_ops.loop)   g_event_ops.loop(ev_timer_remaining());
+    if (g_event_ops.loop) g_event_ops.loop(ev_timer_remaining());
     systime_update();
     
     for (int i = 0; i < g_event_ctx->ev_mapn; i++) {
@@ -302,13 +306,13 @@ int ev_alloc(ev_t **ev) {
 
 int ev_free(ev_t *ev) {
     if (ev) {
-        if ((ev->idxr >= 0) && (ev->idxr < EV_MAP_MAX)) {
+        if ((ev->idxr != -1) && (ev->idxr < EV_MAP_MAX)) {
             g_event_ctx->ev_map[ev->idxr] = NULL;
-            ev->idxr = 0;
+            ev->idxr = -1;
         }
-        if ((ev->idxw >= 0) && (ev->idxw < EV_MAP_MAX)) {
+        if ((ev->idxw != -1) && (ev->idxw < EV_MAP_MAX)) {
             g_event_ctx->ev_map[ev->idxw] = NULL;
-            ev->idxw = 0;
+            ev->idxw = -1;
         }
         queue_remove(&ev->queue);
         g_event_ctx->evn --;

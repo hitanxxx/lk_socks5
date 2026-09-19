@@ -86,6 +86,7 @@ int net_timer_del(con_t *c);
 
 
 ev_timer_t *ev_timer_alloc(net_timer_cb cb, void *data, uint64_t delay_ms);
+ev_timer_t *ev_timer_alloc_once(net_timer_cb cb, void *data, uint64_t delay_ms);
 void ev_timer_free(ev_timer_t *timer);
 void *ev_timer_userdata(ev_timer_t *timer);
 

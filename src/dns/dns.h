@@ -44,27 +44,30 @@ typedef struct dns_record {
 
 typedef void (*dns_async_cb)(int status, uint8_t *res, void *data);
 typedef struct  {
-    uint16_t    req_id;
-    ev_timer_t  *req_timer;
-    char     query[DOMAIN_LENGTH]; /// stoege dns query host and convert qname
+    ev_timer_t  *   req_timer;
+    uint16_t        req_transaction_id;
+    uint32_t        req_qname_len;
+    char            req_query[DOMAIN_LENGTH];
+    uint32_t        req_query_len;
 
-    // private
-    uint32_t     qname_len;  /// question qnamelen, qname data storge in query
-    dns_record_t answer; /// dns answer
+    dns_record_t    rsp_answer;
+    uint8_t         rsp_result[16];
 
-    uint8_t result[16];
-    dns_async_cb cb;
-    void    *user_data;
+    dns_async_cb    user_cb;
+    void            *user_data;
+
+    uint8_t     finuse : 1;
+    uint8_t     freserver: 7;
 } dnsc_t;
 
 
-int dns_record_find(char *query, uint8_t *out_addr);
+int dns_resolve_free(dnsc_t *dns);
+int dns_resolve(char *domain, uint32_t domain_len, dns_async_cb user_cb, void *user_data, dnsc_t *dns);
 
-void dns_resolve_free(void *data);
-void *dns_resolve(char *domain, dns_async_cb cb, void *userdata);
 
 int dns_init(void);
 int dns_end(void);
+
 
 #ifdef __cplusplus
 }

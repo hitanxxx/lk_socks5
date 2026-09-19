@@ -43,12 +43,12 @@ int ev_timer_add(ev_timer_t *timer, net_timer_cb cb, void *data, uint64_t delay_
     if (timer->f_timeset)
         ev_timer_del(timer);
 
-    timer->delay_ms = delay_ms;
-    timer->node.key = (systime_msec() + delay_ms);
     timer->cb = cb;
     timer->user_data = data;
-    timer->f_timeset = 1;
+    timer->delay_ms = delay_ms;
+    timer->node.key = (systime_msec() + delay_ms);
     schk(0 == heap_add(g_heap, &timer->node), return -1);
+    timer->f_timeset = 1;
 
     if (timer == ev_timer_minimum()) {
         ev_wake();
@@ -88,7 +88,9 @@ int ev_timer_init(void) {
 }
 
 int ev_timer_exit(void) {
-    if (g_heap)
+    if (g_heap) {
         heap_free(g_heap);
+        g_heap = NULL;
+    }
     return 0;
 }

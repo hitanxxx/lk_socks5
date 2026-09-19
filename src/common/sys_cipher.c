@@ -24,7 +24,7 @@ int sys_genrand_16byte(char *outbuf) {
 
 int sys_aesgcm_enc(sys_cipher_t *ctx, unsigned char *in, int inn,
                    unsigned char *out, char *tag) {
-    sassert(ctx != NULL);
+    schk(ctx != NULL, return -1);
     int outl = 0;
     int len;
 
@@ -39,7 +39,7 @@ int sys_aesgcm_enc(sys_cipher_t *ctx, unsigned char *in, int inn,
 
 int sys_aesgcm_dec(sys_cipher_t *ctx, unsigned char *in, int inn,
                    unsigned char *out, char *tag) {
-    sassert(ctx != NULL);
+    schk(ctx != NULL, return -1);
     int outl = 0;
     int len = 0;
 
@@ -116,8 +116,8 @@ int sys_aesgcm_ctx_exit(sys_cipher_t *ctx) {
 int aes_cfb_encrypt(unsigned char *in, int inlen, unsigned char *out) {
     int enc_len = 0, tmp_len = 0;
 
-    sassert(in != NULL);
-    sassert(out != NULL);
+    schk(in != NULL, return -1);
+    schk(out != NULL, return -1);
 
     if (inlen < 1) {
         return 0;
@@ -152,8 +152,8 @@ int aes_cfb_encrypt(unsigned char *in, int inlen, unsigned char *out) {
 int aes_cfb_decrypt(unsigned char *in, int inlen, unsigned char *out) {
     int dec_len = 0, tmp_len = 0;
 
-    sassert(in != NULL);
-    sassert(out != NULL);
+    schk(in != NULL, return -1);
+    schk(out != NULL, return -1);
 
     if (inlen < 1)
         return 0;

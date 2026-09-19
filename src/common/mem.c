@@ -95,7 +95,7 @@ int mem_pool_init(void) {
         } else if (i == 4) {
             obj_space = 8192;
         } else if (i == 5) {
-            obj_space = 16384;
+            obj_space = 16896;
         }
         g_mem_ctx.blks[i].pn = ((sizeof(mem_obj_t) + obj_space) * obj_n);
         schk(NULL != (g_mem_ctx.blks[i].p = malloc(g_mem_ctx.blks[i].pn)), return -1);
@@ -106,7 +106,6 @@ int mem_pool_init(void) {
         char *p = g_mem_ctx.blks[i].p;
         for (int j = 0; j < obj_n; j++) {
             mem_obj_t *obj = (mem_obj_t *)p;
-            obj->magic = MP_OBJ_MAGIC;
             obj->blk_idx = i;
             queue_insert_tail(&g_mem_ctx.blks[i].usable, &obj->queue);
             p += (sizeof(mem_obj_t) + obj_space);
@@ -120,6 +119,7 @@ int mem_pool_free(void *p) {
     schk(obj->magic == MP_OBJ_MAGIC, return -1);
     queue_remove(&obj->queue);
     queue_insert_tail(&g_mem_ctx.blks[obj->blk_idx].usable, &obj->queue);
+    obj->magic = 0;
     return 0;
 }
 
@@ -144,9 +144,9 @@ void *mem_pool_alloc(int size) {
     } else if (size > 4096 && size <= 8192) {
         blk_idx = 4;
         blk_size = 8192;
-    } else if (size > 8192 && size <= 16384) {
+    } else if (size > 8192 && size <= 16896) {
         blk_idx = 5;
-        blk_size = 16384;
+        blk_size = 16896;
     } else {
         err("alloc size [%d] too big. not support\n", size);
         return NULL;
@@ -158,6 +158,7 @@ void *mem_pool_alloc(int size) {
 
     queue_t *q = queue_head(&g_mem_ctx.blks[blk_idx].usable);
     mem_obj_t *obj = ptr_get_struct(q, mem_obj_t, queue);
+    obj->magic = MP_OBJ_MAGIC;
     queue_remove(&obj->queue);
     queue_insert_tail(&g_mem_ctx.blks[blk_idx].inuse, &obj->queue);
 

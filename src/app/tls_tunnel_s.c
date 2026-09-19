@@ -30,14 +30,11 @@ int tls_session_alloc(tls_tunnel_session_t **session) {
 void tls_session_release_by_cdown(void *data) {
     tls_tunnel_session_t *session = data;
 
-    if (session->adata) {
-        mem_pool_free(session->adata);
-        session->adata = NULL;
+    if (session->s5) {
+        s5_free(session->s5);
+        session->s5 = NULL;
     }
-    if (session->dns) {
-        dns_resolve_free(session->dns);
-        session->dns = NULL;
-    }
+    dns_resolve_free(&session->dns);
     mem_pool_free(session);
 }
 
@@ -378,8 +375,7 @@ static int tls_tunnel_s_auth_chk(con_t *cdown) {
                     if (0 == ezac_find(g_ses_ctx->ac, (char*)session->auth_data, session->auth_data_all)) {
                         net_timer_del(cdown);
 
-                        meta_clr(cdown->meta);
-
+                        cdown->meta->pos ++;
                         cdown->read_cb = s5_p1_req;
                         cdown->write_cb = NULL;
                         return cdown->read_cb(cdown);
@@ -418,14 +414,11 @@ int tls_tunnel_s_start(con_t *cdown) {
     cdown->free_user_data = tls_session_release_by_cdown;
     
 
-    session->atyp = 0; /// s5
-    if (session->atyp == 0) {
-        session->adata = mem_pool_alloc(sizeof(s5_t));
-        if (!session->adata) {
-            err("tls tunnel. alloc s5 err\n");
-            net_free(cdown);
-            return -1;
-        }
+    /// s5
+    if (0 != s5_alloc(&session->s5)) {
+        err("tls tunnel. alloc s5 err\n");
+        net_free(cdown);
+        return -1;
     }
 
     cdown->read_cb = tls_tunnel_s_auth_chk;
@@ -474,7 +467,7 @@ static int tls_tunnel_s_auth_mgr_fparse(char *data) {
         for (int i = 0; i < cJSON_GetArraySize(root); i++) {
             cJSON *arrobj = cJSON_GetArrayItem(root, i);
             if (0 != ezac_add(g_ses_ctx->ac, cJSON_GetStringValue(arrobj), strlen(cJSON_GetStringValue(arrobj)))) {
-                err("tls tunnel. srv auth add into ac err\n", cJSON_GetStringValue(arrobj));
+                err("tls tunnel. srv auth add into ac err\n");
             }
         }
         cJSON_Delete(root);

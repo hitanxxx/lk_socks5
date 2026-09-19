@@ -6,7 +6,7 @@ extern "C" {
 #endif
 
 #define TLS_TMOUT 12 * 1000
-#define TLS_METAN (4096 * 3)
+#define TLS_METAN (4096 * 4)
 
 /// @brief MG1(1byte) + MG2(1byte) + DATA LEN(1byte) + DATA
 #define TLS_AUTH_MG1 0xae
@@ -21,12 +21,11 @@ typedef struct {
     uint8_t     auth_state; /// auth state
     
     ///tunnel use protocol
-    int atyp;
-    void *adata;
+    void   *s5;
 
     con_t *cdown;
     con_t *cup;
-    void *dns;
+    dnsc_t dns;
 
     uint8_t frecv_err_down : 1;
     uint8_t frecv_err_up : 1;

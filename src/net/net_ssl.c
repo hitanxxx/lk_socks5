@@ -316,7 +316,8 @@ static int net_ssl_create_con(SSL_CTX *ctx, int flag, SSL **ssl) {
 static int net_ssl_create_ctx(SSL_CTX **ctx, int flag) {
     if (flag == L_SSL_CLIENT) {
         if (!g_ssl_ctx->ctx_client) {
-            schk(g_ssl_ctx->ctx_client = SSL_CTX_new(TLS_client_method()), return -1);
+            g_ssl_ctx->ctx_client = SSL_CTX_new(TLS_client_method());
+            schk(g_ssl_ctx->ctx_client, return -1);
             SSL_CTX_set_mode(g_ssl_ctx->ctx_client, SSL_MODE_AUTO_RETRY);
             SSL_CTX_set_mode(g_ssl_ctx->ctx_client, SSL_MODE_ENABLE_PARTIAL_WRITE);
             SSL_CTX_set_mode(g_ssl_ctx->ctx_client, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
@@ -334,7 +335,8 @@ static int net_ssl_create_ctx(SSL_CTX **ctx, int flag) {
         if (!g_ssl_ctx->ctx_server) {
             int ret = -1;
             do {
-                schk(g_ssl_ctx->ctx_server = SSL_CTX_new(TLS_server_method()), return -1);
+                g_ssl_ctx->ctx_server = SSL_CTX_new(TLS_server_method());
+                schk(g_ssl_ctx->ctx_server, return -1);
                 SSL_CTX_set_mode(g_ssl_ctx->ctx_server, SSL_MODE_AUTO_RETRY);
                 SSL_CTX_set_mode(g_ssl_ctx->ctx_server, SSL_MODE_ENABLE_PARTIAL_WRITE);
                 SSL_CTX_set_mode(g_ssl_ctx->ctx_server, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
